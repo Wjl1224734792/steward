@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "name": "dev-team",
+  "displayName": "软件开发团队 Dev Team",
+  "version": "1.1.0",
+  "description": "角色化软件开发团队：主代理作为技术负责人接收并拆解需求，按任务依赖与文件所有权串行/并行派发 PM、架构师、前后端工程师、QA、浏览器验收员、代码评审员等子智能体，全流程交付并贴真实测试输出；可选以 GenUI 视图呈现任务 DAG 与质量门缺陷看板。A role-based software development team: the lead agent decomposes a requirement and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents in dependency-aware serial-parallel stages, with optional GenUI views of the task DAG and the QA/review defect triage.",
+  "author": "Lin",
+  "icon": "icon.png",
+  "darkIcon": "icon-dark.png",
+  "category": "Code",
+  "exampleQueries": [
+    "用开发团队完成：给 tmp/demo 写一个金额汇总脚本，带单测并跑绿",
+    "启动开发团队，帮我实现一个用户登录功能并做浏览器验收",
+    "开发团队接手这个需求：给后台加一个导出 CSV 的按钮",
+    "用软件开发团队完成：把登录页改成支持验证码并补齐单测",
+    "用开发团队做完这个需求后，给我一张任务 DAG 图和缺陷看板"
+  ],
+  "apps": [],
+  "mcpServers": [],
+  "skills": [
+    "skills/dev-team/SKILL.md",
+    "skills/dev-team-visualizer/SKILL.md"
+  ],
+  "agents": [
+    "agents/pm.md",
+    "agents/architect.md",
+    "agents/backend-dev.md",
+    "agents/frontend-dev.md",
+    "agents/qa-engineer.md",
+    "agents/browser-tester.md",
+    "agents/reviewer.md"
+  ],
+  "hooks": [
+    "hooks/hooks.json"
+  ]
+}

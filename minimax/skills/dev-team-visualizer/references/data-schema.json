@@ -1,0 +1,96 @@
+{
+  "$comment": "dev-team 业务产出的可视化数据契约。Visualizer 只消费已落盘的业务结果，不自行取数、不推算缺失指标。",
+  "datasets": {
+    "dag": {
+      "source": "tmp/dev-team/<run-id>/03-plan.md 的「3. 任务表（DAG）」节",
+      "provenance": "architect 子代理产出，经 Tech Lead 核对落盘；文件所有权与依赖以 03-plan.md 为准",
+      "shape": {
+        "runId": "1028-1530-demo",
+        "level": "L",
+        "tasks": [
+          {
+            "id": "T1",
+            "title": "登录接口与会话签发",
+            "owner": "backend-dev",
+            "deps": [],
+            "files": ["src/modules/auth/session.ts", "src/modules/auth/session.test.ts"],
+            "criteria": "会话签发与校验的单元测试通过",
+            "status": "done"
+          },
+          {
+            "id": "T2",
+            "title": "登录页表单与三语文案",
+            "owner": "frontend-dev",
+            "deps": ["T1"],
+            "files": ["src/pages/login/LoginForm.tsx", "src/i18n/login.ts"],
+            "criteria": "登录页渲染成功且无缺失词条",
+            "status": "running"
+          }
+        ],
+        "batches": [
+          { "index": 1, "taskIds": ["T1", "T3"], "reason": "无依赖，文件集不相交" }
+        ],
+        "conflicts": [
+          { "a": "T2", "b": "T5", "files": ["src/router/index.ts"] }
+        ]
+      },
+      "fieldRules": {
+        "id": "任务ID，必填，全局唯一，与 03-plan.md 任务表一致",
+        "title": "任务内容一句话，必填，超过 14 个字符时由 Visualizer 截断并加省略号",
+        "owner": "负责人角色名，必填，取值 backend-dev | frontend-dev | qa-engineer | architect | pm",
+        "deps": "上游任务ID数组，无上游写空数组",
+        "files": "该任务独占的文件所有权列表，必填，空数组表示共享文件需另行拆分",
+        "criteria": "可判定的完成标准，必填",
+        "status": "pending | running | done | blocked，缺省按 pending 处理",
+        "batches": "并行批次分组；缺省由 deps 推导（无上游的任务为第 1 批）",
+        "conflicts": "文件所有权冲突对；缺省由 files 求交集推导"
+      },
+      "nullPolicy": "tasks 缺失或为空 → 空态，不渲染空图；单个任务缺 fields 时该字段按缺省值渲染并计入错误提示"
+    },
+    "findings": {
+      "source": "tmp/dev-team/<run-id>/reports/ 下的 qa.md、browser.md、review.md",
+      "provenance": "qa-engineer / browser-tester / reviewer 子代理产出，经 Tech Lead 核对落盘；严重度与归属以各报告原文为准",
+      "shape": {
+        "runId": "1028-1530-demo",
+        "gates": [
+          { "check": "pnpm test", "stage": "qa", "result": "fail", "summary": "12 passed / 2 failed" }
+        ],
+        "rounds": { "qa": 1, "browser": 1, "review": 0 },
+        "findings": [
+          {
+            "id": "F1",
+            "stage": "qa",
+            "severity": "blocking",
+            "location": "src/modules/auth/session.ts:42",
+            "summary": "会话过期后仍可继续调用受保护接口",
+            "owner": "backend-dev",
+            "repro": "pnpm test src/modules/auth/session.test.ts",
+            "status": "open"
+          }
+        ]
+      },
+      "fieldRules": {
+        "id": "发现编号，必填，全局唯一",
+        "stage": "来源阶段，必填，取值 qa | browser | review",
+        "severity": "严重度，必填，取值 blocking | non-blocking | suggestion",
+        "location": "文件:行 或 复现入口，必填",
+        "summary": "一句话问题描述，必填",
+        "owner": "归属角色，必填，用于回派",
+        "repro": "复现命令或操作步骤，必填",
+        "status": "open | rerouted | fixed | waived，缺省按 open 处理"
+      },
+      "nullPolicy": "findings 缺失或为空 → 空态（无门禁发现）；单个发现缺字段时保留行并标为待补全，不静默丢弃"
+    }
+  },
+  "derivedValues": {
+    "taskDepth": "depth(T) = 0 若 deps 为空，否则 1 + max(depth(dep))；DAG 最长路径即 max(depth)",
+    "batchIndex": "未提供 batches 时按拓扑层计算，层内互为并行批次",
+    "conflictPairs": "未提供 conflicts 时，对任意两个任务求 files 交集，交集非空即为冲突",
+    "severityRank": "blocking(0) < non-blocking(1) < suggestion(2)，用于排序；计数按 stage 分组"
+  },
+  "units": {
+    "files": "个（文件数）",
+    "depth": "层（依赖层数）",
+    "rounds": "轮（修复循环轮次，上限 2）"
+  }
+}
