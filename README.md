@@ -1,51 +1,55 @@
-# dev-team · 软件开发团队（ZCode 插件）
+# dev-team · 软件开发团队（多宿主插件仓库）
 
-一个角色化的软件开发团队插件：主对话代理担任 **Tech Lead**，接收软件需求后拆解成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体，全流程交付并贴真实测试输出。
+角色化软件开发团队：主对话代理担任 **Tech Lead**，接收软件需求后拆解成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体，全流程交付并贴真实测试输出。
 
-## 团队名册（7 角色 + 外援）
+同一套团队名册、六阶段流程与调度铁律，分别提供两个宿主的插件包：
 
-| 角色 | 派发名 | 职责 |
-|---|---|---|
-| 需求分析师 | `dev-team:pm` | 模糊需求 → 可测规格（02-spec.md） |
-| 方案设计师 | `dev-team:architect` | 规格 → 技术方案 + 任务 DAG（文件所有权 / 依赖） |
-| 后端工程师 | `dev-team:backend-dev` | 按任务单 TDD 实施，只动白名单文件 |
-| 前端工程师 | `dev-team:frontend-dev` | 实施 UI + 产出浏览器验收脚本 |
-| 测试工程师 | `dev-team:qa-engineer` | 测试 / lint / typecheck 质量门，回派产品缺陷 |
-| 浏览器验收员 | `dev-team:browser-tester` | 真实浏览器 GUI 黑盒验收，逐条判定 + 证据 |
-| 代码评审员 | `dev-team:reviewer` | 交付前终审 diff，blocking / non-blocking / suggestion |
-| （外援）Explore | 内置 `Explore` | L 级需求开工前的仓库勘察（00-context.md 共享地图） |
+| 宿主 | 目录 | 插件清单 | 版本 | 说明 |
+|---|---|---|---|---|
+| ZCode | [`zcode/`](zcode/) | `.zcode-plugin/plugin.json` | 0.4.2 | 斜杠命令 `/dev-team`，Agent 工具调度 |
+| MiniMax | [`minimax/`](minimax/) | `.minimax-plugin/plugin.json` | 1.1.0 | `UserPromptSubmit` Hook 触发，`task` 工具调度，附可选 GenUI 可视化 |
 
-## 核心机制
+两个版本各自独立、自包含，可分别安装；改动其中一版不影响另一版。
 
-- **六阶段流程**：受理定级（S/M/L）→（勘察）→ 方案 → 实施 → QA 质量门 → 浏览器验收 → 终审汇报。
-- **串行/并行调度**：派发单位是任务不是角色名额，同类角色可多实例；并行条件 = 无依赖 且 文件所有权不相交；并行批撞并发上限自动回退串行（结果等价）。
-- **检索工具栈**：全员继承宿主 tavily（搜索/深度研究）与 Context7（库文档查证，防凭记忆臆造 API），缺省退回 WebSearch。
-- **工件交接**：`tmp/dev-team/<run-id>/` 下 00-context / 01-requirement / 02-spec / 03-plan / reports / final-report。
-- **修复回派**：QA / 浏览器 / 评审发现的缺陷按归属回派原开发，循环上限 2 轮。
+## 目录结构
 
-## 安装（本地目录方式）
+```text
+dev-team/
+├── zcode/                     # ZCode 插件包（安装单元）
+│   ├── .zcode-plugin/plugin.json
+│   ├── agents/*.md            # 7 角色子代理
+│   ├── commands/dev-team.md   # /dev-team 斜杠命令
+│   ├── skills/dev-team/SKILL.md
+│   ├── README.md              # ZCode 版说明与安装步骤
+│   └── LICENSE
+├── minimax/                   # MiniMax 插件包（安装单元）
+│   ├── .minimax-plugin/plugin.json
+│   ├── agents/ · hooks/ · scripts/ · skills/
+│   ├── README.md              # MiniMax 版说明与安装步骤
+│   └── LICENSE
+└── README.md                  # 本文件：仓库总览
+```
 
-1. 克隆本仓库到任意目录，例如 `E:\plugins\dev-team`。
-2. 在**同级目录**建 `marketplace.json`（示例）：
+## 安装
 
-   ```json
-   {
-     "name": "my-local-plugins",
-     "plugins": [
-       {
-         "name": "dev-team",
-         "source": "./dev-team",
-         "version": "0.4.0",
-         "displayName": "软件开发团队 Dev Team",
-         "category": "developer-tools"
-       }
-     ]
-   }
-   ```
+- **ZCode 版**：见 [zcode/README.md](zcode/README.md)。本地插件市场的 `source` 指向本仓库的 `zcode/` 子目录：
 
-3. ZCode → 插件市场 → 添加 → 添加插件市场，粘贴 `marketplace.json` 所在目录。
-4. 个人 → 你的市场名 → 软件开发团队 Dev Team → 安装。
-5. 新建任务试用：「用软件开发团队完成：<需求描述>」或 `/dev-team <需求描述>`。
+  ```json
+  {
+    "name": "my-local-plugins",
+    "plugins": [
+      {
+        "name": "dev-team",
+        "source": "./dev-team/zcode",
+        "version": "0.4.2",
+        "displayName": "软件开发团队 Dev Team",
+        "category": "developer-tools"
+      }
+    ]
+  }
+  ```
+
+- **MiniMax 版**：见 [minimax/README.md](minimax/README.md)。
 
 ## 使用
 
@@ -53,4 +57,4 @@
 /dev-team 给 tmp/demo 写一个金额汇总脚本，带单测并跑绿
 ```
 
-版本：0.4.0 · 许可：MIT
+许可：MIT
