@@ -1,15 +1,15 @@
 ---
-name: dev-team-visualizer
-description: "把 dev-team 开发团队流程的结构化产物渲染成可视化结果：任务 DAG 与并行批次视图（方案阶段的 03-plan.md 任务表 → 依赖链、最长路径、文件所有权冲突、并行批次），以及质量门与缺陷回派看板（QA / 浏览器验收 / 终审报告 → 阻断项、待回派、已修复与按严重度排序的缺陷明细）。当用户要看清任务调度顺序、并行分组、文件冲突，或要一眼看清当前还有多少必须修的缺陷、分别归属谁时使用。Renders the dev-team plugin's structured outputs as mavis.widget.v1 visualizations — the task DAG with parallel batches, and the QA/review defect triage dashboard."
+name: steward-visualizer
+description: "把 Steward 研发团队流程的结构化产物渲染成可视化结果：任务 DAG 与并行批次视图（方案阶段的 03-plan.md 任务表 → 依赖链、最长路径、文件所有权冲突、并行批次），以及质量门与缺陷回派看板（QA / 浏览器验收 / 终审报告 → 阻断项、待回派、已修复与按严重度排序的缺陷明细）。当用户要看清任务调度顺序、并行分组、文件冲突，或要一眼看清当前还有多少必须修的缺陷、分别归属谁时使用。Renders the Steward plugin's structured outputs as mavis.widget.v1 visualizations — the task DAG with parallel batches, and the QA/review defect triage dashboard."
 ---
 
-# dev-team 可视化（Tech Lead 视觉化层）
+# Steward 可视化（Tech Lead 视觉化层）
 
-本技能是 `dev-team` 业务流的**可选呈现层**。业务流本身不依赖它：没有 GenUI 也能完整跑完并交付。任务 DAG 与缺陷清单在任何情况下都必须先以文字形式成立，本技能只负责把它们变成**更容易看懂的视图**。
+本技能是 Steward 业务流的**可选呈现层**。业务流本身不依赖它：没有 GenUI 也能完整跑完并交付。任务 DAG 与缺陷清单在任何情况下都必须先以文字形式成立，本技能只负责把它们变成**更容易看懂的视图**。
 
 ## 你要做什么
 
-1. **先拿到业务结果**：读 `tmp/dev-team/<run-id>/03-plan.md` 或 `reports/*.md`，按 `references/data-schema.json` 的契约整理成结构化数据。Visualizer **不取数、不重跑业务调用、不补造缺失行**——它只是把已经落盘的结果换个形状。
+1. **先拿到业务结果**：读 `tmp/steward/<run-id>/03-plan.md` 或 `reports/*.md`，按 `references/data-schema.json` 的契约整理成结构化数据。Visualizer **不取数、不重跑业务调用、不补造缺失行**——它只是把已经落盘的结果换个形状。
 2. **再读基座**：读本技能内的 `references/genui-widget/SKILL.md`，以及它链接的 `references/color-system.md`、`references/visual-rules.md`、`references/widget-patterns.md`、`references/widget-recipes.md`。这是一份完整的独立副本，规则不可放宽。
 3. **选配方**：见下节。
 4. **输出**：默认**只输出一个** `<mavis-widget>`，且它必须是最后一条助手消息——之后不得再调任何工具。需要一句解释就放在同一条消息里。

@@ -1,8 +1,8 @@
 {
-  "$comment": "dev-team 业务产出的可视化数据契约。Visualizer 只消费已落盘的业务结果，不自行取数、不推算缺失指标。",
+  "$comment": "Steward 业务产出的可视化数据契约。Visualizer 只消费已落盘的业务结果，不自行取数、不推算缺失指标。",
   "datasets": {
     "dag": {
-      "source": "tmp/dev-team/<run-id>/03-plan.md 的「3. 任务表（DAG）」节",
+      "source": "tmp/steward/<run-id>/03-plan.md 的「3. 任务表（DAG）」节",
       "provenance": "architect 子代理产出，经 Tech Lead 核对落盘；文件所有权与依赖以 03-plan.md 为准",
       "shape": {
         "runId": "1028-1530-demo",
@@ -48,7 +48,7 @@
       "nullPolicy": "tasks 缺失或为空 → 空态，不渲染空图；单个任务缺 fields 时该字段按缺省值渲染并计入错误提示"
     },
     "findings": {
-      "source": "tmp/dev-team/<run-id>/reports/ 下的 qa.md、browser.md、review.md",
+      "source": "tmp/steward/<run-id>/reports/ 下的 qa.md、browser.md、review.md",
       "provenance": "qa-engineer / browser-tester / reviewer 子代理产出，经 Tech Lead 核对落盘；严重度与归属以各报告原文为准",
       "shape": {
         "runId": "1028-1530-demo",

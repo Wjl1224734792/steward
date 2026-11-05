@@ -1,6 +1,6 @@
-# dev-team Visualizer 示例
+# Steward Visualizer 示例
 
-两个配方各一个完整示例。示例数据是**代表性的开发团队产物**（虚构仓库与文件），不含任何真实凭据、绝对路径或生产密钥。实际使用时把 `<mavis-data>` 换成从 `03-plan.md` / `reports/*.md` 解析出的同构数据。
+两个配方各一个完整示例。示例数据是**代表性的研发团队产物**（虚构仓库与文件），不含任何真实凭据、绝对路径或生产密钥。实际使用时把 `<mavis-data>` 换成从 `03-plan.md` / `reports/*.md` 解析出的同构数据。
 
 ---
 
@@ -20,7 +20,7 @@
   capabilities="resize,sendPrompt"
   theme="app"
   token-set="mavis.semantic.v1">
-  <mavis-meta type="json">{"summary":"5 个任务的依赖链共 3 个批次，其中第 2 批存在文件所有权冲突无法并行。","dataSource":"dev-team 工件 03-plan.md 的任务表（DAG）节","chartType":"table","datasetShape":{"rows":6,"dimensions":["taskId","owner","batch","status"],"measures":["fileCount"]},"interactions":[{"id":"expand-task","label":"展开派单","capability":"sendPrompt"},{"id":"resolve-conflict","label":"重新规划冲突批次","capability":"sendPrompt"}]}</mavis-meta>
+  <mavis-meta type="json">{"summary":"5 个任务的依赖链共 3 个批次，其中第 2 批存在文件所有权冲突无法并行。","dataSource":"Steward 工件 03-plan.md 的任务表（DAG）节","chartType":"table","datasetShape":{"rows":6,"dimensions":["taskId","owner","batch","status"],"measures":["fileCount"]},"interactions":[{"id":"expand-task","label":"展开派单","capability":"sendPrompt"},{"id":"resolve-conflict","label":"重新规划冲突批次","capability":"sendPrompt"}]}</mavis-meta>
   <mavis-style>
 body{margin:0;padding:16px;background:var(--mw-bg);color:var(--mw-text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;}
 .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;}
@@ -324,7 +324,7 @@ body{margin:0;padding:16px;background:var(--mw-bg);color:var(--mw-text);font-fam
   capabilities="resize,sendPrompt"
   theme="app"
   token-set="mavis.semantic.v1">
-  <mavis-meta type="json">{"summary":"QA、浏览器验收与终审共 4 条发现，其中 2 条 blocking 尚未修复，修复循环已用 1 轮（上限 2）。","dataSource":"dev-team 工件 reports/qa.md、reports/browser.md、reports/review.md","chartType":"table","datasetShape":{"rows":4,"dimensions":["findingId","stage","severity","owner","status"],"measures":["count"]},"interactions":[{"id":"reroute-finding","label":"按归属回派","capability":"sendPrompt"},{"id":"batch-reroute","label":"汇总回派建议","capability":"sendPrompt"}]}</mavis-meta>
+  <mavis-meta type="json">{"summary":"QA、浏览器验收与终审共 4 条发现，其中 2 条 blocking 尚未修复，修复循环已用 1 轮（上限 2）。","dataSource":"Steward 工件 reports/qa.md、reports/browser.md、reports/review.md","chartType":"table","datasetShape":{"rows":4,"dimensions":["findingId","stage","severity","owner","status"],"measures":["count"]},"interactions":[{"id":"reroute-finding","label":"按归属回派","capability":"sendPrompt"},{"id":"batch-reroute","label":"汇总回派建议","capability":"sendPrompt"}]}</mavis-meta>
   <mavis-style>
 body{margin:0;padding:16px;background:var(--mw-bg);color:var(--mw-text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;}
 .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
