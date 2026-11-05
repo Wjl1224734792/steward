@@ -19,6 +19,20 @@ description: 软件开发团队调度手册（Tech Lead）。当用户提出一�
 | 浏览器验收员 | `dev-team:browser-tester` | 真实浏览器 GUI 黑盒验收 | 逐条判定 + 缺陷清单 |
 | 评审员 | `dev-team:reviewer` | 交付前终审 diff | 终审报告（三级意见） |
 
+### 模型分配（派单时显式带 `model` + `effort`）
+
+| 角色 | `model` | `effort` |
+|---|---|---|
+| `dev-team:pm` / `dev-team:architect` / `dev-team:qa-engineer` / `dev-team:reviewer` | `custom_provider:provider-7970db/step-5-preview` | `high` |
+| `dev-team:backend-dev` / `dev-team:frontend-dev` | `custom_provider:provider-f9b585/deepseek-v4.1-flash-1017` | `high` |
+| `dev-team:browser-tester` | `custom_provider:provider-f9b585/glm-5.3-flash` | `high` |
+
+- 这两个参数**必须成对传**：模型带 thinking 档位时只传 `model` 会直接失败（`... requires an explicit thinking effort: low, high, max`），不会自动取默认值。
+- 各 agent 的 frontmatter 里也写了同样的 `model`，那是声明式默认值；**换模型时两处一起改**，别只改一处。
+- 派单示例：
+  `task(agent_name="dev-team:architect", model="custom_provider:provider-7970db/step-5-preview", effort="high", description="...", prompt="...", run_in_background=false)`
+- 用户临时指定别的模型/档位时，以用户为准，覆盖上表。
+
 **外援（非本插件角色，按需派）**：内置 `explore` 代理（只读 fan-out 搜索，会定位代码但不深读）——L 级需求开工前的仓库勘察（Stage 0.5）。
 
 ### 派发方式（MiniMax 原生 `task` 工具）
@@ -77,7 +91,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 **Stage 3 质量门（串行）**：派 qa-engineer。QA 报告出「回派清单」→ 按缺陷归属回派对应 dev（附 QA 的复现命令与真实失败输出）→ 修完**必复跑 QA**。修复循环上限 **2 轮**，仍红则停，如实向用户报告卡点，不带病闯关。
 
-**Stage 4 浏览器验收（条件：有 UI 改动）**：你先确保服务已起（起不起得动是你的事，可查仓库 README/脚本，后台起并确认端口），把 URL + 前端报告里的「浏览器验收脚本」+ 凭据/前置状态交给 browser-tester。有缺陷 → 同 Stage 3 回派机制。纯后端需求跳过本阶段。
+**Stage 4 浏览器验收（条件：有 UI 改动）**：你先确保服务已起（起不起得动是你的事，可查仓库 README/脚本，后台起并确认端口），把 URL + 前端报告里的「浏览器验收脚本」+ 凭据/前置状态交给 browser-tester。有缺陷 → 同 Stage 3 回派机制。纯后端需求跳过本阶段。**注意 browser-tester 跑在纯文本模型（`glm-5.3-flash`）上**：它看不到截图内容，判定证据必须落在 DOM 文本、属性、URL、控制台/网络记录这类可读状态上；截图只是留档，不能当判定依据——派单时把这条写进去。
 
 **Stage 5 终审 + 汇报（串行）**：派 reviewer。blocking=0 才交付；有 blocking → 回派修复后**复审**（只复核 blocking 项）。最后写 final-report.md 并向用户汇报：做了什么 / 测试与浏览器验收的真实结论 / 偏差与遗留 / 未决事项。**汇报只贴真实输出**。
 
