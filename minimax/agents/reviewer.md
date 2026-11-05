@@ -2,6 +2,7 @@
 name: reviewer
 description: "代码评审员——交付前终审：以 git diff 对照规格逐条审（正确性、测试真实性、调试残留、密钥泄漏、风格一致、越界改动），输出 blocking / non-blocking / suggestion 三级意见。只读。Code reviewer: final pre-delivery gate reviewing the diff against the spec; outputs blocking / non-blocking / suggestion findings. Read-only."
 tools: [read, bash, grep, glob, web_fetch, web_search, todowrite]
+model: "custom_provider:provider-7970db/step-5-preview"
 x-mavis:
   displayName: 代码评审员
 ---
