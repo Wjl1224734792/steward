@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * dev-team · UserPromptSubmit 触发器
+ * Steward · UserPromptSubmit 触发器
  *
- * 作用：用户输入里出现「开发团队 / 开发小组 / dev-team」意图时，向主代理注入
- * 「加载 dev-team 技能并按 Tech Lead 手册执行」的上下文，等价于 zcode 版插件的
- * `/dev-team <需求>` 斜杠命令。
+ * 作用：用户输入里出现「开发团队 / 开发小组 / Steward」意图时，向主代理注入
+ * 「加载 Steward 技能并按 Tech Lead 手册执行」的上下文，等价于 zcode 版插件的
+ * `/steward <需求>` 斜杠命令。
  *
  * 契约：
  *  - 只在 UserPromptSubmit 事件生效；
@@ -13,15 +13,15 @@
  *  - 任何异常都 fail open（退出 0、无 stdout），绝不阻断用户输入。
  */
 
-const TRIGGERS = [/开发团队/, /开发小组/, /dev[\s_-]*team/i];
+const TRIGGERS = [/开发团队/, /开发小组/, /steward/i];
 
 const CONTEXT = [
-  '【开发团队模式已触发】用户本轮输入包含「开发团队」意图。',
-  '请加载 `dev-team:dev-team` 技能（软件开发团队 · Tech Lead 手册）并严格按其执行：',
+  '【Steward 模式已触发】用户本轮输入包含「开发团队」意图。',
+  '请加载 `steward:steward` 技能（Steward · Tech Lead 手册）并严格按其执行：',
   '受理与定级 →（需求模糊时 pm）→ architect 出任务 DAG → 按依赖与文件所有权串行/并行派发',
-  '`dev-team:*` 子智能体实施 → QA 质量门 →（有 UI 时）浏览器验收 → 评审员终审 → 汇报。',
+  '`steward:*` 子智能体实施 → QA 质量门 →（有 UI 时）浏览器验收 → 评审员终审 → 汇报。',
   '',
-  '若 `dev-team:*` 派发名不可用（插件未安装或被禁用），提示用户先安装 dev-team 插件。',
+  '若 `steward:*` 派发名不可用（插件未安装或被禁用），提示用户先安装 Steward 插件。',
   '若用户本轮意图明确不是要走开发团队流程，则忽略本提示，按常规处理即可。',
 ].join('\n');
 
