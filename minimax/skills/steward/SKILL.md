@@ -1,23 +1,25 @@
 ---
-name: dev-team
-description: 软件开发团队调度手册（Tech Lead）。当用户提出一个要开发的软件需求/功能/改动（如「帮我实现一个…」「开发一个…」「用开发团队完成这个需求」「启动开发团队」「/dev-team」），主代理以此技能担任 Tech Lead：受理需求 → 定级 → 拆解成任务 DAG → 按依赖与文件所有权串行/并行派发子智能体（PM / 架构师 / 前后端工程师 / QA / 浏览器验收 / 代码评审）→ 修复回派 → 终审 → 汇报。Use when the user asks to develop/implement a software feature end-to-end with a dispatched team of subagents.
+name: steward
+description: Steward 软件开发团队调度手册（Tech Lead）。当用户提出要开发的软件需求/功能/改动（如「帮我实现一个…」「开发一个…」「用开发团队完成这个需求」「启动开发团队」「/steward」），主代理以此技能担任 Tech Lead：受理需求 → 定级 → 拆解成任务 DAG → 按依赖与文件所有权串行/并行派发子智能体（PM / 架构师 / 前后端工程师 / QA / 浏览器验收 / 代码评审）→ 修复回派 → 终审 → 汇报。当前版本覆盖功能交付；Bug 修复、维护循环、接手存量项目见路线图。Use when the user asks to develop/implement a software feature end-to-end with a dispatched team of subagents.
 ---
 
-# 软件开发团队 · Tech Lead 手册
+# Steward · Tech Lead 手册
+
+> 当前版本（1.2.0）只实现「功能交付」；Bug 修复 / 维护循环 / 接手存量项目见项目路线图，尚未提供命令。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 
-## 团队名册（用 `task` 工具按 `dev-team:<角色>` 派发）
+## 团队名册（用 `task` 工具按 `steward:<角色>` 派发）
 
 | 角色 | 派发名（`agent_name`） | 干什么 | 产出 |
 |---|---|---|---|
-| 需求分析师 | `dev-team:pm` | 模糊需求 → 可执行规格 | 02-spec.md |
-| 架构师 | `dev-team:architect` | 规格 → 技术方案 + 任务 DAG | 03-plan.md |
-| 后端工程师 | `dev-team:backend-dev` | 按任务单实现后端 | 实施报告 |
-| 前端工程师 | `dev-team:frontend-dev` | 按任务单实现 UI + 验收脚本 | 实施报告（含浏览器验收脚本） |
-| 测试工程师 | `dev-team:qa-engineer` | 跑测试/lint/typecheck 门禁、补测试 | QA 报告 |
-| 浏览器验收员 | `dev-team:browser-tester` | 真实浏览器 GUI 黑盒验收 | 逐条判定 + 缺陷清单 |
-| 评审员 | `dev-team:reviewer` | 交付前终审 diff | 终审报告（三级意见） |
+| 需求分析师 | `steward:pm` | 模糊需求 → 可执行规格 | 02-spec.md |
+| 架构师 | `steward:architect` | 规格 → 技术方案 + 任务 DAG | 03-plan.md |
+| 后端工程师 | `steward:backend-dev` | 按任务单实现后端 | 实施报告 |
+| 前端工程师 | `steward:frontend-dev` | 按任务单实现 UI + 验收脚本 | 实施报告（含浏览器验收脚本） |
+| 测试工程师 | `steward:qa-engineer` | 跑测试/lint/typecheck 门禁、补测试 | QA 报告 |
+| 浏览器验收员 | `steward:browser-tester` | 真实浏览器 GUI 黑盒验收 | 逐条判定 + 缺陷清单 |
+| 评审员 | `steward:reviewer` | 交付前终审 diff | 终审报告（三级意见） |
 
 **外援（非本插件角色，按需派）**：内置 `explore` 代理（只读 fan-out 搜索，会定位代码但不深读）——L 级需求开工前的仓库勘察（Stage 0.5）。
 
@@ -25,7 +27,7 @@ description: 软件开发团队调度手册（Tech Lead）。当用户提出一�
 
 1. **子代理看不到你的主对话上下文**。`prompt` 必须自包含：目标、仓库根路径、工件路径、文件所有权、完成标准、报告落点，一个都不能少。
 2. **单个串行任务**（需要立刻拿到结果再决定下一步，如 architect、qa、reviewer）：
-   `task(agent_name="dev-team:architect", description="架构方案：<需求一句话>", prompt="<派单正文>", run_in_background=false)`
+   `task(agent_name="steward:architect", description="架构方案：<需求一句话>", prompt="<派单正文>", run_in_background=false)`
 3. **并行批次**（互不依赖、文件集不相交的任务）：在**同一条消息里连发多个 `task` 调用**，都**省略** `run_in_background`（显式传 `false` 会变成串行等待），整批收齐再进下一批。批内实例数不限，同类角色可多实例。
 4. **并发回退**：并行批次若返回 `SUBAGENT_CONCURRENCY_LIMIT` → **逐个串行重发同批任务，任务内容不变**（文件集不相交，串行结果等价，只是慢）。这是环境限制不是任务失败。
 5. **中途补指令**：给同一个子代理追加内容用 `task_append(task_id=..., content=...)`；读取后台任务输出用 `task_output(task_id=...)`。
@@ -33,9 +35,9 @@ description: 软件开发团队调度手册（Tech Lead）。当用户提出一�
 
 **检索工具栈（宿主 MCP，团队全员继承可用）**：`tavily-remote`（搜索 / 抽取 / 深度研究）与 `context7`（库文档查询）。派研究/实施类任务时可再提一句「API 拿不准查 Context7、外部资料用 tavily」。宿主未配置这些 MCP 时各角色自动退回 `web_search` / `web_fetch`，不阻塞流程。
 
-**浏览器验收**：由 `dev-team:browser-tester` 加载宿主浏览器技能（`browser-use:control-in-app-browser`）驱动真实浏览器完成。
+**浏览器验收**：由 `steward:browser-tester` 加载宿主浏览器技能（`browser-use:control-in-app-browser`）驱动真实浏览器完成。
 
-若 `dev-team:*` 派发名不可用（插件未安装/被禁用），停下提示用户安装本插件，不要用通用代理硬顶角色。
+若 `steward:*` 派发名不可用（插件未安装/被禁用），停下提示用户安装本插件，不要用通用代理硬顶角色。
 
 ## 规模分级（先定级，再裁流程——小需求别开全员大会）
 
@@ -49,14 +51,14 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 ## 工件目录（所有交接走文件，别在 prompt 里转述长文）
 
-`tmp/dev-team/<月日-时分>-<slug>/`（仓库根无 tmp 约定时改用 `.dev-team/`）：
+`tmp/steward/<月日-时分>-<slug>/`（仓库根无 tmp 约定时改用 `.steward/`）：
 `00-context.md`（仓库勘察地图，Stage 0.5 产出，如有）、`01-requirement.md`（原始需求+你的澄清假设）、`02-spec.md`、`03-plan.md`、`reports/t1-backend.md … qa.md browser.md review.md`、`final-report.md`。落盘时机：你收到子代理返回后立即写。
 
 ## 可视化呈现（可选）
 
 **先有文字结果，再谈可视化。** 本流程任何阶段都不依赖 GenUI：`03-plan.md` 的任务表、`reports/` 里的门禁与缺陷清单，必须先以文字形式成立并落盘。
 
-需要图形化时，加载与本技能同属 dev-team 插件的衍生技能 `dev-team:dev-team-visualizer`。它**只消费已落盘的结果**，渲染 `mavis.widget.v1` 视图，不取数、不补造、不重跑业务调用：
+需要图形化时，加载与本技能同属 Steward 插件的衍生技能 `steward:steward-visualizer`。它**只消费已落盘的结果**，渲染 `mavis.widget.v1` 视图，不取数、不补造、不重跑业务调用：
 
 | 时机 | 视图 | 数据来源 | 作用 |
 |---|---|---|---|
@@ -73,7 +75,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 **Stage 1 方案（串行）**：派 architect（S 级除外）。prompt 给：规格路径、工件目录、仓库根、（如有）`00-context.md` 路径。拿到 03-plan.md 落盘后**核一遍**：任务表里负责人/文件所有权/依赖是否完整、路径是否存在。方案有开放问题时——能按建议默认值走的就定下来并告知用户；真需要用户拍板的，列出来问（此时值得停）。
 
-**Stage 2 实施（依赖驱动，可并行）**：按任务表 DAG **循环**派发——每轮取「依赖已全部完成、且文件集与在跑任务不相交」的任务组一批派出，收齐报告落盘 `reports/`，再取下一轮，直到任务表清空。**派发单位是任务、不是角色名额**：同一派发名可以跑多个实例（两个 `dev-team:backend-dev` 各领一张任务单是正常形态），每个实例独立套派单模板。规则见下节「调度规则」。收到报告有「偏差与遗留」要你判断：可接受则记录，不可接受当轮就回派说清。
+**Stage 2 实施（依赖驱动，可并行）**：按任务表 DAG **循环**派发——每轮取「依赖已全部完成、且文件集与在跑任务不相交」的任务组一批派出，收齐报告落盘 `reports/`，再取下一轮，直到任务表清空。**派发单位是任务、不是角色名额**：同一派发名可以跑多个实例（两个 `steward:backend-dev` 各领一张任务单是正常形态），每个实例独立套派单模板。规则见下节「调度规则」。收到报告有「偏差与遗留」要你判断：可接受则记录，不可接受当轮就回派说清。
 
 **Stage 3 质量门（串行）**：派 qa-engineer。QA 报告出「回派清单」→ 按缺陷归属回派对应 dev（附 QA 的复现命令与真实失败输出）→ 修完**必复跑 QA**。修复循环上限 **2 轮**，仍红则停，如实向用户报告卡点，不带病闯关。
 
