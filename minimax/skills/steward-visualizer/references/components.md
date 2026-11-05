@@ -1,6 +1,6 @@
-# dev-team 组件配方
+# Steward 组件配方
 
-两个领域配方，均只消费 `dev-team` 业务流已落盘的结构化结果。数据契约见 `data-schema.json`，完整可运行示例见 `examples.md`。
+两个领域配方，均只消费 Steward 业务流已落盘的结构化结果。数据契约见 `data-schema.json`，完整可运行示例见 `examples.md`。
 
 通用约束（继承 `references/genui-widget/` 基座，不可放宽）：
 
