@@ -27,6 +27,9 @@ dev-team/
 │   ├── agents/ · hooks/ · scripts/ · skills/
 │   ├── README.md              # MiniMax 版说明与安装步骤
 │   └── LICENSE
+├── docs/                      # 路线图与设计文档
+│   ├── README.md              # 文档索引
+│   └── ROADMAP.md             # 2026 路线图
 └── README.md                  # 本文件：仓库总览
 ```
 
@@ -56,5 +59,11 @@ dev-team/
 ```text
 /dev-team 给 tmp/demo 写一个金额汇总脚本，带单测并跑绿
 ```
+
+## 路线图
+
+- [dev-team 路线图 2026：从「功能交付」到「长期维护」](docs/ROADMAP.md)
+  - 功能 / Bug 修复 / 维护 / 接手存量项目四条通道
+  - 项目记忆 T0–T3、影响面分析、独立验证、可选 worktree、浏览器 accessibility tree 证据
 
 许可：MIT
