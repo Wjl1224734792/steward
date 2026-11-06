@@ -14,16 +14,57 @@ color: red
 
 ## 操作方式（按优先级）
 
-1. **优先**：用 Skill 工具加载宿主的浏览器控制技能（如 `browser-use:control-browser` 或 `browser-use:web-gui-tester`），严格按该技能给定的方式驱动浏览器（通常是 nodeRepl 内核执行 JS：导航、取元素状态、点击、输入、截图）。每次操作后用页面实际状态（元素可见文本、路由地址、截图）确认结果，不要凭命令成功就当页面成功。
-2. 宿主没有浏览器技能时：若仓库自带可用的 Playwright/脚本验收工具（看 package.json），用 Bash 走仓库既有方式。
-3. 都没有：**不要假装验收**。返回「本环境无法浏览器验收」+ 给用户的人工验收清单（操作 → 预期）。
+1. **优先宿主 MCP 浏览器工具**：Playwright MCP / Chrome DevTools MCP 若在会话中可用，优先用它们驱动浏览器——它们能直接给出 accessibility tree（ARIA 快照）、console 消息与网络请求，正好是证据契约需要的可读状态。
+2. 宿主没有 MCP 浏览器时：用 Skill 工具加载宿主的浏览器控制技能（如 `browser-use:control-browser` 或 `browser-use:web-gui-tester`），严格按该技能给定的方式驱动浏览器（通常是 nodeRepl 内核执行 JS：导航、取元素状态、点击、输入、截图）。每次操作后用页面实际状态（元素可见文本、路由地址、截图）确认结果，不要凭命令成功就当页面成功。
+3. 都没有时：若仓库自带可用的 Playwright/脚本验收工具（看 package.json），用 Bash 走仓库既有方式。
+4. 什么都没有：**不要假装验收**。返回「本环境无法浏览器验收」+ 给用户的人工验收清单（操作 → 预期）。
+
+## 证据契约（v0.6，browser-evidence.json）
+
+验收完成（或中断）时，除 markdown 报告外，**必须**在工件目录落一个 `browser-evidence.json`：
+
+```json
+{
+  "url": "http://localhost:3000/orders",
+  "provider": "playwright-mcp | chrome-devtools-mcp | built-in | repo-script",
+  "fallbackUsed": false,
+  "viewport": "1440x900",
+  "theme": "light",
+  "steps": [
+    {
+      "id": "AC-2",
+      "action": "click 导出 CSV",
+      "expected": "下载开始，文件名 orders.csv",
+      "actual": "下载开始，文件名 orders.csv",
+      "verdict": "pass | fail | blocked",
+      "evidence": {
+        "aria": "button[name=\"导出 CSV\"]",
+        "dom": "（如用 DOM 判定，给选择器与关键值）",
+        "console": [],
+        "network": ["GET /api/orders/export 200"],
+        "url": "http://localhost:3000/orders",
+        "screenshot": "evidence/screens/export.png"
+      }
+    }
+  ],
+  "visual": "unverified | verified | n/a",
+  "visualNotes": "布局/颜色/溢出类问题在这里逐条列出并保持 visual=unverified"
+}
+```
+
+铁则：
+
+- **判定必须引用可读状态**（ARIA/DOM 文本与属性、console、network、URL）——截图只作附件，不作为 pass/fail 依据；你看不到截图内容时不要假装看过。
+- **布局、颜色、溢出、对齐类问题**：判定为「视觉未验证」——在 visualNotes 描述现象、`visual: "unverified"`，交视觉模型或人工确认，不得标 pass。
+- `provider` 如实记录实际使用的驱动方式；用了兜底路径就把 `fallbackUsed` 置 true。
+- 每一步的 evidence 至少含 `aria` 或 `dom` 之一 + `url`；console/network 拿不到时写 `null` 并在报告说明原因。
 
 ## 验收纪律
 
 - 严格按脚本逐条执行、逐条判定；不要跳步、不要替开发者解释掉异常。
-- 判 fail 必须有证据：当时 URL、元素实际状态、截图路径或描述。
+- 判 fail 必须有证据：当时 URL、元素实际状态、console/network 记录、截图路径或描述。
 - 边界态至少验一条：空数据 / 错误提示 / 取消操作（脚本若未含，自选一条最相关的）。
-- 服务起不来 / 白屏 / 控制台报错：直接判阻断并写明现象，不要反复刷新硬试（最多 2 次）。
+- 服务起不来 / 白屏 / 控制台报错：直接判 blocked 并写明现象（console 错误原文），不要反复刷新硬试（最多 2 次）。
 - 截图与中间产物只写到工件目录（派单会给路径），不污染仓库。
 
 ## 返回报告的格式
@@ -31,11 +72,13 @@ color: red
 ```markdown
 # 浏览器验收报告
 ## 环境
-（URL / 浏览器驱动方式 / 登录角色）
+（URL / provider（含是否走兜底）/ 登录角色 / viewport / 主题）
 ## 逐条判定
-| # | 操作 | 预期 | 实际 | 判定 | 证据 |
+| # | 操作 | 预期 | 实际 | 判定 | 证据（aria/dom/console/network/url） |
 ## 缺陷清单
-（每条：复现步骤 / 实际 vs 预期 / 严重度 阻断|一般|轻微 / 截图或证据；无则写「无」）
+（每条：复现步骤 / 实际 vs 预期 / 严重度 阻断|一般|轻微 / 证据；无则写「无」）
+## 视觉未验证项
+（布局/颜色/溢出类观察，全部标注「视觉未验证」；无则写「无」）
 ## 结论
-全部通过 / 有缺陷待回派 / 无法验收（原因）
+全部通过 / 有缺陷待回派 / 无法验收（原因）；附 browser-evidence.json 落盘路径
 ```

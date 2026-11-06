@@ -1,8 +1,8 @@
 # Steward · ZCode 插件
 
-角色化研发团队插件：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本覆盖功能交付；Bug 修复、维护循环、接手存量项目见 [路线图](../docs/ROADMAP.md)。
+角色化研发团队插件：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（0.7.0）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划与维护循环，并自带可信变更门禁；接手存量项目见 [路线图](../docs/ROADMAP.md)。
 
-> A role-based engineering team plugin for ZCode. The current release covers feature delivery; bug fixing, maintenance, and takeover are on the roadmap.
+> A role-based engineering team plugin for ZCode. Release 0.7.0 covers feature delivery, the B0–B3 bug track, plan-only mode, and the maintenance loop, with trusted-change gates built in; takeover is on the roadmap.
 
 ## 团队名册（7 角色 + 外援）
 
@@ -19,11 +19,20 @@
 
 ## 核心机制
 
-- **六阶段流程**：受理定级（S/M/L）→（勘察）→ 方案 → 实施 → QA 质量门 → 浏览器验收 → 终审汇报。
+- **六阶段流程 + 批准门**：受理定级（S/M/L）→（勘察）→ 方案（影响面 + 机读计划）→ 计划校验 + Plan Critic + 用户批准（M/L）→ 实施 → QA 质量门 → 浏览器验收 → 终审汇报。
 - **串行/并行调度**：派发单位是任务不是角色名额，同类角色可多实例；并行条件 = 无依赖 且 文件所有权不相交；并行批撞并发上限自动回退串行。
+- **可信变更门禁（scripts/，本地 Node 脚本，不做 CI）**：`validate-plan.mjs` 机检计划（路径/DAG 环/所有权/AC 覆盖/测试改动声明）；`verify.mjs` 独立复跑门禁并查 flaky；`baseline record/check` 回滚锚点 + 越界 diff 守卫 + 未声明测试 diff 拦截（反作弊）；`run-state.mjs` 断点恢复、同一错误连续 2 次即停；`take-over.mjs` 生成目标项目 AGENTS.md + docs/project/（T0/T1）初稿。
 - **检索工具栈**：全员继承宿主 tavily（搜索/深度研究）与 Context7（库文档查证），缺省退回 WebSearch。
-- **工件交接**：`tmp/steward/<run-id>/` 下 00-context / 01-requirement / 02-spec / 03-plan / reports / final-report。
+- **工件交接**：`tmp/steward/<run-id>/` 下 00-context / 01-requirement / 02-spec / 02-impact / 03-plan(.md/.json) / run.json / baseline.json / reports / final-report。
 - **修复回派**：QA / 浏览器 / 评审发现的缺陷按归属回派原开发，循环上限 2 轮。
+
+## 命令
+
+| 命令 | 说明 |
+|---|---|
+| `/steward <需求>` | 功能交付全流程（六阶段） |
+| `/steward fix <Bug 描述>` | Bug 通道：B0–B3 分流 → 复现 → 失败测试 → 根因 → 最小修复 → 回归 → 记录；B0/B1 先止损并写 postmortem |
+| `/steward plan <需求>` | 只出计划：方案 → 计划校验 → Plan Critic → 用户批准，不实施 |
 
 ## 安装（本地目录方式）
 
@@ -37,7 +46,7 @@
        {
          "name": "steward",
          "source": "./steward/zcode",
-         "version": "0.4.3",
+         "version": "0.7.0",
          "displayName": "Steward · 长期维护型研发团队",
          "category": "developer-tools"
        }
@@ -53,11 +62,13 @@
 
 ```text
 /steward 给 tmp/demo 写一个金额汇总脚本，带单测并跑绿
+/steward fix 三人分账时总金额少了 1 分
+/steward plan 给后台加一个导出 CSV 的按钮
 ```
 
 ## English
 
-Steward is a role-based engineering team plugin for ZCode. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. The current release covers feature delivery; bug fixing, maintenance, and takeover are on the roadmap.
+Steward is a role-based engineering team plugin for ZCode. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 0.7.0 covers feature delivery, the B0-B3 bug track (`/steward fix`), plan-only mode (`/steward plan` with an approval gate and clean-context Plan Critic), the maintenance loop (`maintain.mjs` eight-category scan), browser evidence contract, learning loop, and trusted-change gates (plan validation, independent verify reruns, baseline hash / out-of-bounds diff guard, resumable run state with retry budget).
 
 Roster: `steward:pm`, `steward:architect`, `steward:backend-dev`, `steward:frontend-dev`, `steward:qa-engineer`, `steward:browser-tester`, `steward:reviewer`.
 
@@ -65,6 +76,8 @@ Usage:
 
 ```text
 /steward Write a money-summary script in tmp/demo, with unit tests and a green run.
+/steward fix The 3-way bill split loses one cent.
+/steward plan Add an export-CSV button to the admin panel.
 ```
 
-Version: 0.4.3 · License: MIT
+Version: 0.7.0 · License: MIT

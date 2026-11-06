@@ -1,8 +1,8 @@
 # Steward · MiniMax 插件版
 
-角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本覆盖功能交付；Bug 修复、维护循环、接手存量项目见 [路线图](../docs/ROADMAP.md)。
+角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（1.5.0）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，并自带可信变更门禁与演进循环（T3 按需升级）；演进细节见 [路线图](../docs/ROADMAP.md)。
 
-本包是 ZCode 版 Steward（0.4.3）的 **MiniMax Plugin V1 移植版**，团队名册、六阶段流程、调度规则与铁律一致，差异只在宿主适配。v1.2.0 起使用 Steward 名称，并继续附带可选的 GenUI 可视化技能。
+本包是 ZCode 版 Steward（0.7.0）的 **MiniMax Plugin V1 移植版**，团队名册、六阶段流程、调度规则与铁律一致，差异只在宿主适配。v1.2.0 起使用 Steward 名称，并继续附带可选的 GenUI 可视化技能。
 
 ## 团队名册（7 角色 + 外援）
 
@@ -19,10 +19,12 @@
 
 ## 核心机制
 
-- **六阶段流程**：受理定级（S/M/L）→（勘察）→ 方案 → 实施 → QA 质量门 → 浏览器验收 → 终审汇报。
+- **六阶段流程 + 批准门**：受理定级（S/M/L）→（勘察）→ 方案（影响面 + 机读计划）→ 计划校验 + Plan Critic + 用户批准（M/L）→ 实施 → QA 质量门 → 浏览器验收 → 终审汇报。
 - **串行/并行调度**：派发单位是任务不是角色名额，同类角色可多实例；并行条件 = 无依赖 且 文件所有权不相交；并行批撞并发上限自动回退串行。
+- **可信变更门禁（scripts/，本地 Node 脚本，不做 CI）**：`validate-plan.mjs` 机检计划（路径/DAG 环/所有权/AC 覆盖/测试改动声明）；`verify.mjs` 独立复跑门禁并查 flaky；`baseline record/check` 回滚锚点 + 越界 diff 守卫 + 未声明测试 diff 拦截（反作弊）；`run-state.mjs` 断点恢复、同一错误连续 2 次即停；`take-over.mjs` 生成目标项目 AGENTS.md + docs/project/（T0/T1）初稿。
+- **Bug 通道**：输入描述 Bug（「修这个 Bug」「这个功能坏了」）即按 B0–B3 分流：B2/B3 走复现 → 失败测试 → 根因 → 最小修复 → 回归 → 记录；B0/B1 先止损并写 postmortem。
 - **检索工具栈**：全员继承宿主 `tavily-remote`（搜索/深度研究）与 `context7`（库文档查证），缺省退回 `web_search` / `web_fetch`。
-- **工件交接**：`tmp/steward/<run-id>/` 下 00-context / 01-requirement / 02-spec / 03-plan / reports / final-report。
+- **工件交接**：`tmp/steward/<run-id>/` 下 00-context / 01-requirement / 02-spec / 02-impact / 03-plan(.md/.json) / run.json / baseline.json / reports / final-report。
 - **修复回派**：QA / 浏览器 / 评审发现的缺陷按归属回派原开发，循环上限 2 轮。
 
 ## 技能
@@ -31,6 +33,9 @@
 |---|---|
 | `steward:steward` | Tech Lead 调度手册（完整文字流程，不依赖任何可视化） |
 | `steward:steward-visualizer` | 可选呈现层：把已落盘的任务表与门禁报告渲染成 `mavis.widget.v1` 视图 |
+| `steward:systematic-debugging` | 系统化调试纪律（复现 → 缩小 → 假设 → 验证 → 根因），Bug 任务按需加载 |
+| `steward:tdd` | TDD 纪律（红 → 绿 → 重构），实现类任务按需加载 |
+| `steward:verification-before-completion` | 完成前验证纪律（复跑 + 真实输出才可声称完成） |
 
 **可视化两个视图**（均为可选，业务流程不依赖它）：
 
@@ -73,6 +78,7 @@ minimax/
 ├── icon.png / icon-dark.png      # Code 类图标（明/暗）
 ├── hooks/hooks.json              # UserPromptSubmit 触发器
 ├── scripts/trigger.mjs           # 触发脚本（Node，fail open）
+├── scripts/*.mjs                 # 可信变更门禁脚本（validate-config / take-over / validate-plan / run-state / verify）与 templates/ 模板
 ├── skills/
 │   ├── steward/SKILL.md          # Tech Lead 调度手册
 │   └── steward-visualizer/       # 可选 GenUI 呈现层
@@ -98,10 +104,10 @@ MiniMax 会自动重扫本地插件，无需重启。改动后重新拷贝即可
 
 ## English
 
-Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. The current release covers feature delivery; bug fixing, maintenance, and takeover are on the roadmap.
+Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 1.5.0 covers feature delivery, the B0-B3 bug track, plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), the evolution loop (architecture drift / duplication / refactor-ratio checks, codemod planning), on-demand T3 docs, browser evidence contract, learning loop, and trusted-change gates with a retry budget.
 
 Skills: `steward:steward` (Tech Lead workflow) and `steward:steward-visualizer` (optional GenUI views).
 
 Trigger: the `UserPromptSubmit` hook loads the skill when the input contains "开发团队", "开发小组", or "Steward". Install by copying `minimax/` into `%USERPROFILE%\.minimax\plugins\steward\`.
 
-Version: 1.2.0 · License: MIT · Copyright (c) 2026 Lin
+Version: 1.5.0 · License: MIT · Copyright (c) 2026 Lin

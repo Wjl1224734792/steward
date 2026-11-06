@@ -80,6 +80,39 @@
         "status": "open | rerouted | fixed | waived，缺省按 open 处理"
       },
       "nullPolicy": "findings 缺失或为空 → 空态（无门禁发现）；单个发现缺字段时保留行并标为待补全，不静默丢弃"
+    },
+    "maintenance": {
+      "source": "tmp/steward/<run-id>/reports/maintenance-*.md 与 docs/project/HEALTH.md 的维护 backlog 节",
+      "provenance": "maintain.mjs 扫描产出（健康分与 findings），Tech Lead 挑选后落盘；不自行推算扫描结果",
+      "shape": {
+        "date": "2026-11-06",
+        "score": 13.0,
+        "categories": { "todo": 20, "duplication": 3, "docDrift": 2 },
+        "backlog": [
+          {
+            "id": "M1",
+            "category": "duplication",
+            "score": 8.0,
+            "title": "跨文件重复代码窗口（≥6 行）",
+            "evidence": "zcode/scripts/verify.mjs ↔ minimax/scripts/verify.mjs：312 个窗口",
+            "cost": 3,
+            "status": "open"
+          }
+        ]
+      },
+      "fieldRules": {
+        "date": "扫描日期，必填",
+        "score": "maintain.mjs 健康分（越低越好），必填",
+        "categories": "各类 findings 计数，可缺省",
+        "id": "backlog 编号，必填，全局唯一",
+        "category": "必填，取值 dependencies | security | duplication | churn | docDrift | architectureDrift | flaky | todo",
+        "score": "该项得分 = 权重 × 影响面 ÷ 成本，用于排序，必填",
+        "title": "一句话发现，必填",
+        "evidence": "证据（file:line / 命令 / 计数），必填",
+        "cost": "修复成本 1~3，必填",
+        "status": "open | fixed | deferred | escalated，缺省按 open 处理"
+      },
+      "nullPolicy": "backlog 缺失或为空 → 空态（健康分仍显示）；条目缺字段时保留行并标为待补全"
     }
   },
   "derivedValues": {

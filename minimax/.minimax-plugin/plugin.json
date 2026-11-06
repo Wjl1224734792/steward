@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "name": "steward",
   "displayName": "Steward · 长期维护型研发团队",
-  "version": "1.2.0",
-  "description": "Steward（长期维护型研发团队）：主代理作为 Tech Lead，按任务 DAG 与文件所有权派发 PM、架构师、前后端工程师、QA、浏览器验收员与代码评审员，当前覆盖功能交付；可选 GenUI 视图呈现任务 DAG 与缺陷看板。Bug 修复、维护循环、接手存量项目见路线图。A role-based engineering team plugin: the current release covers feature delivery, with optional GenUI views of the task DAG and defect triage; bug fixing, maintenance, and takeover are on the roadmap.",
+  "version": "1.5.0",
+  "description": "Steward（长期维护型研发团队）：主代理作为 Tech Lead，按任务 DAG 与文件所有权派发 PM、架构师、前后端工程师、QA、浏览器验收员与代码评审员。覆盖功能交付、Bug 通道（B0–B3 分流：复现 → 失败测试 → 根因 → 最小修复 → 回归）与只出计划模式（批准门 + Plan Critic），并自带可信变更门禁（计划校验、verify.mjs 独立复跑、基线 hash / 越界 diff 守卫）；可选 GenUI 视图呈现任务 DAG 与缺陷看板。维护循环与接手存量项目见路线图。A role-based engineering team plugin covering feature delivery, the B0-B3 bug track, plan-only mode with an approval gate, and trusted-change gates (plan validation, independent verify reruns, baseline hash / out-of-bounds diff guard), with optional GenUI views; maintenance loop and takeover are on the roadmap.",
   "author": "Lin",
   "icon": "icon.png",
   "darkIcon": "icon-dark.png",
@@ -19,7 +19,10 @@
   "mcpServers": [],
   "skills": [
     "skills/steward/SKILL.md",
-    "skills/steward-visualizer/SKILL.md"
+    "skills/steward-visualizer/SKILL.md",
+    "skills/systematic-debugging/SKILL.md",
+    "skills/tdd/SKILL.md",
+    "skills/verification-before-completion/SKILL.md"
   ],
   "agents": [
     "agents/pm.md",
