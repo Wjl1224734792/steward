@@ -1,6 +1,6 @@
 # Steward 路线图 2026：从「功能交付」到「长期维护」
 
-> 状态：P0–P2 已实施（v0.5→v0.7.3，2026-11-06，含 M/L、浏览器证据、codemod、hooks 四项真实演练与 GenUI 维护健康看板设计，见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md)）· 原始草案 v1
+> 状态：P0–P3 已实施（v0.5→v0.8.0；ZCode 侧；MiniMax 1.5.3，文档流水线待 1.6.0 同步），2026-11-06，含 M/L、浏览器证据、codemod、hooks 四项真实演练、GenUI 维护健康看板与文档流水线完整吸收，见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md) · 原始草案 v1
 > 适用：`zcode/` 与 `minimax/` 两个宿主版本
 > 依据：2025–2026 多智能体开发、规范驱动、AI 编码代理与软件演化研究（见文末参考）
 
@@ -278,12 +278,12 @@ tmp/steward/<run-id>/
 |---|---|---|---|
 | **T0** | `AGENTS.md`（≤100 行）：定位、命令速查、红线、文档索引、DoD | 永远 | 极低 |
 | **T1** | `docs/project/`：CONSTITUTION、ARCHITECTURE、DECISIONS、RUNBOOK、CHANGELOG、HEALTH | 首次接入 / 接手项目 | 低 |
-| **T2** | 单次变更包：01-intent、02-impact、03-plan、04-evidence、05-record | M/L 变更 | 中 |
+| **T2** | 单次变更包：01-requirement、02-spec、02-impact、03-plan、run.json/baseline、04-evidence、05-record | M/L 变更 | 中 |
 | **T3** | PRD/FRD、契约、页面布局、测试方案、部署工程化、阶段门禁 | 新项目/大型/合规 | 高 |
 
 **T1 是地基，不是装饰。** 没有它，AI 每次都从零理解项目，必然 ignorant surgery。
 
-**T3 按需升级**：在 `steward.config.json` 设 `docTier`，或 Tech Lead 在 L 级需求时提升。eng-doc-pipeline 的全套模板作为 T3 库，不是每次必跑。
+**T3 按需升级**：在 `steward.config.json` 设 `docTier`，或 Tech Lead 在 L 级需求时提升。ZCode 侧已把 eng-doc-pipeline 全量吸收为 `zcode/skills/steward/references/doc-pipeline/`（七阶段 + 19 类模板 + 命名守卫/文档检查），不是每次必跑；MiniMax 侧仍用 `scripts/templates/t3/` 六件骨架，1.6.0 同步。
 
 ### 5.2 T1 文件职责
 
@@ -301,11 +301,16 @@ tmp/steward/<run-id>/
 
 ```text
 tmp/steward/<run-id>/
-  01-intent.md        # 为什么做、做什么、不做什么、AC 编号
+  01-requirement.md   # 原始需求 + 澄清假设
+  02-spec.md          # 规格与 AC（validate-plan 的 AC 来源）
   02-impact.md        # 影响哪些意图/契约/模块/不变量/测试/文档/迁移/回滚
   03-plan.md          # 人类可读计划
   03-plan.json        # 机读任务 DAG（lint 的输入）
-  04-evidence/        # 测试输出、浏览器证据、diff、评审
+  run.json            # run-state 状态机
+  baseline.json       # 回滚锚点
+  verify-result.json  # 门禁证据
+  reports/            # 各角色报告
+  04-evidence.md      # 证据索引（doc-pipeline 模板）
   05-record.md        # 改了什么、为什么、文档更新、决策、遗留
 ```
 
@@ -477,6 +482,14 @@ tmp/steward/<run-id>/
 | 18 | GenUI 健康/进度看板 | 健康分 / 趋势、8 类分布与 backlog 可视化 |
 | 19 | Monorepo / 多服务 | 按 package 划分所有权与服务启动 |
 
+### P3（v0.8，ZCode 先行）— 文档流水线完整吸收
+
+> **状态（2026-11-06）：ZCode 侧已实现；MiniMax 侧待 1.6.0 同步**——见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md)。
+
+| # | 交付 | 验收 |
+|---|---|---|
+| 20 | 文档流水线完整吸收：七阶段 `docs/01..07` 树 + 全量模板 + AGENTS/rules 约束层 + 命名守卫/文档检查（ZCode 侧） | docTier=3 项目只靠 Steward 即可产出/校验 T3 文档；`doc-check` / `guard-naming` 正负例通过；MiniMax 零改动 |
+
 ### 明确不做
 
 - ❌ GitHub CI/CD、`.github/workflows`；
@@ -528,9 +541,10 @@ tmp/steward/<run-id>/
 
 ### 本项目参考技能
 
-- `eng-doc-pipeline`：`E:\CodeStore\有灵\.agents\skills\eng-doc-pipeline`
-  - 保留脊柱：SSOT、联动同改、门禁、变更先拍板后落档；
-  - 分层减重：T0–T3，不默认跑全套。
+- `eng-doc-pipeline`：Desktop 快照 `C:\Users\12247\Desktop\skills\eng-doc-pipeline`（2026-10-28）
+  - v0.8 起 ZCode 侧全量吸收到 `zcode/skills/steward/references/doc-pipeline/`（七阶段 + 全量模板 + 命名守卫/文档检查）；来源与改编见该目录 `PROVENANCE.md`。
+  - 保留脊柱：SSOT、联动同改、门禁、变更先拍板后落档；分层减重：T0–T3，不默认跑全套。
+  - MiniMax 侧 1.6.0 再同步；外部副本不再作为 ZCode 事实源。
 
 ---
 
@@ -544,4 +558,5 @@ tmp/steward/<run-id>/
 | 2026-11-06 | v1.3 | P2（v0.7）实施完成：6/6 项交付（16/17/18 为部分实现或待宿主实测），P0–P2 全部落地 |
 | 2026-11-06 | v1.4 | v0.7.1：P2 项 16 补齐——技能/agent 正文单一源化（shared/ + host/ → build.mjs 生成），生成一致性校验落地 |
 | 2026-11-06 | v1.5 | v0.7.2：四项能力演练完成（M/L 批准门+Critic、浏览器证据、codemod 分批、hooks 守卫）；演练发现并修复 verify.mjs 自动探测缺陷与 guard 输出契约问题 |
+| 2026-11-06 | v1.6 | v0.8.0（ZCode 侧）：文档流水线完整吸收（七阶段树 + 19 类模板 + T2 证据/记录 + 命名守卫/文档检查）；MiniMax 1.5.3 待 1.6.0 同步 |
 | 2026-11-06 | v1.6 | v0.7.3：GenUI 维护健康看板专用配方 C（健康分/分级/趋势/8 类矩阵/排序 backlog）+ 完整示例与本地视觉验收；data-schema 增加 history 与展示口径派生值 |

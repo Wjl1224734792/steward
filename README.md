@@ -12,7 +12,7 @@
 
 ### Steward 是什么
 
-Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.7.3 / MiniMax 1.5.3）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；技能/agent 正文单一源生成，MiniMax 附带维护健康看板等可选 GenUI 视图。
+Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.8.0 / MiniMax 1.5.3）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；ZCode 侧新增 docTier=3 完整文档流水线（七阶段文档树 + PRD/FRD/契约/页面/测试/部署全量模板 + 命名守卫与文档检查），技能/agent 正文单一源生成，MiniMax 附带维护健康看板等可选 GenUI 视图（文档流水线待 1.6.0 同步）。
 
 ### 工作模式
 
@@ -23,8 +23,9 @@ Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代�
 | 只出计划 | `/steward plan <需求>` | 0.5.0 可用（ZCode 命令；MiniMax 用自然语言触发） |
 | 维护循环 | `/steward maintain` | 0.6.0 可用（`maintain.mjs` 扫描 + backlog；MiniMax 用自然语言触发） |
 | 接手存量 | `/steward take-over` | 0.7.0 可用（扫描生成 T1 + 首轮健康扫描；MiniMax 用自然语言触发） |
+| 文档流水线 | `docTier: 3`（随 `/steward`） | 0.8.0 ZCode 可用（七阶段树 + 全量模板 + 文档检查；MiniMax 待 1.6.0） |
 
-功能交付：受理定级（S/M/L）→ 方案 → 批准门 → 实施 → QA → 浏览器验收 → 终审 → 收尾。Bug 修复按严重度分流：B2/B3 走「复现 → 失败测试 → 根因 → 最小修复 → 回归 → 记录」，B0/B1 增加止损与 postmortem 复盘。只出计划：方案 → 计划校验 → Plan Critic → 用户批准后停止，不实施。维护循环：八类扫描（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO/重构比例）→ 评分排序 backlog → 小修 → 更新 HEALTH。接手：扫描生成 T1 项目记忆 + 首轮健康扫描，先盘点后动手。演进与 T3 见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+功能交付：受理定级（S/M/L）→ 方案 → 批准门 → 实施 → QA → 浏览器验收 → 终审 → 收尾。Bug 修复按严重度分流：B2/B3 走「复现 → 失败测试 → 根因 → 最小修复 → 回归 → 记录」，B0/B1 增加止损与 postmortem 复盘。只出计划：方案 → 计划校验 → Plan Critic → 用户批准后停止，不实施。维护循环：八类扫描（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO/重构比例）→ 评分排序 backlog → 小修 → 更新 HEALTH。接手：扫描生成 T1 项目记忆 + 首轮健康扫描，先盘点后动手。演进与 T3/文档流水线见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ### 团队名册（7 角色 + 外援）
 
@@ -85,7 +86,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.7.3",
+      "version": "0.8.0",
       "displayName": "Steward · 长期维护型研发团队",
       "category": "developer-tools"
     }
@@ -119,7 +120,8 @@ Copy-Item -LiteralPath "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minima
 - 已实现（v0.5）：Bug 通道（B0–B3）、计划批准门 + Plan Critic、计划校验 / 独立验证 / 基线守卫、run.json 断点恢复、T0/T1 项目记忆生成。
 - 已实现（v0.6）：维护循环（maintain.mjs 八类扫描）、浏览器证据契约、学习循环（05-record 回填）、systematic-debugging / TDD / verification 三个轻量技能、可选 worktree + finishing、模型路由 + 重试预算。
 - 已实现（v0.7）：接手存量（take-over 扫描 + 首轮健康扫描）、演进循环（重构比例 / codemod 计划）、T3 模板六件按需升级、双宿主本地构建（build.mjs 单一正文源 + 校验）、可选宿主守卫 hooks（所有权/危险命令/密钥）、GenUI 维护健康看板（专用配方 C）、monorepo/多服务口径。
-- 重点（后续）：MiniMax 宿主 GenUI 实机验收、worktree 多分支合并演练；taskboard 遗留两个 non-blocking 项（过滤竞态、GET /api/tasks 缺 Cache-Control）。
+- 已实现（v0.8，ZCode 侧）：文档流水线完整吸收——七阶段 `docs/01..07` 树、19 类模板 + T2 证据/记录模板、AGENTS/rules 约束层、命名守卫与文档检查本地脚本（`scripts/doc/`）；MiniMax 侧待 1.6.0 同步。
+- 重点（后续）：MiniMax 文档流水线 1.6.0 同步、MiniMax 宿主 GenUI 实机验收、worktree 多分支合并演练；taskboard 遗留两个 non-blocking 项（过滤竞态、GET /api/tasks 缺 Cache-Control）。
 
 ### 从 dev-team 更名
 
@@ -131,7 +133,7 @@ Steward 是原 `dev-team` 插件的更名版本。插件 ID、命令、agent 前
 
 ### What is Steward
 
-Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.7.3 / MiniMax 1.5.3) covers feature delivery, bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), and the evolution loop, with optional MiniMax GenUI views for the task DAG, defect triage, and maintenance health.
+Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.8.0 / MiniMax 1.5.3) covers feature delivery, bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), and the evolution loop; the ZCode side adds a full docTier=3 documentation pipeline (seven-phase docs tree + full PRD/FRD/contract/page/test/deployment templates + naming guard and doc checks), with optional MiniMax GenUI views for the task DAG, defect triage, and maintenance health (MiniMax docs pipeline pending 1.6.0).
 
 ### Modes
 
@@ -142,6 +144,7 @@ Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead 
 | Plan only | `/steward plan <request>` | Available in 0.5.0 (ZCode command; on MiniMax trigger by natural language) |
 | Maintenance | `/steward maintain` | Available in 0.6.0 (`maintain.mjs` scan + backlog; on MiniMax trigger by natural language) |
 | Takeover | `/steward take-over` | Available in 0.7.0+ (T1 generation + first health scan; on MiniMax trigger by natural language) |
+| Documentation pipeline | `docTier: 3` (with `/steward`) | Available in 0.8.0 on ZCode (seven-phase tree + full templates + doc checks; MiniMax pending 1.6.0) |
 
 Feature delivery: intake & sizing (S/M/L) → plan → approval gate → implementation → QA → browser acceptance → final review → finishing. Bug fixes are triaged by severity: B2/B3 follow "repro → failing test → root cause → minimal fix → regression → record"; B0/B1 add mitigation-first and a postmortem. Plan-only mode stops after the approval gate — no implementation. Maintenance: an eight-category scan (deps / security / duplication / churn / doc drift / cycles / flaky / TODO) → scored backlog → small fixes → HEALTH.md updates. Full design: [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -204,7 +207,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.7.3",
+      "version": "0.8.0",
       "displayName": "Steward — long-lived engineering team",
       "category": "developer-tools"
     }
@@ -238,7 +241,8 @@ When the input contains "开发团队", "开发小组", or "Steward", the `UserP
 - Shipped in v0.5: bug track (B0–B3), plan approval gate + Plan Critic, plan validation / independent verification / baseline guard, resumable run state, T0/T1 project memory generation.
 - Shipped in v0.6: maintenance loop (eight-category scan), browser evidence contract, learning loop (05-record backfill), systematic-debugging / TDD / verification skills, optional worktree + finishing, model routing + retry budget.
 - Shipped in v0.7: takeover (T1 generation + first health scan), evolution loop (refactor-ratio check, codemod planning), six on-demand T3 templates, local dual-host build (build.mjs single source + validation), optional host guards (ownership / dangerous commands / secrets), GenUI maintenance health dashboard (dedicated recipe C), monorepo / multi-service guidance.
-- Next: MiniMax-host GenUI verification, a real worktree multi-branch merge drill, and the two non-blocking taskboard leftovers (filter race, missing Cache-Control on GET /api/tasks).
+- Shipped in v0.8 (ZCode side): full documentation pipeline — seven-phase `docs/01..07` tree, 19 template types + T2 evidence/record templates, AGENTS/rules constraint layer, naming guard and doc checks as local scripts (`scripts/doc/`); MiniMax side pending 1.6.0.
+- Next: MiniMax docs pipeline 1.6.0 sync, MiniMax-host GenUI verification, a real worktree multi-branch merge drill, and the two non-blocking taskboard leftovers (filter race, missing Cache-Control on GET /api/tasks).
 
 ### Renamed from dev-team
 

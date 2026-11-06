@@ -53,6 +53,18 @@
 
 - 项 17：配置已挂载、契约自检通过，宿主级 live 拦截需新会话验证；项 18：配方 C 与本地预览验收完成（v1.5.3），MiniMax 宿主实机待用户确认。项 16 已于 v0.7.1 完整落地。
 
+## P3（v0.8，ZCode 0.8.0 / MiniMax 1.5.3 未同步）— 2026-11-06
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| 20 | 文档流水线完整吸收（ZCode 侧） | 已实现 | `zcode/skills/steward/references/doc-pipeline/`：hub README + 7 references + 19 类模板 + `templates/README.md` + T2 `04-EVIDENCE`/`05-RECORD` + assets 基线（共 32 个 md）；`PROVENANCE.md` 记录来源/改编。`zcode/scripts/doc/`：`doc-init` / `doc-check` / `guard-naming`。技能经可选槽位渲染，MiniMax 生成物逐字节不变。fixture `tmp/steward-fixtures/doc-pipeline-demo/`：`test-doc-scripts.mjs` **30/30 PASS**（doc-init dry-run/写入/幂等；doc-check 正例 + 死链/未索引/缺 T1 负例；guard-naming WAVE/PRIORITY/`--init`/拒绝覆盖/stale/误伤保护）；`check-doc-refs.mjs` 32 文件链接全过；模板拆分对照仅计划内适配 | MiniMax 侧未同步（1.6.0 待用户用 MiniMax harness 做）；版本节奏 warning 预期；外部 skill 快照冻结 |
+
+### P3 已知偏差
+
+- MiniMax 侧零改动（按用户要求）；`minimax/` 与 `host/minimax/` 未变更。
+- 版本节奏 warning（ZCode 0.8.0 / MiniMax 1.5.3）预期存在，1.6.0 后消失。
+- AFC/AIAPaaS 分支的 §5.0 强制头脑风暴未纳入（与 Steward Stage 0 冲突），见 `PROVENANCE.md`。
+
 ## 能力演练汇总（v0.7.2）— 2026-11-06
 
 | 演练 | 覆盖能力 | 结果 | 证据（tmp/steward-fixtures/，gitignored） |

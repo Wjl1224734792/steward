@@ -1,95 +1,118 @@
 ## Context
 
-`docs/ROADMAP-STATUS.md` 项 18（GenUI 健康/进度看板）目前只有 `maintenance` 数据契约，**没有专用渲染配方**——`references/components.md` 只有配方 A（任务 DAG）和配方 B（质量门缺陷），`examples.md` 也没有维护看板示例。MiniMax 只能拿通用 dashboard 模板硬套，结果是：健康分没有视觉锚点、8 类维护项没有呈现、backlog 没有优先级视觉、状态/趋势缺失——这就是「UI 看板太丑」的根因。
+Steward 的 T3 目前只有 6 个骨架模板（`zcode/scripts/templates/t3/`），没有文档 SSOT 地图、联动表、命名守卫与文档检查；`docs/ROADMAP.md` §8 仍把 `eng-doc-pipeline` 当外部参考。目标：**ZCode 侧全量吸收 `C:\Users\12247\Desktop\skills\eng-doc-pipeline`（2026-10-28 快照），做到装了 Steward 就不再单装该技能**；`minimax/` 与 `host/minimax/` 零改动，MiniMax 侧留给你之后用 MiniMax harness 升到 1.6.0。
 
-这次按上下文理解为 `/steward maintain` 的 **GenUI 维护健康看板**（ROADMAP 项 18）。目标：新增一套专用「配方 C」，并做一版可用于实机渲染的完整示例 + 本地同源预览验收。
+已确认：docTier=3 沿用 `docs/01-需求 … 07-治理` 七阶段树；全量吸收（8 个 references + 19 类模板 + 通用规范基线 + 命名守卫）；ZCode 升 0.8.0，MiniMax 保持 1.5.3。
 
-## 设计方向：维护控制台（CSS/SVG，无 Chart.js）
+## 设计
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ 维护健康   2026-11-06 · maintain.mjs            [待治理]      │
-├─────────────────────────────┬────────────────────────────────┤
-│ 13.0                        │ 待处理 5   已修复 1   最高得分 8.0 │
-│ 健康分（越低越好）            │                                │
-│ 较上次 −1.0   ▁▂▃▅▄          │ 状态分布 ████████░░░░           │
-├─────────────────────────────┴────────────────────────────────┤
-│ 类别分布（8 格，可点击筛选）                                   │
-│ [重复 836] [待办 16] [文档 2] [churn 0] …                      │
-├──────────────────────────────────────────────────────────────┤
-│ 优先处理 (5)                       [隐藏已修复] [按得分 ▾]     │
-│ 01 M1 跨文件重复代码窗口   duplication 8.0 ████████ 成本●●● 待处理 ›│
-│ 02 M2 AGENTS.md 缺失      docDrift    4.5 ████     成本●○○ 待处理 ›│
-│ …（点击行展开证据与「生成修复计划」）                            │
-├──────────────────────────────────────────────────────────────┤
-│ [按类别汇总维护计划]                    [健康分怎么算]          │
-└──────────────────────────────────────────────────────────────┘
-```
+### 1. 文档库位置与结构（ZCode-only）
 
-设计要点：
-- **信息层级**：健康分（40px）+ 分级徽标 → 3 个 KPI → 状态分布 → 类别矩阵 → 按得分排序的 backlog → 详情/动作。
-- **真实数据**：分级按未修复条目数（0 健康 / 1–4 需关注 / ≥5 待治理，写进 schema 的展示口径）；得分条按当前最大得分归一化；趋势/环比只用 `history`（HEALTH.md 有记录才显示），不推算、不补造。
-- **视觉规范**：只用 `--mw-*` 令牌；12px 圆角、1px 边框、无阴影/渐变/发光；文字 400/500，700 只用于分数与 KPI；分类用中性色 + 「最多」徽标，语义色只给状态/分级；无 emoji，图标用 CSS/SVG。
-- **交互**：类别格筛选、隐藏已修复、得分/成本排序、行展开详情（本地）；`sendPrompt` 只保留 3 个高价值动作（单项修复计划、按类别汇总、健康分算法说明）。
-- **状态**：加载骨架、空态（健康分 0 + 无待办文案）、错误态（保留布局 + 内联提示）、缺字段（保留行并标「待补全」）。
-- **响应式**：≥760px 双栏 hero；<760px 堆叠，backlog 行转两行卡片。
+新增 `zcode/skills/steward/references/doc-pipeline/`（放在技能 references 下，按需加载；不经过 `shared/`，`build.mjs` 不渲染、不向 minimax 同步）：
+
+- `README.md`：流水线 hub，保留原 §0–§8（七阶段、SSOT 地图、SOP、门禁、错误表、示例），新增「与 Steward T0–T3 映射」与模板索引。
+- 7 个散装参考 + `templates/`（原第 8 个 reference `templates.md` 按 19 个模板拆分）：
+  - `agents-files.md`、`coding-standards.md`、`data-access.md`、`frontend-standards.md`、`naming-guard.md`、`sync-rules.md`、`takeover.md`
+  - `templates/README.md`（落位速查）+ 19 个模板文件（PRD / FRD / ENGINEERING / OBSERVABILITY / DEPLOYMENT / API / DATA-MODEL / GOLDEN-SET / PAGE-DESIGN / PAGE-LAYOUT / PAGE-DETAIL / DESIGN / FRONTEND-RULES / ADR / REVIEW-RECORD / EXECUTION-STEPS / DEV-ORDER / TEST-PLAN / PRE-COMMIT-CHECKLIST）
+  - `templates/04-EVIDENCE.md`、`templates/05-RECORD.md`（T2 变更包，补齐 ROADMAP 只有口径没有模板的缺口）
+  - `assets/通用编程规范与指南.md`（原样基线）
+- `PROVENANCE.md`：来源路径、快照日期、逐项改编说明、有意省略项（`locales/`、AFC/AIAPaaS 分支的 §5.0 强制头脑风暴）。
+
+### 2. 与 Steward 的口径对齐（改编规则）
+
+- **CI/CD → 本地门禁**：原文「CI 拦截 / CI 薄壳 / 落 CI」统一改成「本地门禁脚本 + 可选 git hook」；不生成 `.github/workflows`，不引入 GitHub Actions。
+- **同 commit → 同一批变更**：用户要求提交时才同 commit；否则留在工作区并列出联动清单。
+- **浏览器优先级**：改成 Steward 口径（Playwright MCP / Chrome DevTools MCP → 内置浏览器兜底）；证据格式以 `browser-evidence.json` 为准，原文四项证据作为补充检查清单；视觉问题仍标 `visual: unverified`。
+- **去重**：TDD 细节引用 `steward:tdd`；T1 扫描引用 `take-over.mjs`；AC 收敛引用 `02-spec.md` + `validate-plan.mjs`；不另建第二套证据/测试口径。
+- **修内部漂移**：原 `agents-files.md` 与 SKILL §6.3 的可靠性排序不一致，全库统一为「本地门禁 > 可选 pre-commit hook > lint/tsc > 根 AGENTS 红线 > 子目录 AGENTS > `.agents/rules` > 本技能 > docs 散文」。
+- **不吸收** AFC/AIAPaaS 分支的 §5.0「强制先问后写」——与 Steward 轻量 Stage 0（仅二义且影响方向时追问）冲突，记入 PROVENANCE。
+
+### 3. T0–T3 映射（写进 hub README）
+
+- T0 `AGENTS.md` 仍 ≤100 行，只放索引/红线；溢出进 `.agents/rules/`。
+- T1 `docs/project/` 仍是「每轮必读薄记忆」；docTier=3 时 ARCHITECTURE/DECISIONS/RUNBOOK 只放摘要 + 链接，正文进 `docs/02-架构/`、`docs/07-治理/`，不复制。
+- T2 是 `tmp/steward/<run>/` 变更包；`04-evidence` / `05-record` 用新模板。
+- T3 是 `docs/01…07` + `docs/README.md` 地图 + `.agents/designs/DESIGN.md`，仅 docTier=3 建；docTier<3 不建深树。
+- `scripts/templates/t3/` 六件保留为跨宿主骨架；ZCode 以 `references/doc-pipeline/templates/` 完整库为准（MiniMax 侧 1.6.0 再同步）。
+
+### 4. 技能路由（关键：MiniMax 输出逐字节不变）
+
+- `shared/skills/steward.body.md` 在 T3 节末尾**紧贴**加一行 `@@SLOT?:skills/steward/doc-pipeline@@`（前后不加空行）。
+- 新增 `host/zcode/skills/steward/doc-pipeline.md`（片段以空行开头），渲染出 `## 文档流水线（ZCode 完整版，docTier=3）`：启用条件、先读 hub、七阶段树、T1/T3 关系、变更入口、三个本地脚本、与六件骨架的权威关系。
+- MiniMax 无该片段 → 可选槽位整行被删除，`minimax/skills/steward/SKILL.md` 必须与 HEAD 逐字节相同（构建后 diff 验证）。
+
+### 5. 本地脚本（ZCode-only，放 `zcode/scripts/doc/`）
+
+该目录是 `build.mjs` 的同步盲区（它只同步顶层 `scripts/*.mjs` 与 `scripts/hooks/`），不会进 MiniMax：
+
+- `doc-init.mjs <root> [--write] [--tier 3]`：dry-run 默认；建 7 个文档目录 + `docs/README.md` 骨架 + `.agents/{rules,designs}`；幂等、绝不覆盖；缺 T1 时提示先跑 `take-over.mjs`。
+- `doc-check.mjs <root> [--tier n] [--json]`：T1 存在性（tier=3 为 error）、`docs/README.md` 存在、AGENTS/docs 死链（剥离代码围栏，跳过外链/纯锚点）、`docs/01…07` 文件是否全部进索引；exit 1 on error。
+- `guard-naming.mjs <root> [--baseline <file>] [--init] [--json]`：移植命名守卫（WAVE/ISSUE/PRIORITY/BATCH/BATCH_ZH 正则、`web3`/`test-s3`/`approval-batch` 误伤保护、`[FROZEN]`/`[BURN-DOWN]` 基线、fresh/stale 判定）；`--init` 生成存量基线，默认拒绝覆盖。
+- `README.md`：用法、退出码、ZCode-only 说明与 MiniMax 1.6.0 同步提示。
+
+### 6. 版本与文档
+
+- `zcode/.zcode-plugin/plugin.json` → 0.8.0，描述补文档流水线；`host/zcode/.../frontmatter.md` 描述补 docTier=3 触发词；`host/zcode/.../banner.md` → 0.8.0。
+- 根 `README.md`（中英）、`zcode/README.md`（中英）：版本行、能力条目、安装示例；明确「MiniMax 1.5.3，文档库待 1.6.0 同步」。
+- `CHANGELOG.md`：新增 `[ZCode 0.8.0]`（Added / Changed / 验证 / 已知偏差）。
+- `docs/ROADMAP.md`：新增 P3（v0.8，ZCode 先行）项 20；更新 §5.1 T3、§5.3 T2 命名（与实现对齐）、§8 参考、§9 变更记录。
+- `docs/ROADMAP-STATUS.md`：新增 P3 项 20 证据与已知偏差（MiniMax 未同步、版本节奏 warning）。
 
 ## 改动文件
 
-**产品（MiniMax 可视化技能）**
-1. `minimax/skills/steward-visualizer/SKILL.md`
-   - frontmatter description 增加维护健康看板触发词（中英）。
-   - 「何时渲染」表加一行：`/steward maintain` 后 → 配方 C。
-   - 硬性要求：三个配方、C 也用 CSS/SVG、kind 映射（A=diagram，B/C=dashboard）。
-2. `minimax/skills/steward-visualizer/references/components.md`
-   - 新增「视觉基线」小节（间距/字号/圆角/徽标/响应式断点，A/B/C 共用）。
-   - 新增「配方 C：维护健康看板」：业务问题、选择规则、输入字段、Widget 形态、本地交互、sendPrompt、状态表现、文本回退。
-3. `minimax/skills/steward-visualizer/references/examples.md`
-   - 新增「示例 C」完整可运行 `<mavis-widget>`：代表性维护扫描数据（健康分 13.0、8 类计数、5 条 backlog、5 点 history），含完整 CSS/HTML/script/fallback。
-4. `minimax/skills/steward-visualizer/references/data-schema.json`
-   - `maintenance` 增加可选 `history: [{date, score}]`（仅来自 HEALTH.md，缺省不报错）。
-   - `derivedValues` 增加展示口径：`healthGrade`（按未修复数）、`openCount`、`maxScore`、`scoreDelta`、`categoryCounts`（8 类补零）。
-   - `fieldRules` 明确 categories 是扫描计数、backlog 是挑选后的处置项，两者不必一一对应。
-5. `host/minimax/skills/steward/visualizer.md`
-   - 表格增加 `/steward maintain 扫描后` → 维护健康看板（dashboard）→ `reports/maintenance-*.md` + HEALTH.md → 健康分/类别分布/优先级 backlog；判据补「有扫描结果就画，backlog 为空用空态」。
-   - 跑 `node zcode/scripts/build.mjs` 重新生成 `minimax/skills/steward/SKILL.md`（单一正文源，不手改生成物）。
+**新增（ZCode-only）**：上述 `zcode/skills/steward/references/doc-pipeline/**`、`zcode/scripts/doc/**`、`host/zcode/skills/steward/doc-pipeline.md`。
 
-**版本与文档**
-6. `zcode/.zcode-plugin/plugin.json` 0.7.2→0.7.3；`minimax/.minimax-plugin/plugin.json` 1.5.2→1.5.3（保持 0.x ↔ 1.(x−2) 节奏；ZCode 侧仅版本同步，无行为变更）。
-7. `README.md`（中英）、`zcode/README.md`、`minimax/README.md`：版本号同步；根 README 把「GenUI 维护看板契约」改为「维护健康看板（专用配方 C）」；顺手修掉已过期的「Next」条目（单一源化、GenUI dashboard 实际已完成）。
-8. `CHANGELOG.md` 新增 `[ZCode 0.7.3 / MiniMax 1.5.3]`：Added（配方 C、history/派生值）、Fixed（维护看板此前只有契约没有配方）、验证（本地预览 + 契约检查；MiniMax 实机待用户确认）。
-9. `docs/ROADMAP-STATUS.md` 项 18 → 已实现（v1.5.3 专用配方 C + 本地视觉验收）；`docs/ROADMAP.md` 状态行与 v1.6 变更记录补一行。
+**修改**：`shared/skills/steward.body.md`（仅 1 行槽位）、`host/zcode/skills/steward/{frontmatter,banner}.md`、`zcode/skills/steward/SKILL.md`（build 生成）、`zcode/.zcode-plugin/plugin.json`、`README.md`、`zcode/README.md`、`CHANGELOG.md`、`docs/ROADMAP.md`、`docs/ROADMAP-STATUS.md`。
 
-**验收工件（tmp，gitignored）**
-10. `tmp/steward-tools/genui-preview.mjs`：从 `examples.md` 抽取示例 C，拼装独立预览 HTML（模拟 `--mw-*` 明/暗令牌、注入 `window.__mavisData`、stub `window.mavis.sendPrompt`），支持 `?state=empty|error|missing`。
-11. `tmp/steward-tools/check-widget.mjs`：契约检查（单 widget、必填属性、meta/data JSON、script 语法、令牌白名单、无硬编码色、无 Chart.js/fetch/eval/localStorage、交互均声明 sendPrompt、fallback 存在）。
-12. 会话可视化目录 `maintenance-dashboard.html`：同一预览的 inline 版本（先加载 `visualize` 技能按规范生成），最终回复中引用，让用户直接在 ZCode 里看设计。
+**明确不动**：`minimax/**`、`host/minimax/**`、`shared/agents/**`、`zcode/scripts/*.mjs`（顶层）、`zcode/scripts/templates/**`、`zcode/commands/**`、`zcode/hooks/**`。
 
-## 验证（真实命令 + 真实输出）
+## 验证（真实命令 + 预期）
 
 ```bash
 cd /e/CodeStore/plugins/dev-team
-node zcode/scripts/build.mjs            # 重新生成 minimax/skills/steward/SKILL.md
-node zcode/scripts/build.mjs --check    # 必须 PASS
-node -e "JSON.parse(require('fs').readFileSync('minimax/skills/steward-visualizer/references/data-schema.json','utf8')); console.log('schema OK')"
-node tmp/steward-tools/check-widget.mjs # 示例 A/B/C 契约检查全过（A/B 不改也应保持通过）
-node tmp/steward-tools/genui-preview.mjs
-# 起本地静态服务后用浏览器验收：
-#   1180×900 明/暗、640×900 明 → 截图 + DOM 断言
-#   交互：类别筛选 / 隐藏已修复 / 按成本排序 / 行展开 / 三个 sendPrompt payload
-#   状态：empty / error / missing（缺字段行保留并标待补全）
+
+# 1. 构建与“MiniMax 零改动”
+node zcode/scripts/build.mjs
+node zcode/scripts/build.mjs --check    # PASS；仅 1 条版本节奏 warning（0.8.0 vs 1.5.3）
+git status --porcelain -- minimax/      # 空
+git diff --exit-code -- minimax/        # exit 0
+diff <(git show HEAD:minimax/skills/steward/SKILL.md) minimax/skills/steward/SKILL.md  # 无输出
+
+# 2. 技能内容与引用完整性
+grep -c "文档流水线（ZCode 完整版" zcode/skills/steward/SKILL.md   # 1
+grep -c "@@SLOT" zcode/skills/steward/SKILL.md                     # 0
+node tmp/steward-tools/check-doc-refs.mjs                          # 0 broken links
+
+# 3. docTier=3 fixture 正负例
+FIX=tmp/steward-fixtures/doc-pipeline-demo
+node zcode/scripts/doc/doc-init.mjs $FIX              # dry-run 列表
+node zcode/scripts/doc/doc-init.mjs $FIX --write      # 建树
+node zcode/scripts/doc/doc-init.mjs $FIX --write      # 幂等，全部跳过
+node zcode/scripts/doc/doc-check.mjs $FIX             # PASS exit 0
+# 注入死链 / 未索引文件 / 删 T1 → 各 FAIL exit 1；修复 → PASS
+node zcode/scripts/doc/guard-naming.mjs $FIX          # PASS
+# 新建 src/user-login.w8s4.test.ts → FAIL；--init → PASS；新增违规 → FAIL；删基线文件 → stale FAIL
+# web3-client.ts / test-s3.ts / approval-batch.ts → PASS（不误伤）
+node zcode/scripts/maintain.mjs $FIX                  # docDrift 0 findings
+
+# 4. 安装包结构
+rm -rf tmp/steward-fixtures/plugin-package && cp -r zcode tmp/steward-fixtures/plugin-package
+node -e "JSON.parse(...)"                             # plugin.json 0.8.0
+find .../references/doc-pipeline -type f | wc -l      # 33
 ```
 
-浏览器验收会记录：截图、DOM 文本断言（分数/分级/KPI/8 类/行数/排序）、`window.__sent` 的 sendPrompt payload、窄屏无横向溢出。最后把结果写进 CHANGELOG 与 ROADMAP-STATUS 的验证栏。
+另做逐文件 diff 审查：8 个 reference 的差异只允许「路径 / CI→本地门禁 / commit 口径 / 浏览器优先级 / 可靠性链」五类适配；模板按源 `templates.md` 的 19 个段逐一对照，确认正文无丢失。
 
-## 不在本次范围
+## 不在范围
 
-- 不重做配方 A/B 的结构（只把共用视觉基线写进 components.md；B 如需重排另起任务）。
-- 不在 MiniMax 宿主实机渲染（ZCode 无 GenUI；实机效果仍由用户切到 MiniMax 确认）。
-- 不改脚本门禁、不动 hooks、不 commit / 不 push；完成后把改动与验收结果汇报，等你确认是否提交。
+- MiniMax 侧全部工作（你之后用 MiniMax harness 做 1.6.0）。
+- 新角色 / 新技能 / 新命令；CI/CD；改写外部 skill；AFC 分支 §5.0。
+- 全量 sync-rule 机检（只做命名守卫、文档索引/死链、现有 docDrift）。
 
 ## 风险
 
-- **宿主渲染差异**：MiniMax 的 GenUI 渲染器可能与本地浏览器略有差异；对策是只用文档化 DSL/令牌、零外部依赖、无 Chart.js，并把所有主题相关样式留给 `--mw-*`。
-- **示例膨胀**：示例 C 控制在 ~350 行内；视觉基线抽成小节，避免 A/B/C 重复。
-- **版本同步**：ZCode 无行为变更但同步 patch 版本，保持双宿主节奏；如你不想升版本，可在实施前去掉这一项。
+- **槽位位置**导致 MiniMax 输出变化 → 严格「无空行槽位 + 片段以空行开头」，构建后逐字节 diff。
+- **模板拆分丢正文** → 逐模板对照源文件，差异只允许计划内适配。
+- **doc-check 误报** → 剥离代码围栏、跳过外链/纯锚点；fixture 覆盖正负例。
+- **版本节奏 warning** → 你已确认只升 ZCode；在 CHANGELOG/STATUS 标为已知偏差，MiniMax 1.6.0 后消失。
+- **快照冻结** → PROVENANCE 记录来源与改编；后续以 vendored 库为准，MiniMax 同步时回填。

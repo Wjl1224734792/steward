@@ -149,6 +149,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 - 触发：L 级 / 合规 / 新项目，或用户明确要求；在 `steward.config.json` 设 `docTier: 3`。
 - 产物六件：PRD、FRD、契约（CONTRACT）、页面布局（PAGE-LAYOUT）、测试方案（TEST-PLAN）、部署工程化（DEPLOYMENT）——模板在插件 `scripts/templates/t3/`，按需复制填空；PRD/FRD 的验收条目最终收敛进 02-spec.md 的 AC，被 validate-plan 机检。
 - T3 是升级不是常态：每个 T3 文档都要能回答「它防的是什么漂移」，答不出就别建。
+@@SLOT?:skills/steward/doc-pipeline@@
 
 ## Monorepo / 多服务（v0.7）
 

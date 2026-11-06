@@ -2,6 +2,38 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.8.0] - 2026-11-06
+
+> MiniMax 侧保持 1.5.3；文档流水线待 1.6.0 用 MiniMax harness 同步。版本节奏因此有一条预期 warning。
+
+### Added（ZCode 侧：文档流水线）
+
+- **完整吸收 `eng-doc-pipeline`（Desktop 2026-10-28 快照）**：新增 `zcode/skills/steward/references/doc-pipeline/`——hub README（保留七阶段流水线、SSOT 地图、SOP、阶段门禁、错误表）、7 个 references（AGENTS 层级 / 编码规范 / 数据访问 / 前端规范 / 命名守卫 / 联动表 / 接手 SOP）、19 类模板 + `templates/README.md` + T2 的 `04-EVIDENCE.md` / `05-RECORD.md`、通用编程规范基线；`PROVENANCE.md` 记录来源与逐项改编。
+- **T0–T3 映射**：T1 `docs/project/` 只放摘要 + 链接；docTier=3 的深正文进 `docs/01..07`；T0 仍 ≤100 行；约束正文进 `AGENTS.md` / `.agents/rules/`；视觉 token 进 `.agents/designs/DESIGN.md`。
+- **三个 ZCode-only 本地脚本**（`zcode/scripts/doc/`，不进 build.mjs 同步范围）：`doc-init.mjs`（建七阶段树 + 索引骨架，幂等不覆盖）、`doc-check.mjs`（T1 / 索引 / 死链 / 未索引文件）、`guard-naming.mjs`（波次/工单/优先级/批次命名守卫，`[FROZEN]` / `[BURN-DOWN]` 基线只减不增）。
+- **技能路由**：`shared` 技能正文在 T3 节后加可选槽位；`host/zcode/.../doc-pipeline.md` 渲染出「文档流水线（ZCode 完整版，docTier=3）」节；MiniMax 无该片段，生成物逐字节不变。
+
+### Changed
+
+- 口径统一：CI/CD → 本地门禁脚本 + 可选 git hook（不创建 `.github/workflows`）；「同 commit」→「同一批变更」（默认不提交）；浏览器优先级改为 Playwright MCP / Chrome DevTools MCP → 内置浏览器兜底，证据统一 `browser-evidence.json`；可靠性排序链统一（原 `agents-files.md` 与 SKILL §6.3 不一致）。
+- `zcode/.zcode-plugin/plugin.json` 0.7.3 → 0.8.0；根 README / `zcode/README.md` 中英同步；MiniMax 清单未动。
+
+### 验证
+
+- `node zcode/scripts/build.mjs --check` exit 0（仅版本节奏 warning：0.8.0 vs 1.5.3）。
+- `git status --porcelain -- minimax/` 空；`git show HEAD:minimax/skills/steward/SKILL.md` 与工作区 CRLF 归一后逐字节相同；ZCode SKILL.md 含新节且 `@@SLOT` 残留 0。
+- `check-doc-refs.mjs`：32 个 md、markdown 链接 + 反引号引用全部解析通过。
+- 模板拆分对照：19 个模板与源 `templates.md` 对照，缺失行 21 条，全部为计划内适配（CI→本地门禁 / commit→同一批变更 / 路径 / Steward 说明），无大段丢失。
+- fixture `tmp/steward-fixtures/doc-pipeline-demo/`：`test-doc-scripts.mjs` **30/30 PASS**——doc-init dry-run/写入/幂等；doc-check 正例 + 死链 / 未索引 / 缺 T1 三个负例；guard-naming 干净 / WAVE / PRIORITY / `--init` / 拒绝覆盖 / stale / 最终通过；`maintain.mjs` exit 0 且无 docDrift finding。
+- `guard-naming` 误伤用例 `web3-client.ts` / `test-s3.ts` / `approval-batch.ts` 不命中。
+
+### 已知偏差
+
+- MiniMax 侧未同步（按用户要求本次只动 ZCode 侧）；`minimax/` 与 `host/minimax/` 零改动。
+- 版本节奏 warning 预期存在，1.6.0 后消失。
+- 外部 `eng-doc-pipeline` 快照冻结；后续以 vendored 库为 ZCode 事实源。
+- 未吸收 AFC/AIAPaaS 分支的「§5.0 强制头脑风暴 / 先问后写」（与 Steward 轻量 Stage 0 冲突），记入 PROVENANCE。
+
 ## [ZCode 0.7.3 / MiniMax 1.5.3] - 2026-11-06
 
 ### Added（MiniMax GenUI）
