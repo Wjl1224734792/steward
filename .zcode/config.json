@@ -6,17 +6,34 @@
         {
           "matcher": "Write|Edit",
           "hooks": [
-            { "type": "command", "command": "node \"${ZCODE_PROJECT_DIR}/zcode/scripts/hooks/guard.mjs\" secret", "timeout": 10 },
-            { "type": "command", "command": "node \"${ZCODE_PROJECT_DIR}/zcode/scripts/hooks/guard.mjs\" ownership", "timeout": 10 }
+            {
+              "type": "command",
+              "command": "node \"${ZCODE_PROJECT_DIR}/zcode/scripts/hooks/guard.mjs\" secret",
+              "timeout": 10
+            },
+            {
+              "type": "command",
+              "command": "node \"${ZCODE_PROJECT_DIR}/zcode/scripts/hooks/guard.mjs\" ownership",
+              "timeout": 10
+            }
           ]
         },
         {
           "matcher": "Bash",
           "hooks": [
-            { "type": "command", "command": "node \"${ZCODE_PROJECT_DIR}/zcode/scripts/hooks/guard.mjs\" dangerous", "timeout": 10 }
+            {
+              "type": "command",
+              "command": "node \"${ZCODE_PROJECT_DIR}/zcode/scripts/hooks/guard.mjs\" dangerous",
+              "timeout": 10
+            }
           ]
         }
       ]
+    }
+  },
+  "plugins": {
+    "enabledPlugins": {
+      "steward@dev-codestore-f437d635": true
     }
   }
 }
