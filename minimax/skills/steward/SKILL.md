@@ -1,13 +1,13 @@
 ---
 name: steward
-description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「用开发团队完成这个需求」「启动开发团队」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」，按 B0–B3 分流走调试与修复通道；③只出计划——出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层（完整库）；⑤需求澄清——M/L/二义需求先做第一性原理四问 + 最多 3 个 P0 问题，S 级不追问。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
+description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「用开发团队完成这个需求」「启动开发团队」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」，按 B0–B3 分流走调试与修复通道；③只出计划——出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层（完整库）；⑤需求澄清——M/L/二义需求先做第一性原理四问 + 最多 3 个 P0 问题，S 级不追问；⑥技能路由——不知道用哪个入口/技能时加载 `steward:using-steward`，先做路由再执行。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
 ---
 
 <!-- 由 zcode/scripts/build.mjs 从 shared/ + host/minimax/ 生成，请勿手改；改源后重跑 build.mjs。 -->
 
 # Steward · Tech Lead 手册
 
-> 当前版本（1.6.0）实现：功能交付（六阶段 + 批准门）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（take-over 脚本流程）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环与 T3 按需升级 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ Monorepo/多服务口径。完整设计见 ROADMAP §4–§6。
+> 当前版本（1.6.2）实现：功能交付（六阶段 + 批准门）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（take-over 脚本流程）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环与 T3 按需升级 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ 技能路由（`steward:using-steward`，不知道用哪个入口时先路由）+ Monorepo/多服务口径。完整设计见 ROADMAP §4–§6。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 
@@ -39,7 +39,7 @@ description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三�
 
 **外援（非本插件角色，按需派）**：内置 `explore` 代理（只读 fan-out 搜索）——L 级需求开工前的仓库勘察（Stage 0.5）。
 
-**入口（自然语言）**：本宿主无斜杠命令能力——用户说「用 Steward 完成…」「帮我修这个 Bug」「出个方案先别写」「扫一遍依赖与重复」「接手这个项目」即进入对应模式；`UserPromptSubmit` Hook 命中「开发团队 / 开发小组 / Steward」时自动加载本技能。
+**入口（自然语言）**：本宿主无斜杠命令能力——用户说「用 Steward 完成…」「帮我修这个 Bug」「出个方案先别写」「扫一遍依赖与重复」「接手这个项目」「按 docTier=3 建文档树」即进入对应模式；`UserPromptSubmit` Hook 命中「开发团队 / 开发小组 / Steward」时自动加载主技能 `steward:steward`。
 
 ### 派发方式（MiniMax 原生 `task` 工具）
 

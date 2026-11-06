@@ -1,6 +1,6 @@
 # Steward 路线图 2026：从「功能交付」到「长期维护」
 
-> 状态：P0–P3 已实施（v0.5→v0.8.1；双宿主，MiniMax 1.6.0；ZCode 0.8.1 新增技能路由），2026-11-07，含 M/L、浏览器证据、codemod、hooks 四项真实演练、GenUI 维护健康看板、文档流水线完整吸收、需求澄清内核、技能路由与 worktree 演练，见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md) · 原始草案 v1
+> 状态：P0–P3 已实施（v0.5→v0.8.2；双宿主；MiniMax 1.6.2 与 ZCode 0.8.2 对齐），2026-11-07，含 M/L、浏览器证据、codemod、hooks 四项真实演练、GenUI 维护健康看板、文档流水线完整吸收、需求澄清内核、技能路由与 worktree 演练，见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md) · 原始草案 v1
 > 适用：`zcode/` 与 `minimax/` 两个宿主版本
 > 依据：2025–2026 多智能体开发、规范驱动、AI 编码代理与软件演化研究（见文末参考）
 
@@ -484,7 +484,7 @@ tmp/steward/<run-id>/
 
 ### P3（v0.8，双宿主）— 文档流水线 + 需求澄清 + 技能路由
 
-> **状态（2026-11-06）：双宿主已实现（ZCode 0.8.0 / MiniMax 1.6.0）**——见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md)。
+> **状态（2026-11-07）：双宿主已实现（ZCode 0.8.2 / MiniMax 1.6.2）**——见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md)。
 
 | # | 交付 | 验收 |
 |---|---|---|
@@ -562,5 +562,6 @@ tmp/steward/<run-id>/
 | 2026-11-06 | v1.5 | v0.7.2：四项能力演练完成（M/L 批准门+Critic、浏览器证据、codemod 分批、hooks 守卫）；演练发现并修复 verify.mjs 自动探测缺陷与 guard 输出契约问题 |
 | 2026-11-06 | v1.6 | v0.7.3：GenUI 维护健康看板专用配方 C（健康分/分级/趋势/8 类矩阵/排序 backlog）+ 完整示例与本地视觉验收；data-schema 增加 history 与展示口径派生值 |
 | 2026-11-06 | v1.7 | v0.8.0（ZCode 侧）：文档流水线完整吸收（七阶段树 + 19 类模板 + T2 需求/证据/记录 + 命名守卫/文档检查）+ 需求澄清内核（第一性原理 + 提问预算）+ worktree 演练 6/6 + taskboard 清理 22/22 |
+| 2026-11-07 | v1.8 | v0.8.1 技能路由 `steward:using-steward` + v0.8.2 斜杠命令注册修复（ZCode-only）；MiniMax 1.6.2 同步技能路由（路由表按宿主适配），版本节奏 warning 消失 |
 | 2026-11-06 | v1.8 | MiniMax 1.6.0 对齐 ZCode 0.8.0：文档流水线参考库（33 个 md）与本地脚本（4 个文件）由 build.mjs 同步到 minimax/；澄清内核上提为共享正文；斜杠命令口径宿主中立；版本节奏 warning 消失 |
 | 2026-11-07 | v1.9 | v0.8.1（ZCode 侧）：新增 `steward:using-steward` 技能路由（7 类入口 + 3 个轻量技能加载信号 + 3 条纪律）；MiniMax 1.6.0 未同步，1.6.1 待补 |

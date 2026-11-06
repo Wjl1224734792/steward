@@ -13,14 +13,14 @@
  *   @@SLOT?:相对路径@@  可选片段（缺失或为空则删除该行）
  *
  * 用法：
- *   node zcode/scripts/build.mjs            # 同步 scripts/templates/references + 渲染 22 个技能/agent 文件
+ *   node zcode/scripts/build.mjs            # 同步 scripts/templates/references + 渲染 24 个技能/agent 文件
  *   node zcode/scripts/build.mjs --check    # 只校验不写（不一致即 exit 1）
  *   node zcode/scripts/build.mjs --json     # 机读结果
  *
  * 退出码：0 = 通过；1 = 校验/渲染错误；2 = 不在源码仓库布局内运行。
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 // 本脚本位于 <仓库根>/zcode/scripts/build.mjs（minimax/scripts/ 副本同理），仓库根为上两级
 const root = resolve(import.meta.dirname ?? process.cwd(), '..', '..');
@@ -144,7 +144,7 @@ function withBanner(fullText, host) {
   return `${head}\n\n${bannerOf(host)}\n\n${rest}\n`;
 }
 
-const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-completion'];
+const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-completion', 'using-steward'];
 const AGENTS = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'browser-tester', 'reviewer'];
 const targets = [];
 
@@ -166,7 +166,7 @@ for (const host of ['zcode', 'minimax']) {
   for (const s of LIGHT_SKILLS) {
     const src = readText(join(root, 'shared/skills', s, 'SKILL.md'));
     if (src === null) { errors.push(`[render] 缺 shared/skills/${s}/SKILL.md`); continue; }
-    targets.push({ out: join(pluginDir, 'skills', s, 'SKILL.md'), text: withBanner(src, host) });
+    targets.push({ out: join(pluginDir, 'skills', s, 'SKILL.md'), text: withBanner(renderSlots(src, host, `skills/${s} (${host})`), host) });
   }
 
   for (const a of AGENTS) {
@@ -186,7 +186,7 @@ for (const t of targets) {
   if (existing === t.text) continue;
   const rel = t.out.slice(root.length + 1);
   if (checkOnly) errors.push(`[render] ${rel} 与生成结果不一致（手改或未重建；跑 node zcode/scripts/build.mjs）`);
-  else { writeFileSync(t.out, t.text, 'utf8'); generated.push(rel); }
+  else { mkdirSync(dirname(t.out), { recursive: true }); writeFileSync(t.out, t.text, 'utf8'); generated.push(rel); }
 }
 
 // --- 3. 清单校验（plugin.json 列表与磁盘一致 + 版本节奏） ---

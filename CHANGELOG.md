@@ -2,6 +2,32 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.8.2 / MiniMax 1.6.2] - 2026-11-07
+
+> MiniMax 侧对齐：v0.8.1 的 `steward:using-steward` 技能路由同步到 MiniMax（路由表按宿主适配）；v0.8.2 的斜杠命令注册修复为 ZCode-only（MiniMax 无斜杠命令能力，不适用）。版本节奏 warning 消失。
+
+### Added（MiniMax 1.6.2 对齐）
+
+- **`steward:using-steward` 同步到 MiniMax**：技能正文上提为 `shared/skills/using-steward/SKILL.md`（与 systematic-debugging / tdd / verification-before-completion 同属轻量技能族），路由表下沉为宿主片段 `host/<host>/skills/using-steward/routing-table.md`——ZCode 列斜杠命令（`/steward` / `/steward:fix` / `/steward:plan` / `/steward:maintain` / `/steward:take-over`），MiniMax 列自然语言触发（「用 Steward 完成…」「帮我修这个 Bug」「出个方案先别写」「扫一遍依赖与重复」「接手这个项目」「按 docTier=3 建文档树」）。
+- **build.mjs 支持轻量技能槽位渲染**：轻量技能正文现在也走 `renderSlots`，可引用宿主片段；渲染时自动创建技能目录（`mkdirSync`），新增技能不再因目录不存在而 ENOENT。
+- `minimax/.minimax-plugin/plugin.json` 1.6.0 → **1.6.2**，技能清单加 `skills/using-steward/SKILL.md`；技能 frontmatter 补 ⑥技能路由；banner 同步版本与能力。
+
+### Changed
+
+- 共享正文的「入口」片段（`host/<host>/skills/steward/entry-points.md`）在 MiniMax 侧改为指向「主技能 `steward:steward`」并补 docTier=3 自然语言入口——该片段现在被主技能与路由技能两处复用，措辞需无歧义。
+
+### 验证
+
+- `node zcode/scripts/build.mjs --check` exit 0，**零 warning**（版本节奏 ZCode 0.8.2 ↔ MiniMax 1.6.2 已匹配）。
+- 两版 `skills/using-steward/SKILL.md` 渲染完成，`@@SLOT` 残留 0；ZCode 出斜杠命令路由表，MiniMax 出自然语言路由表。
+- MiniMax 清单技能数 5 → 6，build.mjs 的「磁盘有技能但未列出」warning 为 0。
+- YAML frontmatter 真解析器校验两版全部通过。
+
+### 已知偏差
+
+- v0.8.2 的斜杠命令注册修复（`/steward fix` → `/steward:fix`）为 **ZCode-only**：MiniMax 宿主无斜杠命令能力，本次不改 `minimax/` 的命令结构。
+- 技能路由为提示词级技能，未做 agent 行为回归。
+
 ## [ZCode 0.8.2 / MiniMax 1.6.0] - 2026-11-07
 
 > ZCode-only 修复：斜杠命令后缀入口此前全部未注册。`.md` 文件名里的点号不合法（宿主规则 `^[a-z0-9][a-z0-9_:-]{0,63}$`），`/steward fix` 实际只是 `/steward` 带参数 `fix ...`。改为子目录命名后，入口变为 `/steward:fix` / `/steward:plan` / `/steward:take-over`，并新增 `/steward:maintain`。
@@ -25,7 +51,7 @@
 
 ### 已知偏差
 
-- MiniMax 侧无斜杠命令能力，本修复不改 `minimax/`；版本节奏 warning 为预期。
+- MiniMax 侧无斜杠命令能力，本修复不改 `minimax/` 的命令结构；其 1.6.2 同步项见上方条目。
 - 桌面端已在跑的会话不会热加载新命令，需重启 ZCode 或开新会话后生效（宿主在会话启动时载入插件命令）。
 
 ## [ZCode 0.8.1 / MiniMax 1.6.0] - 2026-11-07
@@ -45,7 +71,7 @@
 
 ### 已知偏差
 
-- MiniMax 1.6.0 未带 `using-steward`；1.6.1 待 MiniMax 侧同步。
+- MiniMax 侧已于 1.6.2 同步（见上方条目）；1.6.1 未单独发布。
 - 路由为提示词级技能，未做 agent 行为回归。
 
 ## [ZCode 0.8.0 / MiniMax 1.6.0] - 2026-11-06

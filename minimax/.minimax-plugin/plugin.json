@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "name": "steward",
   "displayName": "Steward · 长期维护型研发团队",
-  "version": "1.6.0",
-  "description": "Steward（长期维护型研发团队）：主代理作为 Tech Lead，按任务 DAG 与文件所有权派发 PM、架构师、前后端工程师、QA、浏览器验收员与代码评审员。覆盖功能交付、Bug 通道（B0–B3 分流：复现 → 失败测试 → 根因 → 最小修复 → 回归）与只出计划模式（批准门 + Plan Critic），并自带可信变更门禁（计划校验、verify.mjs 独立复跑、基线 hash / 越界 diff 守卫）；1.6.0 起同步完整文档流水线（docTier=3 七阶段树 + 19 类模板 + 命名守卫 / 文档检查）与需求澄清内核（第一性原理四问 + 最多 3 个 P0 提问预算，S 级不追问）；可选 GenUI 视图呈现任务 DAG、缺陷看板与维护健康看板。维护循环、接手存量与演进循环已内置。A role-based engineering team plugin covering feature delivery, the B0-B3 bug track, plan-only mode with an approval gate, trusted-change gates (plan validation, independent verify reruns, baseline hash / out-of-bounds diff guard), the full doc-pipeline library for docTier=3, a first-principles clarification step with a 3-question budget, and optional GenUI views for the task DAG, defect triage, and the maintenance health dashboard; the maintenance loop, takeover, and evolution loop are built in.A role-based engineering team plugin covering feature delivery, the B0-B3 bug track, plan-only mode with an approval gate, and trusted-change gates (plan validation, independent verify reruns, baseline hash / out-of-bounds diff guard), with optional GenUI views for the task DAG, defect triage, and the maintenance health dashboard; the maintenance loop, takeover, and evolution loop are built in.",
+  "version": "1.6.2",
+  "description": "Steward（长期维护型研发团队）：主代理作为 Tech Lead，按任务 DAG 与文件所有权派发 PM、架构师、前后端工程师、QA、浏览器验收员与代码评审员。覆盖功能交付、Bug 通道（B0–B3 分流：复现 → 失败测试 → 根因 → 最小修复 → 回归）与只出计划模式（批准门 + Plan Critic），并自带可信变更门禁（计划校验、verify.mjs 独立复跑、基线 hash / 越界 diff 守卫）；1.6.0 起同步完整文档流水线（docTier=3 七阶段树 + 19 类模板 + 命名守卫 / 文档检查）与需求澄清内核（第一性原理四问 + 最多 3 个 P0 提问预算，S 级不追问）；1.6.2 起同步技能路由 `steward:using-steward`（不知道用哪个入口/技能时先做路由）；可选 GenUI 视图呈现任务 DAG、缺陷看板与维护健康看板。维护循环、接手存量与演进循环已内置。A role-based engineering team plugin covering feature delivery, the B0-B3 bug track, plan-only mode with an approval gate, trusted-change gates (plan validation, independent verify reruns, baseline hash / out-of-bounds diff guard), the full doc-pipeline library for docTier=3, a first-principles clarification step with a 3-question budget, a skill router (steward:using-steward) that picks the right mode when the user is unsure, and optional GenUI views for the task DAG, defect triage, and the maintenance health dashboard; the maintenance loop, takeover, and evolution loop are built in.A role-based engineering team plugin covering feature delivery, the B0-B3 bug track, plan-only mode with an approval gate, and trusted-change gates (plan validation, independent verify reruns, baseline hash / out-of-bounds diff guard), with optional GenUI views for the task DAG, defect triage, and the maintenance health dashboard; the maintenance loop, takeover, and evolution loop are built in.",
   "author": "Lin",
   "icon": "icon.png",
   "darkIcon": "icon-dark.png",
@@ -22,6 +22,7 @@
     "skills/steward-visualizer/SKILL.md",
     "skills/systematic-debugging/SKILL.md",
     "skills/tdd/SKILL.md",
+    "skills/using-steward/SKILL.md",
     "skills/verification-before-completion/SKILL.md"
   ],
   "agents": [

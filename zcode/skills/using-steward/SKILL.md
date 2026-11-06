@@ -1,7 +1,9 @@
 ---
 name: using-steward
-description: Steward 技能路由（ZCode 侧）。当用户不知道用 Steward 的哪个入口/技能、问「该用哪个模式/从哪开始」、或在功能交付、Bug 修复、只出计划、维护、接手、文档流水线、调试、TDD、完成前验证之间做选择时，先读本技能做路由。Use when the user is unsure which Steward mode or skill to use, or asks where to start.
+description: Steward 技能路由。当用户不知道用 Steward 的哪个入口/技能、问「该用哪个模式/从哪开始」、或在功能交付、Bug 修复、只出计划、维护、接手、文档流水线、调试、TDD、完成前验证之间做选择时，先读本技能做路由。Use when the user is unsure which Steward mode or skill to use, or asks where to start.
 ---
+
+<!-- 由 zcode/scripts/build.mjs 从 shared/ + host/zcode/ 生成，请勿手改；改源后重跑 build.mjs。 -->
 
 # Steward 技能路由（不知道用哪个时先读这个）
 
@@ -31,9 +33,9 @@ description: Steward 技能路由（ZCode 侧）。当用户不知道用 Steward
 
 ## 三条纪律
 
-1. **不新造角色/流程**：只用 7 个角色 + 3 个轻量技能 + 主技能；需要新角色先给方案，不直接加。
+1. **不新造角色/流程**：只用 7 个角色 + 4 个轻量技能（含本路由）+ 主技能；需要新角色先给方案，不直接加。
 2. **S 级直接做**：≤3 文件、单层、无 UI / 无 schema，不派全员、不建深文档。
-3. **不确定就先 `/steward:plan`**：先把方案 / 影响面 / 风险摆出来，再决定做不做；不要猜着写。
+3. **不确定就先走只出计划模式**：先把方案 / 影响面 / 风险摆出来，再决定做不做；不要猜着写。
 
 ## 反例
 
@@ -44,5 +46,5 @@ description: Steward 技能路由（ZCode 侧）。当用户不知道用 Steward
 
 ## 边界
 
-- 本技能只在 **ZCode 侧**提供；MiniMax 侧等 1.6.1 再同步（当前 1.6.0 没有本路由）。
-- 路由表与主技能冲突时，以主技能正文为准；本技能只负责「把用户带到正确入口」。
+- 本技能只做「把用户带到正确入口」，不执行流程；路由表与主技能冲突时以主技能正文为准。
+- 文档流水线与需求澄清是主技能内的两节（docTier=3 / Stage 0.1），不是独立入口。
