@@ -1,8 +1,8 @@
 # Steward · MiniMax 插件版
 
-角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（1.5.2）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，并自带可信变更门禁与演进循环（T3 按需升级）；演进细节见 [路线图](../docs/ROADMAP.md)。
+角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（1.5.3）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，并自带可信变更门禁与演进循环（T3 按需升级）；演进细节见 [路线图](../docs/ROADMAP.md)。
 
-本包是 ZCode 版 Steward（0.7.2）的 **MiniMax Plugin V1 移植版**，团队名册、六阶段流程、调度规则与铁律一致，差异只在宿主适配。v1.2.0 起使用 Steward 名称，并继续附带可选的 GenUI 可视化技能。
+本包是 ZCode 版 Steward（0.7.3）的 **MiniMax Plugin V1 移植版**，团队名册、六阶段流程、调度规则与铁律一致，差异只在宿主适配。v1.2.0 起使用 Steward 名称，并继续附带可选的 GenUI 可视化技能。
 
 ## 团队名册（7 角色 + 外援）
 
@@ -37,10 +37,11 @@
 | `steward:tdd` | TDD 纪律（红 → 绿 → 重构），实现类任务按需加载 |
 | `steward:verification-before-completion` | 完成前验证纪律（复跑 + 真实输出才可声称完成） |
 
-**可视化两个视图**（均为可选，业务流程不依赖它）：
+**可视化三个视图**（均为可选，业务流程不依赖它）：
 
 - **任务 DAG 与并行批次**（`kind="diagram"`）：从 `03-plan.md` 任务表渲染依赖链、最长依赖链、可并行批次，并标出文件所有权冲突。
 - **质量门与缺陷回派看板**（`kind="dashboard"`）：从 `reports/qa.md`、`browser.md`、`review.md` 汇总阻断项、待回派、已修复与按严重度排序的缺陷明细。
+- **维护健康看板**（`kind="dashboard"`）：从 `reports/maintenance-*.md` 与 `HEALTH.md` 渲染健康分、分级、趋势、八类扫描计数与按得分排序的维护 backlog。
 
 衍生技能内含从 `minimax/genui-widget@mavis.widget.v1` 完整拷贝的 GenUI 基座（`genui.json` 记录实际摘要），自包含、可自由修改。
 
@@ -104,10 +105,10 @@ MiniMax 会自动重扫本地插件，无需重启。改动后重新拷贝即可
 
 ## English
 
-Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 1.5.2 covers feature delivery, the B0-B3 bug track, plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), the evolution loop (architecture drift / duplication / refactor-ratio checks, codemod planning), on-demand T3 docs, browser evidence contract, learning loop, and trusted-change gates with a retry budget.
+Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 1.5.3 covers feature delivery, the B0-B3 bug track, plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), the evolution loop (architecture drift / duplication / refactor-ratio checks, codemod planning), on-demand T3 docs, browser evidence contract, learning loop, trusted-change gates with a retry budget, and the maintenance health dashboard.
 
-Skills: `steward:steward` (Tech Lead workflow) and `steward:steward-visualizer` (optional GenUI views).
+Skills: `steward:steward` (Tech Lead workflow) and `steward:steward-visualizer` (optional GenUI views: task DAG, defect triage, maintenance health).
 
 Trigger: the `UserPromptSubmit` hook loads the skill when the input contains "开发团队", "开发小组", or "Steward". Install by copying `minimax/` into `%USERPROFILE%\.minimax\plugins\steward\`.
 
-Version: 1.5.2 · License: MIT · Copyright (c) 2026 Lin
+Version: 1.5.3 · License: MIT · Copyright (c) 2026 Lin

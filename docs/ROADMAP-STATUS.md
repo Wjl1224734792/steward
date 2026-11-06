@@ -38,7 +38,7 @@
 - 项 9 已于 v0.7.2 完成真实浏览器演练（证据见上）；worktree 合并仍为规则落地、待真实多分支场景。
 - token/轮次预算采用失败重试次数口径（maxTotalAttempts）；宿主未暴露 token 计数接口，不做假预算。
 
-## P2（v0.7，ZCode 0.7.2 / MiniMax 1.5.2）— 2026-11-06
+## P2（v0.7，ZCode 0.7.3 / MiniMax 1.5.3）— 2026-11-06
 
 | # | 交付 | 状态 | 证据 | 备注 |
 |---|---|---|---|---|
@@ -46,12 +46,12 @@
 | 15 | T3 文档按需升级 | 已实现 | `scripts/templates/t3/` 六件（PRD/FRD/CONTRACT/PAGE-LAYOUT/TEST-PLAN/DEPLOYMENT），build.mjs 已同步 minimax；SKILL「T3 按需升级」节（docTier=3，验收条目收敛进 AC 由 validate-plan 机检） | 模板为骨架；PRD/FRD 的实际产出质量待首个 docTier=3 项目检验 |
 | 16 | 双宿主单一正文源 + 本地构建脚本 | 已实现（v0.7.1） | **技能/agent 正文单一源**：`shared/`（共享正文 + `@@SLOT@@`）+ `host/<宿主>/`（frontmatter/名册与派发/标签/浏览器操作方式）→ `build.mjs` 生成 2 宿主 ×（4 技能 + 7 agent）= 22 个文件；生成物带「请勿手改」标记。`--check` 校验：生成一致性（篡改测试：手改 `minimax/agents/pm.md` → FAIL exit 1，重建恢复）、脚本/模板同步、清单、frontmatter、版本节奏、残留槽位；缺 `shared/`+`host/` 布局友好失败 exit 2。生成前后逐文件 diff：仅计划内归一 + 生成标记，无内容丢失（minimax 模型表/派发方式/可视化/glm 注记、zcode hooks 行均保留） | 维护方式：只改 `shared/` 或 `host/` 后跑 `node zcode/scripts/build.mjs`；脚本仍以 zcode 为源同步到 minimax（宿主包自包含） |
 | 17 | ZCode hooks：所有权/危险命令/密钥 | 已实现（配置+契约自检；live 拦截待新会话） | 按宿主权威格式修正：`zcode/hooks/hooks.json`（PreToolUse + Write/Edit/Bash matcher + `${CLAUDE_PLUGIN_ROOT}`，无非法键）随插件分发；工作区 `.zcode/config.json`（`enabled:true` + `${ZCODE_PROJECT_DIR}` 三守卫）已挂载；`scripts/hooks/selftest.mjs` **11/11 PASS**（危险命令/密钥/所有权/坏 JSON，exit 0/2 + stdout 为空契约）；`zcode/hooks/README.md` 说明激活/关闭/ownership 文件格式 | hook 配置会话启动时加载：**宿主级 live 拦截在新会话生效**，本会话内以契约自检+配置校验验证，不虚报「已拦截」 |
-| 18 | GenUI 健康/进度看板 | 已实现（契约） | visualizer data-schema.json 新增 `maintenance` 数据集（健康分/分类计数/backlog 条目 + fieldRules + nullPolicy），JSON 校验通过；渲染配方复用既有 dashboard 模式 | 视图渲染实际效果待 MiniMax 宿主验证（ZCode 无 GenUI） |
+| 18 | GenUI 健康/进度看板 | 已实现（v1.5.3 配方 C） | **专用配方 C**：components.md（视觉基线 + 页头 / 健康分 + 分级 + 环比 + SVG 趋势 / 3 KPI / 状态分布 / 8 类矩阵 / 排序 backlog / 详情 / 动作条）、examples.md 完整示例 C（7 条 backlog、5 点 history）、data-schema 增加可选 history 与展示口径派生值（healthGrade/openCount/maxScore/scoreDelta/topCategory）；`check-widget.mjs` 示例 A/B/C **3/3 PASS**；同源预览：1180 宽亮色截图、暗色令牌对比度 ≥4.5:1、640 窄屏无横向溢出、类别筛选 / 隐藏已修复 / 排序 / 展开 / 3 个 sendPrompt / 空-错误-缺字段态全过 | MiniMax 宿主实机待用户确认（ZCode 无 GenUI）；IAB 截图在会话后续调用超时，暗色 / 窄屏以计算样式与几何断言代替；Playwright click 超时，交互以页面内 DOM click 验证 |
 | 19 | Monorepo / 多服务 | 已实现（口径） | SKILL「Monorepo / 多服务」节（双宿主）：workspaces 探测（take-over 已有 monorepoNote）、services 多服务配置（P0 schema 已支持）、按 package 所有权、子包级 maintain 汇总 | 未建 monorepo fixture 实测；口径与既有脚本能力一致，无新增未验证声明 |
 
 ### P2 已知偏差
 
-- 项 17：配置已挂载、契约自检通过，宿主级 live 拦截需新会话验证；项 18：GenUI 渲染效果待 MiniMax 宿主实测（用户自行验证）。项 16 已于 v0.7.1 完整落地。
+- 项 17：配置已挂载、契约自检通过，宿主级 live 拦截需新会话验证；项 18：配方 C 与本地预览验收完成（v1.5.3），MiniMax 宿主实机待用户确认。项 16 已于 v0.7.1 完整落地。
 
 ## 能力演练汇总（v0.7.2）— 2026-11-06
 

@@ -2,6 +2,24 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.7.3 / MiniMax 1.5.3] - 2026-11-06
+
+### Added（MiniMax GenUI）
+
+- **维护健康看板（配方 C）**：`/steward maintain` 后的专用 dashboard 设计——页头（扫描日期 / 来源 / 分级）、健康分 + 环比 + SVG 趋势、3 个 KPI、状态分布条、8 类扫描计数矩阵（点击筛选）、按得分排序的 backlog（得分条 / 成本点 / 状态 / 展开详情），动作条提供「按类别汇总」「单项修复计划」「健康分口径」三种 sendPrompt。纯 CSS/SVG，仅用 `--mw-*` 令牌。
+- `data-schema.json` 的 `maintenance` 增加可选 `history`（HEALTH.md 扫描记录，≥2 点才画趋势 / 环比）与展示口径派生值（healthGrade / openCount / maxScore / scoreDelta / topCategory）；明确 `categories` 是扫描计数、`backlog` 是挑选后的处置项，两者不必一一对应。
+- `examples.md` 新增完整示例 C（7 条 backlog、5 点 history、代表性维护扫描数据）；`SKILL.md` 路由与 `host/minimax/skills/steward/visualizer.md` 判定同步。
+
+### Fixed
+
+- 维护看板此前只有数据契约、没有渲染配方，宿主只能套通用 dashboard 模板：健康分无视觉锚点、8 类无呈现、backlog 无优先级视觉。本版补齐专用配方与完整示例。
+
+### 验证
+
+- `check-widget.mjs`（本地工具）：示例 A/B/C 全部 PASS——DSL 结构、必填属性、meta/data JSON、脚本语法、令牌白名单、无硬编码色、无 Chart.js/fetch/eval/本地存储、dashboard ≥2 按钮与 ≥2 sendPrompt、fallback 非空。
+- 同源 HTML 预览（模拟 `--mw-*` 明 / 暗令牌）：1180 宽亮色截图验收布局；暗色令牌计算色与关键文本 / 背景对比度 ≥4.5:1；640 窄屏无横向溢出（hero 单列、类别 2 列、行卡片化）；交互（类别筛选 / 隐藏已修复 / 按成本与得分排序 / 行展开 / 3 个 sendPrompt payload）与状态（空 / 错误 / 缺字段）全部通过。
+- 限制：IAB 截图服务在本会话后续调用超时，暗色 / 窄屏以计算样式与几何断言代替截图；Playwright 点击超时，交互以页面内 DOM click 验证（同一事件处理器）。MiniMax 宿主实机渲染仍待用户确认（ZCode 无 GenUI）。
+
 ## [ZCode 0.7.2 / MiniMax 1.5.2] - 2026-11-06
 
 ### Fixed

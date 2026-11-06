@@ -1,95 +1,95 @@
 ## Context
 
-P0–P2 已交付，但 `docs/ROADMAP-STATUS.md` 记录的 P2 项 16 仍是「部分实现」：**技能/agent 正文双源维护**（zcode 与 minimax 各一份手写，靠 build.mjs 的漂移报告兜底）。这正是「不二改、长期可维护」要还的最后一笔债。目标：把 22 个技能/agent 文件（4 技能 ×2 宿主 + 7 agent ×2 宿主）改成**单一正文源 + 宿主片段 → build.mjs 生成**，让改一处生效两版，`--check` 能拦住手改与漂移；同时按建议做本地 commit（不 push）。
+`docs/ROADMAP-STATUS.md` 项 18（GenUI 健康/进度看板）目前只有 `maintenance` 数据契约，**没有专用渲染配方**——`references/components.md` 只有配方 A（任务 DAG）和配方 B（质量门缺陷），`examples.md` 也没有维护看板示例。MiniMax 只能拿通用 dashboard 模板硬套，结果是：健康分没有视觉锚点、8 类维护项没有呈现、backlog 没有优先级视觉、状态/趋势缺失——这就是「UI 看板太丑」的根因。
 
-已核实的差异（只读盘点）：
-- 两个 `skills/steward/SKILL.md`（209/247 行）约 90% 相同；差异为：宿主 frontmatter/banner、名册与派发章节（minimax 多「模型分配」「派发方式」整节）、检索工具名（tavily / `tavily-remote`）、Stage 0.5 的 Explore/explore、Stage 4 的 glm 注记、调度规则 #2/#3、模型路由 bullet 2、可视化整节（仅 minimax）、脚本表 hooks 行（仅 zcode）。
-- 7 对 agent：reviewer 正文完全一致（仅 frontmatter 不同）；pm/architect/backend-dev/frontend-dev/qa-engineer 仅 1~3 处措辞/工具名差异；browser-tester 差异较大（证据铁律块、操作方式整节、provider 枚举、工件目录输入项）。
-- 3 个轻量技能应逐字节相同（重构后由生成保证）。
-- `zcode/scripts/build.mjs` 已有可复用骨架：`fmOf`/`frontmatterErrors`（36–45 行）、`checkManifest`（86–103 行）、版本节奏校验（106–113 行）、`syncDir`（70–83 行）、scripts/templates 同步（47–83 行）；漂移报告（131–142 行）将被「生成一致性校验」取代。第 90–92 行 `lists` 是死代码，顺带删除。
+这次按上下文理解为 `/steward maintain` 的 **GenUI 维护健康看板**（ROADMAP 项 18）。目标：新增一套专用「配方 C」，并做一版可用于实机渲染的完整示例 + 本地同源预览验收。
 
-## 目标结构
+## 设计方向：维护控制台（CSS/SVG，无 Chart.js）
 
 ```text
-shared/                                  # 唯一正文源（新增）
-  skills/steward.body.md                 # 共享正文，含 @@SLOT@@ 标记
-  skills/{systematic-debugging,tdd,verification-before-completion}/SKILL.md  # 整文件共享
-  agents/<name>.body.md                  # 7 个 agent 共享正文
-host/<zcode|minimax>/                    # 宿主片段（新增）
-  skills/steward/{frontmatter,head,dispatch-call,concurrency-error,
-                  explore-agent,hooks-row?,model-routing-dispatch,
-                  model-default-line?,visualizer?,browser-model-note?}.md
-  labels/{tavily,context7,web-fallback}.md   # 检索工具名标签，agent 与技能复用
-  agents/<name>.frontmatter.md
-  agents/browser-tester.{operation-methods,provider-enum,evidence-rule?}.md
+┌──────────────────────────────────────────────────────────────┐
+│ 维护健康   2026-11-06 · maintain.mjs            [待治理]      │
+├─────────────────────────────┬────────────────────────────────┤
+│ 13.0                        │ 待处理 5   已修复 1   最高得分 8.0 │
+│ 健康分（越低越好）            │                                │
+│ 较上次 −1.0   ▁▂▃▅▄          │ 状态分布 ████████░░░░           │
+├─────────────────────────────┴────────────────────────────────┤
+│ 类别分布（8 格，可点击筛选）                                   │
+│ [重复 836] [待办 16] [文档 2] [churn 0] …                      │
+├──────────────────────────────────────────────────────────────┤
+│ 优先处理 (5)                       [隐藏已修复] [按得分 ▾]     │
+│ 01 M1 跨文件重复代码窗口   duplication 8.0 ████████ 成本●●● 待处理 ›│
+│ 02 M2 AGENTS.md 缺失      docDrift    4.5 ████     成本●○○ 待处理 ›│
+│ …（点击行展开证据与「生成修复计划」）                            │
+├──────────────────────────────────────────────────────────────┤
+│ [按类别汇总维护计划]                    [健康分怎么算]          │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**槽位协议**（build.mjs 实现，纯 Node 无依赖）：
-- `@@SLOT:相对路径@@` → 必填，读 `host/<host>/<相对路径>.md`，缺失即报错；
-- `@@SLOT?:相对路径@@` → 可选（empty 即删除整行），用于仅单宿主内容（visualizer、hooks 行、glm 注记、zcode 的 model 默认行、minimax 的证据铁律、zcode 的 evidence-rule 缺失）；
-- 生成文件在 frontmatter 后插入一行生成标记：`<!-- 由 zcode/scripts/build.mjs 从 shared/ + host/<host>/ 生成，请勿手改 -->`；
-- 渲染后输出不得残留 `@@SLOT`；生成目标路径不变（`zcode/`、`minimax/` 下原位），**plugin.json 与 commands 不动**。
-
-**输出映射（22 个文件）**：
-- `shared/skills/steward.body.md` + host frontmatter → `<host>/skills/steward/SKILL.md`
-- `shared/skills/<name>/SKILL.md` → `<host>/skills/<name>/SKILL.md`（逐字节）
-- `shared/agents/<name>.body.md` + host frontmatter → `<host>/agents/<name>.md`
-
-**无害措辞归一**（避免为无意义差异建槽位）：两宿主统一为——名册/派单章节外的一切正文；「仓库根路径」输入项两边都保留；frontend i18n 措辞统一「词条齐全（缺词条是缺陷）」；QA 的 Context7 走 label 片段；维护/Bug/计划/演进小节标题统一为带命令的写法（如 `## 维护循环（/steward maintain，v0.6）`）。
+设计要点：
+- **信息层级**：健康分（40px）+ 分级徽标 → 3 个 KPI → 状态分布 → 类别矩阵 → 按得分排序的 backlog → 详情/动作。
+- **真实数据**：分级按未修复条目数（0 健康 / 1–4 需关注 / ≥5 待治理，写进 schema 的展示口径）；得分条按当前最大得分归一化；趋势/环比只用 `history`（HEALTH.md 有记录才显示），不推算、不补造。
+- **视觉规范**：只用 `--mw-*` 令牌；12px 圆角、1px 边框、无阴影/渐变/发光；文字 400/500，700 只用于分数与 KPI；分类用中性色 + 「最多」徽标，语义色只给状态/分级；无 emoji，图标用 CSS/SVG。
+- **交互**：类别格筛选、隐藏已修复、得分/成本排序、行展开详情（本地）；`sendPrompt` 只保留 3 个高价值动作（单项修复计划、按类别汇总、健康分算法说明）。
+- **状态**：加载骨架、空态（健康分 0 + 无待办文案）、错误态（保留布局 + 内联提示）、缺字段（保留行并标「待补全」）。
+- **响应式**：≥760px 双栏 hero；<760px 堆叠，backlog 行转两行卡片。
 
 ## 改动文件
 
-1. **新增** `shared/`（11 个文件）+ `host/zcode/`、`host/minimax/`（各约 20 个小片段）。
-2. **改写** `zcode/scripts/build.mjs`：
-   - 新渲染引擎（~70 行）：读 shared body → 递归替换槽位（行内/整行两种）→ 拼 frontmatter + 生成标记 → 与现有文件比对，`--check` 报差异文件、默认写入；解析失败/残留标记/缺必填槽位 → exit 1；
-   - 保留并复用：scripts/hooks/templates 同步、`checkManifest`、`frontmatterErrors`、版本节奏校验；删除死代码与旧漂移报告；
-   - 新增仓库布局守卫：无 `shared/` 或 `host/` → 明确报错「build.mjs 仅用于源码仓库」exit 2（minimax 安装副本运行时的友好失败）；
-   - 同步到 `minimax/scripts/build.mjs`（沿用现有单一源同步）。
-3. **重新生成** 22 个技能/agent 文件（内容与现状语义等价，仅归一措辞 + 生成标记）。
-4. **版本**：`zcode/.zcode-plugin/plugin.json` 0.7.0→**0.7.1**、`minimax/.minimax-plugin/plugin.json` 1.5.0→**1.5.1**；README×4 与生成 banner 同步引用；版本节奏校验（0.x ↔ 1.(x-2)）保持通过。
-5. **文档**：根 `README.md`（中英目录结构 + 维护者说明「改 shared/ 后跑 build.mjs」）、`CHANGELOG.md` 新增 0.7.1/1.5.1 条目、`docs/ROADMAP-STATUS.md` 项 16 → 已实现（证据引用 build 校验输出）、`docs/ROADMAP.md` 状态行补 P2 补记。
+**产品（MiniMax 可视化技能）**
+1. `minimax/skills/steward-visualizer/SKILL.md`
+   - frontmatter description 增加维护健康看板触发词（中英）。
+   - 「何时渲染」表加一行：`/steward maintain` 后 → 配方 C。
+   - 硬性要求：三个配方、C 也用 CSS/SVG、kind 映射（A=diagram，B/C=dashboard）。
+2. `minimax/skills/steward-visualizer/references/components.md`
+   - 新增「视觉基线」小节（间距/字号/圆角/徽标/响应式断点，A/B/C 共用）。
+   - 新增「配方 C：维护健康看板」：业务问题、选择规则、输入字段、Widget 形态、本地交互、sendPrompt、状态表现、文本回退。
+3. `minimax/skills/steward-visualizer/references/examples.md`
+   - 新增「示例 C」完整可运行 `<mavis-widget>`：代表性维护扫描数据（健康分 13.0、8 类计数、5 条 backlog、5 点 history），含完整 CSS/HTML/script/fallback。
+4. `minimax/skills/steward-visualizer/references/data-schema.json`
+   - `maintenance` 增加可选 `history: [{date, score}]`（仅来自 HEALTH.md，缺省不报错）。
+   - `derivedValues` 增加展示口径：`healthGrade`（按未修复数）、`openCount`、`maxScore`、`scoreDelta`、`categoryCounts`（8 类补零）。
+   - `fieldRules` 明确 categories 是扫描计数、backlog 是挑选后的处置项，两者不必一一对应。
+5. `host/minimax/skills/steward/visualizer.md`
+   - 表格增加 `/steward maintain 扫描后` → 维护健康看板（dashboard）→ `reports/maintenance-*.md` + HEALTH.md → 健康分/类别分布/优先级 backlog；判据补「有扫描结果就画，backlog 为空用空态」。
+   - 跑 `node zcode/scripts/build.mjs` 重新生成 `minimax/skills/steward/SKILL.md`（单一正文源，不手改生成物）。
 
-## 实施顺序
+**版本与文档**
+6. `zcode/.zcode-plugin/plugin.json` 0.7.2→0.7.3；`minimax/.minimax-plugin/plugin.json` 1.5.2→1.5.3（保持 0.x ↔ 1.(x−2) 节奏；ZCode 侧仅版本同步，无行为变更）。
+7. `README.md`（中英）、`zcode/README.md`、`minimax/README.md`：版本号同步；根 README 把「GenUI 维护看板契约」改为「维护健康看板（专用配方 C）」；顺手修掉已过期的「Next」条目（单一源化、GenUI dashboard 实际已完成）。
+8. `CHANGELOG.md` 新增 `[ZCode 0.7.3 / MiniMax 1.5.3]`：Added（配方 C、history/派生值）、Fixed（维护看板此前只有契约没有配方）、验证（本地预览 + 契约检查；MiniMax 实机待用户确认）。
+9. `docs/ROADMAP-STATUS.md` 项 18 → 已实现（v1.5.3 专用配方 C + 本地视觉验收）；`docs/ROADMAP.md` 状态行与 v1.6 变更记录补一行。
 
-1. 快照现状：`tmp/pre-single-source/` 复制 16 个目标文件（22 个里 3 个轻量技能本来相同，也一并存）——用于生成后逐文件 diff。
-2. 建 `shared/` 与 `host/` 片段（以现 zcode/minimax 文本为素材，按上述差异图拆槽）。
-3. 改 build.mjs，跑生成。
-4. 逐文件 diff 快照，确认：仅生成标记 + 计划内归一措辞变化；minimax 的模型表/派发方式/可视化/glm 注记完整保留；zcode 的 hooks 行保留；无内容丢失。
-5. 版本与文档更新。
+**验收工件（tmp，gitignored）**
+10. `tmp/steward-tools/genui-preview.mjs`：从 `examples.md` 抽取示例 C，拼装独立预览 HTML（模拟 `--mw-*` 明/暗令牌、注入 `window.__mavisData`、stub `window.mavis.sendPrompt`），支持 `?state=empty|error|missing`。
+11. `tmp/steward-tools/check-widget.mjs`：契约检查（单 widget、必填属性、meta/data JSON、script 语法、令牌白名单、无硬编码色、无 Chart.js/fetch/eval/localStorage、交互均声明 sendPrompt、fallback 存在）。
+12. 会话可视化目录 `maintenance-dashboard.html`：同一预览的 inline 版本（先加载 `visualize` 技能按规范生成），最终回复中引用，让用户直接在 ZCode 里看设计。
 
-## 验证（全部真实命令 + exit code）
+## 验证（真实命令 + 真实输出）
 
 ```bash
 cd /e/CodeStore/plugins/dev-team
-node zcode/scripts/build.mjs            # 生成 22 文件
-node zcode/scripts/build.mjs --check    # 必须 PASS（幂等）
-# 篡改测试：手改一个生成文件 → --check 必须 FAIL exit 1；重建后恢复
-printf '\n手改' >> minimax/agents/pm.md && node zcode/scripts/build.mjs --check; echo "期望 exit=1"
-node zcode/scripts/build.mjs && node zcode/scripts/build.mjs --check
-# 既有门禁不回归
-F=tmp/steward-fixtures/ledger-demo
-node zcode/scripts/validate-config.mjs $F/steward.config.json
-node zcode/scripts/validate-plan.mjs $F/.steward/bug-run/03-plan.json --root $F
-node zcode/scripts/verify.mjs run --root $F
-node zcode/scripts/maintain.mjs $F --skip-flaky
-# 清单/frontmatter/版本节奏由 build --check 覆盖；额外确认 minimax skills 注册数仍为 5
-node -e "console.log(require('./minimax/.minimax-plugin/plugin.json').version)"
+node zcode/scripts/build.mjs            # 重新生成 minimax/skills/steward/SKILL.md
+node zcode/scripts/build.mjs --check    # 必须 PASS
+node -e "JSON.parse(require('fs').readFileSync('minimax/skills/steward-visualizer/references/data-schema.json','utf8')); console.log('schema OK')"
+node tmp/steward-tools/check-widget.mjs # 示例 A/B/C 契约检查全过（A/B 不改也应保持通过）
+node tmp/steward-tools/genui-preview.mjs
+# 起本地静态服务后用浏览器验收：
+#   1180×900 明/暗、640×900 明 → 截图 + DOM 断言
+#   交互：类别筛选 / 隐藏已修复 / 按成本排序 / 行展开 / 三个 sendPrompt payload
+#   状态：empty / error / missing（缺字段行保留并标待补全）
 ```
 
-## 提交（本地，不 push）
-
-1. 先提交现状：`git add -A && git commit -m "feat: Steward 路线图 P0–P2（v0.5→v0.7.0）"`（45 个改动/新增）。
-2. 再提交单一源化：`git add -A && git commit -m "refactor: 双宿主技能/agent 正文单一源化（build.mjs 生成）+ v0.7.1/1.5.1"`。
-不 push、不改写历史。
-
-## 风险与回滚
-
-- **生成内容语义漂移**：以快照 diff 逐文件核对为门禁；发现缺失立即修槽位再生成。
-- **构建脚本复杂度**：渲染引擎限定 ~70 行、零依赖；`--check` 覆盖全部生成文件，手改可发现。
-- **回滚**：全部改动在工作区/本地提交；`git revert` 或 `git reset` 到第一个提交即可回到 P0–P2 状态；`shared/`、`host/` 为纯新增，删除不影响插件包。
+浏览器验收会记录：截图、DOM 文本断言（分数/分级/KPI/8 类/行数/排序）、`window.__sent` 的 sendPrompt payload、窄屏无横向溢出。最后把结果写进 CHANGELOG 与 ROADMAP-STATUS 的验证栏。
 
 ## 不在本次范围
 
-- 真实 M/L 需求演练批准门、UI 项目演练 browser-evidence.json、codemod 演练（需真实项目）。
-- ZCode settings 挂载 hooks（用户环境操作）。
-- 双语 README 正文合并（中英为有意双版），仅同步维护者说明。
+- 不重做配方 A/B 的结构（只把共用视觉基线写进 components.md；B 如需重排另起任务）。
+- 不在 MiniMax 宿主实机渲染（ZCode 无 GenUI；实机效果仍由用户切到 MiniMax 确认）。
+- 不改脚本门禁、不动 hooks、不 commit / 不 push；完成后把改动与验收结果汇报，等你确认是否提交。
+
+## 风险
+
+- **宿主渲染差异**：MiniMax 的 GenUI 渲染器可能与本地浏览器略有差异；对策是只用文档化 DSL/令牌、零外部依赖、无 Chart.js，并把所有主题相关样式留给 `--mw-*`。
+- **示例膨胀**：示例 C 控制在 ~350 行内；视觉基线抽成小节，避免 A/B/C 重复。
+- **版本同步**：ZCode 无行为变更但同步 patch 版本，保持双宿主节奏；如你不想升版本，可在实施前去掉这一项。

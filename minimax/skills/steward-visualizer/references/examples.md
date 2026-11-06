@@ -1,6 +1,6 @@
 # Steward Visualizer 示例
 
-两个配方各一个完整示例。示例数据是**代表性的研发团队产物**（虚构仓库与文件），不含任何真实凭据、绝对路径或生产密钥。实际使用时把 `<mavis-data>` 换成从 `03-plan.md` / `reports/*.md` 解析出的同构数据。
+三个配方各一个完整示例。示例数据是**代表性的研发团队产物**（虚构仓库与文件），不含任何真实凭据、绝对路径或生产密钥。实际使用时把 `<mavis-data>` 换成从 `03-plan.md` / `reports/*.md` / `HEALTH.md` 解析出的同构数据。
 
 ---
 
@@ -27,7 +27,7 @@ body{margin:0;padding:16px;background:var(--mw-bg);color:var(--mw-text);font-fam
 .kpi{background:var(--mw-surface);border:1px solid var(--mw-border);border-radius:10px;padding:12px 14px;}
 .kpi-label{font-size:12px;color:var(--mw-text-muted);}
 .kpi-value{font-size:24px;font-weight:700;color:var(--mw-text);margin-top:2px;}
-.kpi-note{font-size:12px;color:var(--mw-text-subtle);margin-top:2px;}
+.kpi-note{font-size:12px;color:var(--mw-text-muted);margin-top:2px;}
 .kpi-note.danger{color:var(--mw-danger);}
 .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--mw-text-muted);margin-bottom:12px;}
 .legend-item{display:flex;align-items:center;gap:6px;}
@@ -346,6 +346,7 @@ body{margin:0;padding:16px;background:var(--mw-bg);color:var(--mw-text);font-fam
 .chip:hover{background:var(--mw-surface-muted);}
 .chip:focus-visible{outline:2px solid var(--mw-accent);outline-offset:2px;}
 .chip.on{border-color:var(--mw-accent);color:var(--mw-accent);background:var(--mw-surface-muted);}
+.chip[disabled]{opacity:0.5;cursor:not-allowed;}
 .tbl{width:100%;border-collapse:collapse;}
 .tbl th{padding:8px 10px;text-align:left;font-size:12px;font-weight:500;color:var(--mw-text-muted);background:var(--mw-surface-muted);border-bottom:1px solid var(--mw-border);}
 .tbl td{padding:9px 10px;border-bottom:1px solid var(--mw-border);font-size:12px;color:var(--mw-text);vertical-align:top;}
@@ -536,7 +537,575 @@ body{margin:0;padding:16px;background:var(--mw-bg);color:var(--mw-text);font-fam
 
 ---
 
-## 两点校验提醒
+## 示例 C：维护健康看板（配方 C，kind="dashboard"）
 
-- 示例 A、B 都不调用 `new Chart(...)`：A 的节点是任务实体（无连续量纲），B 的严重度分布只有 3 个桶，均在「≤5 个可比数据点用 CSS/SVG」的判定之内。若后续要加柱状图，先确认样本量 ≥6 且 `kind` 为 `chart` / `dashboard`。
-- 两个示例的 `sendPrompt` 的 `text` 与 `userIntent` 均为中文，与中文会话一致；若宿主会话语言为英文，二者都要改成英文。
+对应数据集：`maintenance`。示例数据是**代表性的维护扫描产物**（虚构仓库计数），不是真实扫描日志；实际使用时把 `<mavis-data>` 换成从 `reports/maintenance-*.md` 与 `HEALTH.md` 解析出的同构数据。
+
+```text
+<mavis-widget
+  version="mavis.widget.v1"
+  kind="dashboard"
+  title="维护健康看板"
+  height="1140"
+  min-height="620"
+  max-height="1200"
+  streaming="html-first"
+  capabilities="resize,sendPrompt"
+  theme="app"
+  token-set="mavis.semantic.v1">
+  <mavis-meta type="json">{"summary":"健康分 13.0（待治理），7 项处置项中 5 项待处理；重复类扫描计数 836 为最大来源，优先处理 M1。","dataSource":"Steward 工件 reports/maintenance-20261106.md 与 docs/project/HEALTH.md","chartType":"dashboard","datasetShape":{"rows":7,"dimensions":["backlogId","category","status"],"measures":["score","cost"]},"interactions":[{"id":"plan-backlog-item","label":"生成修复计划","capability":"sendPrompt"},{"id":"summarize-maintenance","label":"按类别汇总维护计划","capability":"sendPrompt"},{"id":"explain-health-score","label":"健康分怎么算","capability":"sendPrompt"}]}</mavis-meta>
+  <mavis-style>
+body{margin:0;padding:16px;background:var(--mw-bg);color:var(--mw-text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;}
+.board{display:flex;flex-direction:column;gap:12px;}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.head-title{font-size:18px;font-weight:500;color:var(--mw-text);}
+.head-sub{font-size:12px;color:var(--mw-text-muted);display:flex;gap:6px;align-items:center;margin-top:2px;}
+.sep{color:var(--mw-text-subtle);}
+.grade{font-size:12px;padding:3px 10px;border-radius:6px;border:1px solid var(--mw-border);color:var(--mw-text-muted);white-space:nowrap;}
+.grade.success{color:var(--mw-success);border-color:var(--mw-success);}
+.grade.warning{color:var(--mw-warning);border-color:var(--mw-warning);}
+.grade.danger{color:var(--mw-danger);border-color:var(--mw-danger);}
+.hero{display:grid;grid-template-columns:minmax(240px,0.9fr) minmax(0,1.6fr);gap:12px;}
+.hero-score,.hero-side{background:var(--mw-surface);border:1px solid var(--mw-border);border-radius:12px;padding:16px;}
+.hero-score{display:flex;flex-direction:column;}
+.score{font-size:40px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--mw-text);}
+.score-label{font-size:12px;color:var(--mw-text-muted);margin-top:4px;}
+.muted{color:var(--mw-text-muted);}
+.score-meta{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--mw-text-muted);flex-wrap:wrap;}
+.delta{font-size:12px;font-weight:500;}
+.delta.up{color:var(--mw-success);}
+.delta.down{color:var(--mw-danger);}
+.delta.flat{color:var(--mw-text-muted);}
+.spark{margin-top:12px;}
+.spark svg{display:block;width:100%;height:48px;}
+.spark-area{fill:var(--mw-accent);fill-opacity:0.12;stroke:none;}
+.spark-line{fill:none;stroke:var(--mw-accent);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
+.spark-range{display:flex;justify-content:space-between;font-size:12px;color:var(--mw-text-muted);margin-top:4px;}
+.hero-side{display:flex;flex-direction:column;gap:12px;}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.kpi{background:var(--mw-surface-muted);border-radius:8px;padding:10px 12px;}
+.kpi-label{font-size:12px;color:var(--mw-text-muted);}
+.kpi-value{font-size:24px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums;margin-top:2px;}
+.kpi-note{font-size:12px;color:var(--mw-text-subtle);margin-top:2px;}
+.status-head{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--mw-text-muted);margin-bottom:6px;}
+.status-track{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--mw-surface-muted);}
+.seg{height:100%;width:0;}
+.seg-open{background:var(--mw-warning);}
+.seg-fixed{background:var(--mw-success);}
+.seg-deferred{background:var(--mw-text-subtle);}
+.seg-escalated{background:var(--mw-danger);}
+.status-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:12px;color:var(--mw-text-muted);}
+.legend-item{display:flex;align-items:center;gap:5px;}
+.legend-count{color:var(--mw-text);font-weight:500;font-variant-numeric:tabular-nums;}
+.dot{width:7px;height:7px;border-radius:2px;}
+.dot-open{background:var(--mw-warning);}
+.dot-fixed{background:var(--mw-success);}
+.dot-deferred{background:var(--mw-text-subtle);}
+.dot-escalated{background:var(--mw-danger);}
+.panel{background:var(--mw-surface);border:1px solid var(--mw-border);border-radius:12px;padding:14px 16px;}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.section-title{font-size:14px;font-weight:500;color:var(--mw-text);}
+.count{font-size:12px;color:var(--mw-text-subtle);font-weight:400;}
+.section-note{font-size:12px;color:var(--mw-text-muted);}
+.cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+.cat{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 10px;border:1px solid var(--mw-border);border-radius:8px;background:var(--mw-surface);color:inherit;font:inherit;text-align:left;cursor:pointer;position:relative;}
+.cat:hover{background:var(--mw-surface-muted);}
+.cat:focus-visible{outline:2px solid var(--mw-accent);outline-offset:2px;}
+.cat.on{border-color:var(--mw-accent);background:var(--mw-surface-muted);}
+.cat.zero{color:var(--mw-text-subtle);}
+.cat-name{font-size:12px;color:inherit;}
+.cat-count{font-size:20px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--mw-text);}
+.cat.zero .cat-count{color:var(--mw-text-subtle);}
+.cat-top{position:absolute;top:6px;right:6px;font-size:12px;color:var(--mw-accent);}
+.tools{display:flex;gap:6px;flex-wrap:wrap;}
+.chip{font:inherit;font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid var(--mw-border);background:var(--mw-surface);color:var(--mw-text-muted);cursor:pointer;}
+.chip:hover{background:var(--mw-surface-muted);}
+.chip:focus-visible{outline:2px solid var(--mw-accent);outline-offset:2px;}
+.chip.on{border-color:var(--mw-accent);color:var(--mw-accent);background:var(--mw-surface-muted);}
+.list-note{font-size:12px;color:var(--mw-text-muted);margin:8px 0 4px;}
+.rows{display:flex;flex-direction:column;}
+.row{border-top:1px solid var(--mw-border);}
+.row:first-child{border-top:none;}
+.row-head{display:grid;grid-template-columns:28px minmax(0,1fr) 96px 132px 62px 76px 20px;gap:10px;align-items:center;padding:10px 4px;cursor:pointer;border-radius:8px;}
+.row-head:hover{background:var(--mw-surface-muted);}
+.row-head:focus-visible{outline:2px solid var(--mw-accent);outline-offset:-2px;}
+.row.open .row-head{background:var(--mw-surface-muted);}
+.rank{font-size:12px;color:var(--mw-text-subtle);font-variant-numeric:tabular-nums;}
+.row-main{min-width:0;display:block;}
+.row-title{display:block;font-size:14px;font-weight:500;color:var(--mw-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.row-evidence{display:block;font-size:12px;color:var(--mw-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;font-family:'JetBrains Mono',monospace;}
+.row-cat{font-size:12px;color:var(--mw-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.meter{display:flex;align-items:center;gap:8px;}
+.meter-track{flex:1;height:4px;border-radius:2px;background:var(--mw-border);overflow:hidden;}
+.meter-fill{display:block;height:100%;width:0;background:var(--mw-accent);border-radius:2px;}
+.meter-val{font-size:12px;font-weight:500;color:var(--mw-text);font-variant-numeric:tabular-nums;min-width:28px;text-align:right;}
+.cost{display:flex;align-items:center;gap:3px;}
+.cost-dot{width:5px;height:5px;border-radius:50%;background:var(--mw-border);}
+.cost-dot.on{background:var(--mw-text-muted);}
+.badge{font-size:12px;padding:1px 7px;border-radius:6px;border:1px solid var(--mw-border);color:var(--mw-text-muted);white-space:nowrap;text-align:center;}
+.badge.open{border-color:var(--mw-warning);color:var(--mw-warning);}
+.badge.fixed{border-color:var(--mw-success);color:var(--mw-success);}
+.badge.deferred{border-color:var(--mw-border);color:var(--mw-text-muted);}
+.badge.escalated{border-color:var(--mw-danger);color:var(--mw-danger);}
+.badge.missing{border-color:var(--mw-danger);color:var(--mw-danger);}
+.chev{width:7px;height:7px;border-right:1.5px solid var(--mw-text-subtle);border-bottom:1.5px solid var(--mw-text-subtle);transform:rotate(45deg);justify-self:end;margin-right:4px;}
+.row.open .chev{transform:rotate(-135deg);}
+.detail{display:none;padding:0 4px 12px 38px;}
+.row.open .detail{display:block;}
+.detail-box{background:var(--mw-surface-muted);border-radius:8px;padding:12px;}
+.detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px;font-size:12px;}
+.detail-k{color:var(--mw-text-muted);}
+.detail-v{color:var(--mw-text);margin-top:1px;font-variant-numeric:tabular-nums;}
+.detail-missing{font-size:12px;color:var(--mw-danger);margin-top:8px;}
+.detail-evidence{margin-top:10px;padding-top:10px;border-top:1px solid var(--mw-border);font-size:12px;color:var(--mw-text);font-family:'JetBrains Mono',monospace;word-break:break-word;}
+.detail-act{display:flex;justify-content:flex-end;margin-top:10px;}
+.btn{font:inherit;font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid var(--mw-border);background:var(--mw-surface);color:var(--mw-text);cursor:pointer;}
+.btn:hover{background:var(--mw-surface-muted);}
+.btn:focus-visible{outline:2px solid var(--mw-accent);outline-offset:2px;}
+.btn.primary{background:var(--mw-accent);border-color:var(--mw-accent);color:var(--mw-bg);}
+.btn.primary:hover{opacity:0.9;}
+.btn[disabled]{opacity:0.5;cursor:not-allowed;}
+.empty,.error{font-size:12px;color:var(--mw-text-muted);padding:18px 0;text-align:center;margin:0;}
+.error{color:var(--mw-danger);text-align:left;padding:8px 0 0;}
+.act{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;}
+.skeleton{background:var(--mw-surface-muted);border-radius:8px;height:56px;margin-top:8px;}
+@media (max-width:760px){
+  .hero{grid-template-columns:1fr;}
+  .cat-grid{grid-template-columns:repeat(2,1fr);}
+  .row-head{grid-template-columns:24px minmax(0,1fr) 76px 58px 18px;gap:8px;}
+  .row-cat,.cost{display:none;}
+  .detail{padding-left:4px;}
+  .detail-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+  </mavis-style>
+  <mavis-html>
+<div class="board">
+  <header class="head">
+    <div>
+      <div class="head-title">维护健康</div>
+      <div class="head-sub"><span id="scan-date">--</span><span class="sep">·</span><span>maintain.mjs</span></div>
+    </div>
+    <span class="grade" id="grade">--</span>
+  </header>
+  <section class="hero">
+    <div class="hero-score">
+      <div class="score" id="score">--</div>
+      <div class="score-label">健康分<span class="muted">（越低越好）</span></div>
+      <div class="score-meta"><span class="delta" id="delta" hidden></span><span>按未修复条目数分级</span></div>
+      <div class="spark" id="spark" hidden>
+        <svg id="spark-svg" viewBox="0 0 240 48" preserveAspectRatio="none" aria-hidden="true">
+          <path id="spark-area" class="spark-area" d=""></path>
+          <polyline id="spark-line" class="spark-line" points=""></polyline>
+        </svg>
+        <div class="spark-range"><span id="spark-from"></span><span id="spark-to"></span></div>
+      </div>
+    </div>
+    <div class="hero-side">
+      <div class="kpis">
+        <div class="kpi"><div class="kpi-label">待处理</div><div class="kpi-value" id="kpi-open">--</div><div class="kpi-note">open</div></div>
+        <div class="kpi"><div class="kpi-label">已修复</div><div class="kpi-value" id="kpi-fixed">--</div><div class="kpi-note">fixed</div></div>
+        <div class="kpi"><div class="kpi-label">最高得分</div><div class="kpi-value" id="kpi-max">--</div><div class="kpi-note">优先处理</div></div>
+      </div>
+      <div class="status">
+        <div class="status-head"><span>状态分布</span><span id="status-total">-- 项</span></div>
+        <div class="status-track" id="status-track">
+          <span class="seg seg-open" id="seg-open"></span>
+          <span class="seg seg-fixed" id="seg-fixed"></span>
+          <span class="seg seg-deferred" id="seg-deferred"></span>
+          <span class="seg seg-escalated" id="seg-escalated"></span>
+        </div>
+        <div class="status-legend" id="status-legend"></div>
+      </div>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="section-head"><div class="section-title">类别分布</div><div class="section-note">扫描计数</div></div>
+    <div class="cat-grid" id="cat-grid">
+      <div class="cat"><span class="cat-name">依赖</span><span class="cat-count">--</span></div>
+      <div class="cat"><span class="cat-name">安全</span><span class="cat-count">--</span></div>
+      <div class="cat"><span class="cat-name">重复</span><span class="cat-count">--</span></div>
+      <div class="cat"><span class="cat-name">变更频率</span><span class="cat-count">--</span></div>
+      <div class="cat"><span class="cat-name">文档漂移</span><span class="cat-count">--</span></div>
+      <div class="cat"><span class="cat-name">架构漂移</span><span class="cat-count">--</span></div>
+      <div class="cat"><span class="cat-name">不稳定测试</span><span class="cat-count">--</span></div>
+      <div class="cat"><span class="cat-name">TODO</span><span class="cat-count">--</span></div>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="section-head">
+      <div class="section-title">优先处理 <span class="count" id="list-count">--</span></div>
+      <div class="tools">
+        <button class="chip" id="hide-fixed" type="button" aria-pressed="false">隐藏已修复</button>
+        <button class="chip on" id="sort-score" type="button" aria-pressed="true">按得分</button>
+        <button class="chip" id="sort-cost" type="button" aria-pressed="false">按成本</button>
+        <button class="chip on" id="filter-all" type="button" aria-pressed="true">全部</button>
+      </div>
+    </div>
+    <div class="list-note">得分 = 权重 × 影响面 ÷ 成本，得分越高越先处理；成本用 1–3 个点表示（3 最贵）。显示 <span id="shown">--</span> / <span id="total">--</span></div>
+    <div class="rows" id="rows"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    <p class="empty" id="empty" hidden>本次扫描没有需要处理的维护项，保持现状。</p>
+    <p class="error" id="error" hidden></p>
+  </section>
+  <footer class="act">
+    <button class="btn primary" id="summary-btn" type="button">按类别汇总维护计划</button>
+    <button class="btn" id="method-btn" type="button">健康分怎么算</button>
+  </footer>
+</div>
+  </mavis-html>
+  <mavis-data name="maintenance" type="json">
+{"runId":"20261106-1530","date":"2026-11-06","score":13.0,"categories":{"dependencies":0,"security":0,"duplication":836,"churn":3,"docDrift":2,"architectureDrift":0,"flaky":0,"todo":16},"history":[{"date":"2026-10-09","score":18.0},{"date":"2026-10-16","score":16.0},{"date":"2026-10-23","score":15.0},{"date":"2026-10-30","score":14.0},{"date":"2026-11-06","score":13.0}],"backlog":[{"id":"M1","category":"duplication","score":8.0,"title":"跨文件重复代码窗口（≥6 行）","evidence":"zcode/scripts/verify.mjs ↔ minimax/scripts/verify.mjs：312 个窗口","cost":3,"status":"open"},{"id":"M2","category":"todo","score":4.5,"title":"扫描到 16 处 TODO/FIXME","evidence":"zcode/scripts/*.mjs 与 host/*/skills/*：16 处","cost":1,"status":"open"},{"id":"M3","category":"docDrift","score":3.5,"title":"仓库根缺 AGENTS.md，项目记忆未落地","evidence":"docs/project/ 七件套齐全，但仓库根没有 AGENTS.md","cost":2,"status":"open"},{"id":"M4","category":"duplication","score":2.5,"title":"构建脚本与模板存在重复清单","evidence":"zcode/scripts/build.mjs 与 minimax/scripts/build.mjs 同步块重复","cost":2,"status":"open"},{"id":"M5","category":"churn","score":2.0,"title":"构建脚本近 30 天改动频率偏高","evidence":"git log --since=30.days -- zcode/scripts/build.mjs：11 次提交","cost":1,"status":"open"},{"id":"M6","category":"docDrift","score":1.5,"title":"README 版本号与 plugin.json 不一致","evidence":"README.md 版本引用落后于 zcode/.zcode-plugin/plugin.json","cost":1,"status":"fixed"},{"id":"M7","category":"todo","score":1.0,"title":"verify.mjs 中保留两处待确认注释","evidence":"zcode/scripts/verify.mjs：2 处 TODO","cost":1,"status":"deferred"}]}
+  </mavis-data>
+  <mavis-script>
+(function () {
+  var CATS = [
+    ['dependencies', '依赖'], ['security', '安全'], ['duplication', '重复'], ['churn', '变更频率'],
+    ['docDrift', '文档漂移'], ['architectureDrift', '架构漂移'], ['flaky', '不稳定测试'], ['todo', 'TODO']
+  ];
+  var STATUS = { open: '待处理', fixed: '已修复', deferred: '已推迟', escalated: '已升级' };
+  var GRADE = { success: '健康', warning: '需关注', danger: '待治理' };
+  var data = (window.__mavisData || {})['maintenance'];
+  var state = { cat: null, hideFixed: false, sort: 'score', openKey: null };
+  var items = (data && Array.isArray(data.backlog)) ? data.backlog.slice() : [];
+  var cats = (data && data.categories) || {};
+  var counts = { open: 0, fixed: 0, deferred: 0, escalated: 0 };
+  var openCount = 0;
+  var maxScore = 0;
+  var lastRows = [];
+  var el = function (id) { return document.getElementById(id); };
+
+  function esc(v) {
+    return String(v === null || v === undefined ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function num(v, d) {
+    var n = Number(v);
+    return isFinite(n) ? n : (d === undefined ? 0 : d);
+  }
+  function fixed1(v) { return num(v).toFixed(1); }
+  function statusOf(item) {
+    var s = item && item.status ? item.status : 'open';
+    return STATUS[s] ? s : 'open';
+  }
+  function catLabel(code) {
+    for (var i = 0; i < CATS.length; i++) { if (CATS[i][0] === code) return CATS[i][1]; }
+    return code || '未分类';
+  }
+  function missing(item) {
+    var out = [];
+    if (!item || typeof item !== 'object') return ['item'];
+    if (!item.id) out.push('id');
+    if (!item.category) out.push('category');
+    if (item.score === undefined || item.score === null || item.score === '' || !isFinite(Number(item.score))) out.push('score');
+    if (!item.title) out.push('title');
+    if (!item.evidence) out.push('evidence');
+    if (item.cost === undefined || item.cost === null || !isFinite(Number(item.cost))) out.push('cost');
+    if (item.status && !STATUS[item.status]) out.push('status');
+    return out;
+  }
+  function costDots(n) {
+    var out = '';
+    for (var i = 1; i <= 3; i++) out += '<span class="cost-dot' + (i <= n ? ' on' : '') + '"></span>';
+    return out;
+  }
+  function openLabel(n) {
+    return n === 0 ? '健康' : (n <= 4 ? '需关注' : '待治理');
+  }
+  function gradeKey(n) {
+    return n === 0 ? 'success' : (n <= 4 ? 'warning' : 'danger');
+  }
+
+  function renderCats() {
+    var topCat = null, topVal = 0;
+    CATS.forEach(function (c) {
+      var v = num(cats[c[0]], 0);
+      if (v > topVal) { topVal = v; topCat = c[0]; }
+    });
+    el('cat-grid').innerHTML = CATS.map(function (c) {
+      var v = num(cats[c[0]], 0);
+      var on = state.cat === c[0];
+      var top = topCat === c[0] && topVal > 0;
+      return '<button type="button" class="cat' + (v === 0 ? ' zero' : '') + (on ? ' on' : '') + '" data-cat="' + c[0] + '" aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="' + esc(c[1]) + ' ' + v + ' 项' + (top ? '，最多' : '') + '">' +
+        (top ? '<span class="cat-top">最多</span>' : '') +
+        '<span class="cat-name">' + esc(c[1]) + '</span><span class="cat-count">' + v + '</span></button>';
+    }).join('');
+  }
+
+  function renderStatus() {
+    var total = items.length;
+    ['open', 'fixed', 'deferred', 'escalated'].forEach(function (k) {
+      el('seg-' + k).style.width = total ? (counts[k] / total * 100).toFixed(1) + '%' : '0%';
+    });
+    el('status-total').textContent = total + ' 项';
+    el('status-legend').innerHTML = ['open', 'fixed', 'deferred', 'escalated'].map(function (k) {
+      return '<span class="legend-item"><span class="dot dot-' + k + '"></span>' + STATUS[k] + ' <span class="legend-count">' + counts[k] + '</span></span>';
+    }).join('');
+  }
+
+  function renderSpark() {
+    var history = (data && Array.isArray(data.history)) ? data.history.filter(function (h) {
+      return h && h.date && isFinite(Number(h.score));
+    }).slice(-12) : [];
+    history.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+    if (history.length < 2) return;
+    var scores = history.map(function (h) { return num(h.score); });
+    var min = Math.min.apply(null, scores), max = Math.max.apply(null, scores);
+    var span = max - min || 1;
+    var pts = history.map(function (h, i) {
+      var x = (i / (history.length - 1)) * 240;
+      var y = 44 - ((num(h.score) - min) / span) * 40;
+      return [x, y];
+    });
+    el('spark-line').setAttribute('points', pts.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' '));
+    el('spark-area').setAttribute('d', 'M0,48 L' + pts.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' L') + ' L240,48 Z');
+    el('spark-from').textContent = history[0].date;
+    el('spark-to').textContent = history[history.length - 1].date;
+    el('spark').hidden = false;
+    var d = num(history[history.length - 1].score) - num(history[history.length - 2].score);
+    var delta = el('delta');
+    delta.hidden = false;
+    delta.className = 'delta ' + (d < 0 ? 'up' : (d > 0 ? 'down' : 'flat'));
+    delta.textContent = d === 0 ? '较上次 持平' : '较上次 ' + (d < 0 ? '−' : '+') + fixed1(Math.abs(d));
+  }
+
+  function sorted() {
+    var arr = items.slice();
+    arr.sort(function (a, b) {
+      if (state.sort === 'cost') {
+        var dc = num(a.cost, 3) - num(b.cost, 3);
+        if (dc) return dc;
+        return num(b.score) - num(a.score) || String(a.id || '').localeCompare(String(b.id || ''));
+      }
+      var ds = num(b.score) - num(a.score);
+      if (ds) return ds;
+      var dc2 = num(a.cost, 3) - num(b.cost, 3);
+      if (dc2) return dc2;
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+    return arr;
+  }
+
+  function renderRows() {
+    var rows = sorted().filter(function (x) {
+      if (state.cat && x.category !== state.cat) return false;
+      if (state.hideFixed && statusOf(x) === 'fixed') return false;
+      return true;
+    });
+    lastRows = rows;
+    el('rows').innerHTML = rows.map(function (x, i) {
+      var s = statusOf(x);
+      var miss = missing(x);
+      var score = num(x.score, 0);
+      var pct = maxScore > 0 ? Math.round(score / maxScore * 100) : 0;
+      var key = x.id ? 'id:' + x.id : 'idx:' + i;
+      var open = state.openKey === key;
+      return '<div class="row' + (open ? ' open' : '') + '" data-key="' + esc(key) + '">' +
+        '<div class="row-head" role="button" tabindex="0" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+          '<span class="rank">' + (i + 1 < 10 ? '0' : '') + (i + 1) + '</span>' +
+          '<span class="row-main"><span class="row-title">' + esc(x.title || '未登记标题') + (miss.length ? ' <span class="badge missing">待补全</span>' : '') + '</span>' +
+          '<span class="row-evidence">' + esc(x.evidence || '未登记证据') + '</span></span>' +
+          '<span class="row-cat">' + esc(catLabel(x.category)) + '</span>' +
+          '<span class="meter" title="得分 ' + fixed1(score) + ' / 最高 ' + fixed1(maxScore) + '"><span class="meter-track"><span class="meter-fill" style="width:' + pct + '%"></span></span><span class="meter-val">' + fixed1(score) + '</span></span>' +
+          '<span class="cost" title="修复成本 ' + num(x.cost, 0) + '（1–3，3 最贵）">' + costDots(num(x.cost, 0)) + '</span>' +
+          '<span class="badge ' + s + '">' + esc(STATUS[s] || '待补全') + '</span>' +
+          '<span class="chev"></span>' +
+        '</div>' +
+        '<div class="detail"><div class="detail-box">' +
+          '<div class="detail-grid">' +
+            '<div><div class="detail-k">类别</div><div class="detail-v">' + esc(catLabel(x.category)) + ' <span class="muted">' + esc(x.category || '--') + '</span></div></div>' +
+            '<div><div class="detail-k">得分</div><div class="detail-v">' + fixed1(score) + '</div></div>' +
+            '<div><div class="detail-k">成本</div><div class="detail-v">' + costDots(num(x.cost, 0)) + ' ' + num(x.cost, 0) + '</div></div>' +
+            '<div><div class="detail-k">状态</div><div class="detail-v">' + esc(STATUS[s] || s) + '</div></div>' +
+          '</div>' +
+          (miss.length ? '<div class="detail-missing">缺失字段：' + esc(miss.join('、')) + '</div>' : '') +
+          '<div class="detail-evidence">' + esc(x.evidence || '未登记证据') + '</div>' +
+          '<div class="detail-act"><button class="btn" type="button" data-prompt="' + esc(x.id || '') + '"' + (x.id ? '' : ' disabled') + '>生成修复计划</button></div>' +
+        '</div></div></div>';
+    }).join('');
+    el('list-count').textContent = String(items.length);
+    el('total').textContent = String(items.length);
+    el('shown').textContent = String(rows.length);
+    var empty = el('empty');
+    if (!items.length) {
+      empty.hidden = false;
+      empty.textContent = '本次扫描没有需要处理的维护项，保持现状。';
+    } else if (!rows.length) {
+      empty.hidden = false;
+      empty.textContent = '当前筛选没有匹配的维护项。';
+    } else {
+      empty.hidden = true;
+    }
+  }
+
+  function renderChips() {
+    el('hide-fixed').classList.toggle('on', state.hideFixed);
+    el('hide-fixed').setAttribute('aria-pressed', String(state.hideFixed));
+    el('sort-score').classList.toggle('on', state.sort === 'score');
+    el('sort-score').setAttribute('aria-pressed', String(state.sort === 'score'));
+    el('sort-cost').classList.toggle('on', state.sort === 'cost');
+    el('sort-cost').setAttribute('aria-pressed', String(state.sort === 'cost'));
+    el('filter-all').classList.toggle('on', !state.cat);
+    el('filter-all').setAttribute('aria-pressed', String(!state.cat));
+  }
+
+  function render() {
+    renderCats();
+    renderStatus();
+    renderChips();
+    renderRows();
+  }
+
+  function promptItem(id) {
+    var item = null;
+    items.forEach(function (x) { if (String(x.id) === String(id)) item = x; });
+    if (!item || !window.mavis || !window.mavis.sendPrompt) return;
+    window.mavis.sendPrompt(
+      '请为维护项 ' + item.id + '（' + (item.category || '未分类') + '，得分 ' + fixed1(num(item.score, 0)) + '，成本 ' + num(item.cost, 0) + '）生成修复计划：先核对证据范围，再给出最小改动步骤、验证命令与回滚方式；不要顺手重构无关代码。',
+      {
+        widgetTitle: '维护健康看板',
+        action: 'plan-backlog-item',
+        selectedData: {
+          backlogId: item.id, category: item.category || null, score: num(item.score, 0),
+          cost: num(item.cost, 0), status: statusOf(item), evidence: item.evidence || null
+        },
+        visibleFilters: { category: state.cat, hideFixed: state.hideFixed, sort: state.sort },
+        userIntent: '为指定维护项生成修复计划'
+      }
+    );
+  }
+
+  el('cat-grid').addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-cat]') : null;
+    if (!btn) return;
+    var c = btn.getAttribute('data-cat');
+    state.cat = state.cat === c ? null : c;
+    render();
+  });
+
+  el('rows').addEventListener('click', function (e) {
+    var promptBtn = e.target.closest ? e.target.closest('[data-prompt]') : null;
+    if (promptBtn) { promptItem(promptBtn.getAttribute('data-prompt')); return; }
+    var head = e.target.closest ? e.target.closest('.row-head') : null;
+    if (!head) return;
+    var row = head.parentNode;
+    var key = row.getAttribute('data-key');
+    var willOpen = !row.classList.contains('open');
+    Array.prototype.forEach.call(document.querySelectorAll('.row'), function (r) {
+      r.classList.remove('open');
+      var h = r.querySelector('.row-head');
+      if (h) h.setAttribute('aria-expanded', 'false');
+    });
+    if (willOpen) {
+      row.classList.add('open');
+      head.setAttribute('aria-expanded', 'true');
+      state.openKey = key;
+    } else {
+      state.openKey = null;
+    }
+  });
+
+  el('rows').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var head = e.target.closest ? e.target.closest('.row-head') : null;
+    if (!head) return;
+    e.preventDefault();
+    head.click();
+  });
+
+  el('hide-fixed').addEventListener('click', function () {
+    state.hideFixed = !state.hideFixed;
+    render();
+  });
+  el('sort-score').addEventListener('click', function () {
+    state.sort = 'score';
+    render();
+  });
+  el('sort-cost').addEventListener('click', function () {
+    state.sort = 'cost';
+    render();
+  });
+  el('filter-all').addEventListener('click', function () {
+    state.cat = null;
+    render();
+  });
+
+  el('summary-btn').addEventListener('click', function () {
+    if (!window.mavis || !window.mavis.sendPrompt) return;
+    var byCategory = {};
+    lastRows.forEach(function (x) {
+      var c = x.category || 'unknown';
+      (byCategory[c] = byCategory[c] || []).push(x.id || '--');
+    });
+    window.mavis.sendPrompt(
+      '请按当前维护 backlog 汇总一份分派计划：按类别说明先做什么、每项的最小验证命令与预计成本，并标出哪些需要你拍板。',
+      {
+        widgetTitle: '维护健康看板',
+        action: 'summarize-maintenance',
+        selectedData: { byCategory: byCategory, openCount: openCount, visibleCount: lastRows.length, totalCount: items.length },
+        visibleFilters: { category: state.cat, hideFixed: state.hideFixed, sort: state.sort },
+        userIntent: '按类别汇总维护计划'
+      }
+    );
+  });
+
+  el('method-btn').addEventListener('click', function () {
+    if (!window.mavis || !window.mavis.sendPrompt) return;
+    window.mavis.sendPrompt(
+      '请解释维护健康分的计算口径：权重、影响面、成本分别怎么取，以及分数变化说明什么；不要重新扫描。',
+      {
+        widgetTitle: '维护健康看板',
+        action: 'explain-health-score',
+        selectedData: { score: num(data && data.score, 0), openCount: openCount, categories: cats },
+        visibleFilters: {},
+        userIntent: '解释维护健康分口径'
+      }
+    );
+  });
+
+  if (!data) {
+    el('error').hidden = false;
+    el('error').textContent = '未找到维护扫描结果（maintenance 数据为空），无法渲染看板。请先运行 /steward maintain。';
+    ['hide-fixed', 'sort-score', 'sort-cost', 'filter-all'].forEach(function (id) { el(id).disabled = true; });
+    return;
+  }
+
+  el('scan-date').textContent = data.date || '日期未登记';
+  if (!data.date || data.score === undefined || !Array.isArray(data.backlog)) {
+    var missTop = [];
+    if (!data.date) missTop.push('date');
+    if (data.score === undefined) missTop.push('score');
+    if (!Array.isArray(data.backlog)) missTop.push('backlog');
+    el('error').hidden = false;
+    el('error').textContent = '部分字段缺失：' + missTop.join('、') + '；以下只展示可用部分。';
+  }
+
+  items.forEach(function (x) {
+    var s = statusOf(x);
+    counts[s] += 1;
+  });
+  openCount = counts.open;
+  items.forEach(function (x) { maxScore = Math.max(maxScore, num(x.score, 0)); });
+
+  el('score').textContent = data.score === undefined ? '--' : fixed1(data.score);
+  el('grade').textContent = GRADE[gradeKey(openCount)];
+  el('grade').className = 'grade ' + gradeKey(openCount);
+  el('kpi-open').textContent = String(openCount);
+  el('kpi-fixed').textContent = String(counts.fixed);
+  el('kpi-max').textContent = maxScore > 0 ? fixed1(maxScore) : '--';
+  renderSpark();
+  render();
+})();
+  </mavis-script>
+  <mavis-fallback>
+维护健康分 13.0（越低越好），分级「待治理」：7 项处置项中 5 项待处理、1 项已修复、1 项已推迟；重复类扫描计数 836 为最大来源。优先处理 M1（重复，得分 8.0，成本 3，证据：zcode/scripts/verify.mjs ↔ minimax/scripts/verify.mjs：312 个窗口）。
+  </mavis-fallback>
+</mavis-widget>
+```
+
+---
+
+## 三点校验提醒
+
+- 示例 A、B、C 都不调用 `new Chart(...)`：A 的节点是任务实体（无连续量纲），B 的严重度分布只有 3 个桶，C 的 8 类用 KPI 格而非柱状图、状态分布只有 4 段，均在「≤5 个可比数据点用 CSS/SVG」的判定之内。若后续要加柱状图，先确认样本量 ≥6 且 `kind` 为 `chart` / `dashboard`。
+- 示例 C 的分级（健康 / 需关注 / 待治理）是**展示口径**，按未修复条目数计算，不是扫描结果；健康分本身仍以 maintain.mjs 为准，不要在文字里把分级写成脚本输出。
+- 三个示例的 `sendPrompt` 的 `text` 与 `userIntent` 均为中文，与中文会话一致；若宿主会话语言为英文，二者都要改成英文。

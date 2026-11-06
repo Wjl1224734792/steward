@@ -12,7 +12,7 @@
 
 ### Steward 是什么
 
-Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.7.2 / MiniMax 1.5.2）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；技能/agent 正文单一源生成。
+Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.7.3 / MiniMax 1.5.3）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；技能/agent 正文单一源生成，MiniMax 附带维护健康看板等可选 GenUI 视图。
 
 ### 工作模式
 
@@ -85,7 +85,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.7.2",
+      "version": "0.7.3",
       "displayName": "Steward · 长期维护型研发团队",
       "category": "developer-tools"
     }
@@ -118,8 +118,8 @@ Copy-Item -LiteralPath "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minima
 - [docs/ROADMAP.md](docs/ROADMAP.md) · 交付状态：[docs/ROADMAP-STATUS.md](docs/ROADMAP-STATUS.md)
 - 已实现（v0.5）：Bug 通道（B0–B3）、计划批准门 + Plan Critic、计划校验 / 独立验证 / 基线守卫、run.json 断点恢复、T0/T1 项目记忆生成。
 - 已实现（v0.6）：维护循环（maintain.mjs 八类扫描）、浏览器证据契约、学习循环（05-record 回填）、systematic-debugging / TDD / verification 三个轻量技能、可选 worktree + finishing、模型路由 + 重试预算。
-- 已实现（v0.7）：接手存量（take-over 扫描 + 首轮健康扫描）、演进循环（重构比例 / codemod 计划）、T3 模板六件按需升级、双宿主本地构建（build.mjs 单一正文源 + 校验）、可选宿主守卫 hooks（所有权/危险命令/密钥）、GenUI 维护看板契约、monorepo/多服务口径。
-- 重点（后续）：技能/agent 正文单一源化（当前以 build.mjs 漂移报告兜底）、浏览器证据与 worktree 合并的真实场景演练。
+- 已实现（v0.7）：接手存量（take-over 扫描 + 首轮健康扫描）、演进循环（重构比例 / codemod 计划）、T3 模板六件按需升级、双宿主本地构建（build.mjs 单一正文源 + 校验）、可选宿主守卫 hooks（所有权/危险命令/密钥）、GenUI 维护健康看板（专用配方 C）、monorepo/多服务口径。
+- 重点（后续）：MiniMax 宿主 GenUI 实机验收、worktree 多分支合并演练；taskboard 遗留两个 non-blocking 项（过滤竞态、GET /api/tasks 缺 Cache-Control）。
 
 ### 从 dev-team 更名
 
@@ -131,7 +131,7 @@ Steward 是原 `dev-team` 插件的更名版本。插件 ID、命令、agent 前
 
 ### What is Steward
 
-Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.7.0 / MiniMax 1.5.0) covers feature delivery, bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, and takeover (T1 generation + first health scan).
+Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.7.3 / MiniMax 1.5.3) covers feature delivery, bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), and the evolution loop, with optional MiniMax GenUI views for the task DAG, defect triage, and maintenance health.
 
 ### Modes
 
@@ -204,7 +204,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.7.2",
+      "version": "0.7.3",
       "displayName": "Steward — long-lived engineering team",
       "category": "developer-tools"
     }
@@ -237,9 +237,8 @@ When the input contains "开发团队", "开发小组", or "Steward", the `UserP
 - [docs/ROADMAP.md](docs/ROADMAP.md) · Delivery status: [docs/ROADMAP-STATUS.md](docs/ROADMAP-STATUS.md)
 - Shipped in v0.5: bug track (B0–B3), plan approval gate + Plan Critic, plan validation / independent verification / baseline guard, resumable run state, T0/T1 project memory generation.
 - Shipped in v0.6: maintenance loop (eight-category scan), browser evidence contract, learning loop (05-record backfill), systematic-debugging / TDD / verification skills, optional worktree + finishing, model routing + retry budget.
-- Shipped in v0.7: takeover (T1 generation + first health scan), evolution loop (refactor-ratio check, codemod planning), six on-demand T3 templates, local dual-host build (build.mjs single source + validation), optional host guards (ownership / dangerous commands / secrets), GenUI maintenance dashboard contract, monorepo / multi-service guidance.
-- Next: single-sourcing the skill/agent prose (currently drift-reported by build.mjs), real-scenario drills for browser evidence and worktree merges.
-- Next (v0.7+): architecture evolution checks, T3 doc upgrades on demand, single-source dual-host build, ZCode hooks, GenUI dashboard, monorepo support.
+- Shipped in v0.7: takeover (T1 generation + first health scan), evolution loop (refactor-ratio check, codemod planning), six on-demand T3 templates, local dual-host build (build.mjs single source + validation), optional host guards (ownership / dangerous commands / secrets), GenUI maintenance health dashboard (dedicated recipe C), monorepo / multi-service guidance.
+- Next: MiniMax-host GenUI verification, a real worktree multi-branch merge drill, and the two non-blocking taskboard leftovers (filter race, missing Cache-Control on GET /api/tasks).
 
 ### Renamed from dev-team
 

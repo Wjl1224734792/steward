@@ -1,6 +1,6 @@
 ---
 name: steward-visualizer
-description: "把 Steward 研发团队流程的结构化产物渲染成可视化结果：任务 DAG 与并行批次视图（方案阶段的 03-plan.md 任务表 → 依赖链、最长路径、文件所有权冲突、并行批次），以及质量门与缺陷回派看板（QA / 浏览器验收 / 终审报告 → 阻断项、待回派、已修复与按严重度排序的缺陷明细）。当用户要看清任务调度顺序、并行分组、文件冲突，或要一眼看清当前还有多少必须修的缺陷、分别归属谁时使用。Renders the Steward plugin's structured outputs as mavis.widget.v1 visualizations — the task DAG with parallel batches, and the QA/review defect triage dashboard."
+description: "把 Steward 研发团队流程的结构化产物渲染成可视化结果：任务 DAG 与并行批次视图（方案阶段的 03-plan.md 任务表 → 依赖链、最长路径、文件所有权冲突、并行批次）、质量门与缺陷回派看板（QA / 浏览器验收 / 终审报告 → 阻断项、待回派、已修复与按严重度排序的缺陷明细），以及维护健康看板（maintain 扫描 → 健康分、类别分布、状态分布与按得分排序的维护 backlog）。当用户要看清任务调度顺序、并行分组、文件冲突，要一眼看清还有多少必须修的缺陷、分别归属谁，或要判断这次维护扫描先修什么、健康在变好还是变差时使用。Renders the Steward plugin's structured outputs as mavis.widget.v1 visualizations — the task DAG with parallel batches, the QA/review defect triage dashboard, and the maintenance health dashboard."
 ---
 
 # Steward 可视化（Tech Lead 视觉化层）
@@ -20,8 +20,9 @@ description: "把 Steward 研发团队流程的结构化产物渲染成可视化
 |---|---|
 | 任务表 ≥3 个任务，用户问调度顺序、并行批次或文件冲突 | 配方 A（diagram） |
 | QA / 浏览器 / 终审产出了 findings，用户问「还剩什么没修」「归谁」 | 配方 B（dashboard） |
-| 两者都问到，且都有数据 | 优先配方 B（当前能否交付比调度图更紧急）；下一轮再出配方 A |
-| 数据不足（任务 ≤2、无 findings、只有一句话结论） | **只用文字**，不要渲染空图 |
+| `/steward maintain` 扫描后，用户问健康分、先修什么、哪类在堆积 | 配方 C（dashboard） |
+| 多个问题都问到且都有数据 | 优先配方 B（当前能否交付最紧急）→ 配方 C（维护健康）→ 配方 A（调度图） |
+| 数据不足（任务 ≤2、无 findings、无维护扫描结果、只有一句话结论） | **只用文字**，不要渲染空图；维护扫描有结果但 backlog 为空时仍渲染 C 的空态（健康态本身是结论） |
 | 用户明确要纯文字 / 只要表格 | 只用文字 |
 | 数据缺失或解析失败 | 只用文字说明缺什么，不渲染半张图 |
 
@@ -32,9 +33,9 @@ description: "把 Steward 研发团队流程的结构化产物渲染成可视化
 - **只消费业务流产物**：数据来源必须标在 `<mavis-meta>` 的 `dataSource` 里，字段与 `references/data-schema.json` 对齐。
 - **不发明**：缺行就少画一行，缺字段就按缺省值渲染并计入错误提示；绝不补造任务、缺陷、命令或结论。
 - **不泄密**：工件路径只写到任务ID / 文件名层级即可，不要把绝对路径、凭据、token、环境变量写进 Widget 数据。
-- **一个 Widget**：`kind` 按配方选（A=`diagram`，B=`dashboard`），都必须带 `capabilities="resize,sendPrompt"`、`streaming="html-first"`、`theme="app"`、`token-set="mavis.semantic.v1"`。
+- **一个 Widget**：`kind` 按配方选（A=`diagram`，B/C=`dashboard`），都必须带 `capabilities="resize,sendPrompt"`、`streaming="html-first"`、`theme="app"`、`token-set="mavis.semantic.v1"`。
 - **主题令牌**：只用 `--mw-bg`、`--mw-surface`、`--mw-surface-muted`、`--mw-text`、`--mw-text-muted`、`--mw-text-subtle`、`--mw-border`、`--mw-accent`、`--mw-success`、`--mw-warning`、`--mw-danger`、`--mw-chart-1`~`--mw-chart-6`。不给 `var(--mw-*)` 加回退值，不用硬编码配色，不用 Tailwind。
-- **渲染器与样本量匹配**：本技能两个配方都用 CSS/SVG，**不调用 `new Chart(...)`**（严重度分布只有 3 个桶，节点数少且无连续量纲）。若未来新增图表，先按 `widget-patterns.md` 的判定规则确认样本量 ≥6。
+- **渲染器与样本量匹配**：本技能三个配方都用 CSS/SVG，**不调用 `new Chart(...)`**（B 的严重度只有 3 个桶、C 的类别用 KPI 格而状态分布只有 4 段，节点数少且无连续量纲）。若未来新增图表，先按 `widget-patterns.md` 的判定规则确认样本量 ≥6。
 - **交互分层**：筛选、排序、切换、检视面板一律本地 JS；只有「展开派单」「按归属回派」这类需要模型推理的跟进才用 `window.mavis.sendPrompt(text, metadata)`，payload 只带稳定标识和最小必要字段。
 - **语言**：`sendPrompt` 的 `text` 与 `metadata.userIntent` 必须与会话语言一致（中文会话就两个都写中文）。`userIntent` 是用户意图上下文，不是内部英文标签。
 - **不生成 `submitForm`**，不伪造用户点击，不编造数据来源。
@@ -45,7 +46,7 @@ description: "把 Steward 研发团队流程的结构化产物渲染成可视化
 
 ## 文本回退
 
-Widget 无法渲染时，同一条消息里给出等价的文字结果：配方 A 给任务表 + 并行批次分组 + 冲突清单；配方 B 给按严重度分组的缺陷清单 + 修复轮次与剩余轮次。文字结果必须能独立成立，不能只是「见上图」。
+Widget 无法渲染时，同一条消息里给出等价的文字结果：配方 A 给任务表 + 并行批次分组 + 冲突清单；配方 B 给按严重度分组的缺陷清单 + 修复轮次与剩余轮次；配方 C 给健康分与分级 + 八类计数 + 按得分降序的 backlog 清单。文字结果必须能独立成立，不能只是「见上图」。
 
 ## 出处
 
