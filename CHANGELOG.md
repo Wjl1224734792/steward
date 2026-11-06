@@ -2,6 +2,26 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.8.1 / MiniMax 1.6.0] - 2026-11-07
+
+> ZCode-only patch：新增 `steward:using-steward` 技能路由。MiniMax 1.6.0 未同步该技能；若要双宿主，1.6.1 再同步（版本节奏 warning 预期）。
+
+### Added
+
+- **`steward:using-steward`（ZCode 侧）**：不知道用哪个入口/技能时先读的路由技能——功能交付 / Bug / 只出计划 / 维护 / 接手 / 文档流水线 / 需求澄清七类入口，以及 `systematic-debugging` / `tdd` / `verification-before-completion` 的加载信号；含三条纪律（不新造角色、S 级直接做、不确定先 `/steward plan`）与反例。
+- 主技能 ZCode frontmatter/banner 增加 ⑥ 技能路由入口；`zcode/.zcode-plugin/plugin.json` 0.8.0 → 0.8.1。
+
+### 验证
+
+- `node zcode/scripts/build.mjs --check` exit 0；仅 1 条预期版本节奏 warning（0.8.1 vs 1.6.0，期望 1.6.1）。
+- MiniMax 生成物逐字节不变（本技能 ZCode-only；`minimax/` 与 `host/minimax/` 未改）。
+- 新技能 frontmatter 合法、路由表覆盖 7 类入口 + 3 个轻量技能；`@@SLOT` 残留 0。
+
+### 已知偏差
+
+- MiniMax 1.6.0 未带 `using-steward`；1.6.1 待 MiniMax 侧同步。
+- 路由为提示词级技能，未做 agent 行为回归。
+
 ## [ZCode 0.8.0 / MiniMax 1.6.0] - 2026-11-06
 
 > MiniMax 侧在 1.6.0 对齐 ZCode 0.8.0：文档流水线与需求澄清内核同步到 MiniMax，版本节奏 warning 消失。
