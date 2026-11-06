@@ -12,12 +12,12 @@ description: Steward 技能路由（ZCode 侧）。当用户不知道用 Steward
 | 用户意图 | 路由 | 要点 |
 |---|---|---|
 | 开发新功能 / 改现有功能 | `/steward <需求>` | 主技能；S/M/L 定级，M/L 走计划批准门 |
-| 修 Bug / 行为不对 | `/steward fix <Bug>` | B0–B3 分流；B2/B3 先写失败测试 |
-| 只要方案，先别动手 | `/steward plan <需求>` | 到批准门停止，不实施 |
-| 维护 / 体检 / 还债 | `/steward maintain` | 八类扫描 → backlog → 小修 → HEALTH |
-| 接手存量项目 | `/steward take-over` | 先盘点后动手 |
+| 修 Bug / 行为不对 | `/steward:fix <Bug>` | B0–B3 分流；B2/B3 先写失败测试 |
+| 只要方案，先别动手 | `/steward:plan <需求>` | 到批准门停止，不实施 |
+| 维护 / 体检 / 还债 | `/steward:maintain` | 八类扫描 → backlog → 小修 → HEALTH |
+| 接手存量项目 | `/steward:take-over` | 先盘点后动手 |
 | 写 PRD/FRD/契约/页面/测试/部署 | `/steward` + `docTier: 3` | 读主技能目录下 `references/doc-pipeline/README.md` |
-| 需求模糊 / 不知道从哪开始 | `/steward plan` 或 Stage 0.1 | 最多 3 个 P0 问题；S 级不追问 |
+| 需求模糊 / 不知道从哪开始 | `/steward:plan` 或 Stage 0.1 | 最多 3 个 P0 问题；S 级不追问 |
 
 ## 轻量技能什么时候加载
 
@@ -33,7 +33,7 @@ description: Steward 技能路由（ZCode 侧）。当用户不知道用 Steward
 
 1. **不新造角色/流程**：只用 7 个角色 + 3 个轻量技能 + 主技能；需要新角色先给方案，不直接加。
 2. **S 级直接做**：≤3 文件、单层、无 UI / 无 schema，不派全员、不建深文档。
-3. **不确定就先 `/steward plan`**：先把方案 / 影响面 / 风险摆出来，再决定做不做；不要猜着写。
+3. **不确定就先 `/steward:plan`**：先把方案 / 影响面 / 风险摆出来，再决定做不做；不要猜着写。
 
 ## 反例
 
