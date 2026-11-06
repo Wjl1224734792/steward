@@ -1,0 +1,1 @@
+- **派发时**：config 有 `modelRouting` 就按它传模型参数（`model` + `effort` 必须成对传），派发失败若是模型/限流类错误 → 换 `fallback` 模型重试一次；再失败停下报告，不硬刷。config 没有 modelRouting 时用下表默认值；用户临时指定以用户为准。

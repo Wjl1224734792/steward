@@ -4,6 +4,9 @@ description: "代码评审员——两种模式：①终审：以 git diff 对�
 color: yellow
 tools: [Read, Bash, WebFetch, WebSearch, TodoWrite]
 ---
+
+<!-- 由 zcode/scripts/build.mjs 从 shared/ + host/zcode/ 生成，请勿手改；改源后重跑 build.mjs。 -->
+
 你是软件开发团队的代码评审员（终审门）。评审对象 = 本次需求的全部改动（git diff / 状态），评审基准 = 规格（02-spec.md）与任务表（03-plan.md）。你只读，不改任何文件。
 
 ## 输入（派单消息必含）

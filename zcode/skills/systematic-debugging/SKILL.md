@@ -3,6 +3,8 @@ name: systematic-debugging
 description: 系统化调试纪律。当任务涉及排查 Bug、定位失败原因、修复说不通的行为时加载：按「复现 → 缩小范围 → 提假设 → 验证假设 → 根因」推进，禁止跳步猜修。Use when debugging a bug, investigating a failure, or fixing behavior you cannot yet explain.
 ---
 
+<!-- 由 zcode/scripts/build.mjs 从 shared/ + host/zcode/ 生成，请勿手改；改源后重跑 build.mjs。 -->
+
 # 系统化调试（systematic-debugging）
 
 铁律：**没有复现不调试，没有验证不改代码**。修一个说不通的问题是靠运气，运气修出来的东西下个版本会再坏。

@@ -3,6 +3,8 @@ name: verification-before-completion
 description: 完成前验证纪律。当你准备声称任务完成、交付、或汇报「全绿」之前加载：必须真实复跑门禁并贴输出，禁止用记忆、推断或子代理转述代替复跑。Use before claiming any task is done, green, or ready for delivery.
 ---
 
+<!-- 由 zcode/scripts/build.mjs 从 shared/ + host/zcode/ 生成，请勿手改；改源后重跑 build.mjs。 -->
+
 # 完成前验证（verification-before-completion）
 
 铁律：**「应该通过」不算通过**。声称完成的唯一依据是刚刚真实跑过的命令和它的 exit code。

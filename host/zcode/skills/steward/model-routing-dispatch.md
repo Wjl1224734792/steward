@@ -1,0 +1,1 @@
+- **派发时**：config 有 `modelRouting` 就按它传模型参数（MiniMax 显式传 model+effort；ZCode 用宿主默认），派发失败若是模型/限流类错误 → 换 `fallback` 模型重试一次；再失败停下报告，不硬刷。

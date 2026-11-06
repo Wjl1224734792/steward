@@ -3,6 +3,8 @@ name: tdd
 description: TDD（测试先行）纪律。当实现新功能、修 Bug 需要回归测试、或任务单要求 TDD 时加载：红 → 绿 → 重构，测试表达行为契约而非实现细节。Use when implementing a feature or fix test-first, or when the task requires TDD.
 ---
 
+<!-- 由 zcode/scripts/build.mjs 从 shared/ + host/zcode/ 生成，请勿手改；改源后重跑 build.mjs。 -->
+
 # TDD（tdd）
 
 循环只有三拍，顺序不能换：**红 → 绿 → 重构**。

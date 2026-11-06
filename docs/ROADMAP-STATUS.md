@@ -18,7 +18,7 @@
 
 ### 已知偏差
 
-- **脚本双份维护**：`zcode/scripts/` 与 `minimax/scripts/` 当前是内容相同的两份拷贝（宿主插件包需自包含）。按路线图 P2 项 16「双宿主单一正文源 + 本地构建脚本」收敛，本版先接受复制并保持同步。
+- **脚本双份**：`zcode/scripts/` 是唯一源，`minimax/scripts/` 由 `build.mjs` 同步（不手改副本，`--check` 会拦住不同步）；v0.7.1 起技能/agent 正文也改为 `shared/` + `host/` 生成。
 - **fixture 内 git commit**：fixture 是测试脚手架（gitignore 的 tmp/ 内、独立 git 仓库），其内部的 `git init/commit` 属测试环境搭建，不影响本仓库工作区与历史；本仓库自身未 commit / push。
 - **Plan Critic / 批准门的实战演练**：P0 验收以 fixture 单任务 Bug 为主，批准门与 Critic 以提示词与流程落地为准，未在多任务 M/L 需求上跑过全程（v0.5 后首次真实使用时观察）。
 
@@ -38,17 +38,17 @@
 - 浏览器证据与 worktree 合并为「规则已落地、端到端演练待真实场景」，未声称已验证。
 - token/轮次预算采用失败重试次数口径（maxTotalAttempts）；宿主未暴露 token 计数接口，不做假预算。
 
-## P2（v0.7，ZCode 0.7.0 / MiniMax 1.5.0）— 2026-11-06
+## P2（v0.7，ZCode 0.7.1 / MiniMax 1.5.1）— 2026-11-06
 
 | # | 交付 | 状态 | 证据 | 备注 |
 |---|---|---|---|---|
 | 14 | 架构演进：模块边界/循环依赖/重复率/重构比例检查，codemod/批量改动计划 | 已实现 | maintain.mjs 新增重构比例检查（`<0.1` 报警，<20 提交窗口正确跳过——自扫实测）；SKILL「演进循环」节（双宿主）：四类检查 + codemod 走计划模式分批执行（每批 verify+baseline，红了即停）+ 边界变化先立 ADR | 循环依赖/重复率/churn 检查 P1 已有，此处纳入演进循环口径 |
 | 15 | T3 文档按需升级 | 已实现 | `scripts/templates/t3/` 六件（PRD/FRD/CONTRACT/PAGE-LAYOUT/TEST-PLAN/DEPLOYMENT），build.mjs 已同步 minimax；SKILL「T3 按需升级」节（docTier=3，验收条目收敛进 AC 由 validate-plan 机检） | 模板为骨架；PRD/FRD 的实际产出质量待首个 docTier=3 项目检验 |
-| 16 | 双宿主单一正文源 + 本地构建脚本 | 部分实现 | `build.mjs`：scripts+templates 单一正文源（zcode→minimax 一键同步，`--check` 校验；check→sync→recheck 三态实测通过，能抓出未同步文件）；清单校验（skills/agents 列表↔磁盘）；frontmatter 校验（含 MiniMax 小写 tools/无 color）；版本节奏校验；正文漂移报告 | **技能/agent 正文仍双源维护**——宿主派发机制差异大，自动转换风险高；漂移已接入 build.mjs 报告，人工收敛。完整正文单一源化留待后续（明确偏差，不虚报） |
+| 16 | 双宿主单一正文源 + 本地构建脚本 | 已实现（v0.7.1） | **技能/agent 正文单一源**：`shared/`（共享正文 + `@@SLOT@@`）+ `host/<宿主>/`（frontmatter/名册与派发/标签/浏览器操作方式）→ `build.mjs` 生成 2 宿主 ×（4 技能 + 7 agent）= 22 个文件；生成物带「请勿手改」标记。`--check` 校验：生成一致性（篡改测试：手改 `minimax/agents/pm.md` → FAIL exit 1，重建恢复）、脚本/模板同步、清单、frontmatter、版本节奏、残留槽位；缺 `shared/`+`host/` 布局友好失败 exit 2。生成前后逐文件 diff：仅计划内归一 + 生成标记，无内容丢失（minimax 模型表/派发方式/可视化/glm 注记、zcode hooks 行均保留） | 维护方式：只改 `shared/` 或 `host/` 后跑 `node zcode/scripts/build.mjs`；脚本仍以 zcode 为源同步到 minimax（宿主包自包含） |
 | 17 | ZCode hooks：所有权/危险命令/密钥 | 部分实现 | `scripts/hooks/guard.mjs` 三模式真实 stdin 用例全过：dangerous（rm -rf/force push 拦、npm test 放）、secret（sk-/PEM 拦、env 引用放）、ownership（白名单外拦/白名单内放，POSIX+Windows 双路径风格）、坏 JSON fail-open；配置示例 `zcode/hooks/hooks.json` + README 挂载说明 | 脚本级验证完成；**宿主级拦截端到端验证需用户在 settings 挂载**（插件级 hooks 支持未经验证，如实标注） |
 | 18 | GenUI 健康/进度看板 | 已实现（契约） | visualizer data-schema.json 新增 `maintenance` 数据集（健康分/分类计数/backlog 条目 + fieldRules + nullPolicy），JSON 校验通过；渲染配方复用既有 dashboard 模式 | 视图渲染实际效果待 MiniMax 宿主验证（ZCode 无 GenUI） |
 | 19 | Monorepo / 多服务 | 已实现（口径） | SKILL「Monorepo / 多服务」节（双宿主）：workspaces 探测（take-over 已有 monorepoNote）、services 多服务配置（P0 schema 已支持）、按 package 所有权、子包级 maintain 汇总 | 未建 monorepo fixture 实测；口径与既有脚本能力一致，无新增未验证声明 |
 
 ### P2 已知偏差
 
-- 项 16：正文（技能/agent）单一源化未完成，build.mjs 以漂移报告兜底；项 17：宿主挂载属用户环境操作，脚本侧已验证；项 18：GenUI 渲染效果待 MiniMax 宿主实测。均如实标注，不虚报「已验证」。
+- 项 17：宿主挂载属用户环境操作，脚本侧已验证；项 18：GenUI 渲染效果待 MiniMax 宿主实测。均如实标注，不虚报「已验证」。项 16 已于 v0.7.1 完整落地（技能/agent 正文单一源 + 生成一致性校验）。

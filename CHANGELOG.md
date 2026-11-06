@@ -2,6 +2,20 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.7.1 / MiniMax 1.5.1] - 2026-11-06
+
+### Changed（内部构建，兑现 P2 项 16）
+
+- **技能/agent 正文单一源化**：新增 `shared/`（唯一正文源，含 `@@SLOT@@` 宿主槽位）与 `host/<宿主>/`（frontmatter、名册与派发机制、工具名标签、浏览器操作方式等片段）；`build.mjs` 渲染出 2 宿主 ×（4 技能 + 7 agent）= 22 个文件，生成物带「请勿手改」标记。改一处（shared 或 host 片段）→ 生成两版。
+- `build.mjs --check` 升级为**生成一致性校验**：手改生成文件、未重建、缺必填片段、残留槽位、脚本不同步、清单/frontmatter 非法、版本节奏不符 → exit 1；缺 `shared/`+`host/` 布局（如插件安装目录）→ 友好失败 exit 2。
+- 无害措辞归一（以信息更全的一版为准）：两宿主统一「仓库根路径」输入项、i18n 词条表述、维护/Bug/只出计划小节标题与 codemod 口径；minimax 的 browser-tester 补上与 zcode 一致的「返回报告的格式」节。
+
+### 验证
+
+- 生成前后逐文件 diff：仅计划内措辞归一 + 生成标记，无内容丢失（minimax 的模型表/派发方式/可视化/glm 注记、zcode 的 hooks 行/模型默认口径均保留；无残留槽位）。
+- 篡改测试：手改 `minimax/agents/pm.md` → `--check` FAIL exit 1；重建后 PASS。`minimax/scripts/build.mjs` 副本 `--check` PASS；缺布局目录运行 exit 2。
+- 既有门禁回归（validate-config / validate-plan / verify / maintain）全部 PASS。
+
 ## [ZCode 0.7.0 / MiniMax 1.5.0] - 2026-11-06
 
 对应路线图 P2（v0.7+）——演进；证据见 [docs/ROADMAP-STATUS.md](docs/ROADMAP-STATUS.md)。
