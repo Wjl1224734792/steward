@@ -12,7 +12,7 @@
 
 ### Steward 是什么
 
-Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.7.1 / MiniMax 1.5.1）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；技能/agent 正文单一源生成。
+Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.7.2 / MiniMax 1.5.2）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；技能/agent 正文单一源生成。
 
 ### 工作模式
 
@@ -85,7 +85,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "displayName": "Steward · 长期维护型研发团队",
       "category": "developer-tools"
     }
@@ -204,7 +204,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "displayName": "Steward — long-lived engineering team",
       "category": "developer-tools"
     }

@@ -1,18 +1,29 @@
 {
-  "_comment": "Steward 宿主 hook 配置示例（P2）：挂载所有权/危险命令/密钥三道守卫。ZCode 插件级 hooks 的字段口径以宿主版本为准；若插件级挂载不可用，把本文件内容合并进用户/工作区 settings 的 hooks 配置，guard 路径指向已安装插件内的 scripts/hooks/guard.mjs。守卫 fail-open：解析失败不阻塞。",
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node \"<STEWARD_PLUGIN>/zcode/scripts/hooks/guard.mjs\" secret" },
-          { "type": "command", "command": "node \"<STEWARD_PLUGIN>/zcode/scripts/hooks/guard.mjs\" ownership" }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard.mjs\" secret",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard.mjs\" ownership",
+            "timeout": 10
+          }
         ]
       },
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "node \"<STEWARD_PLUGIN>/zcode/scripts/hooks/guard.mjs\" dangerous" }
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard.mjs\" dangerous",
+            "timeout": 10
+          }
         ]
       }
     ]

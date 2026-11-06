@@ -2,6 +2,26 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.7.2 / MiniMax 1.5.2] - 2026-11-06
+
+### Fixed
+
+- **verify.mjs 自动探测缺陷**（真实演练发现）：无 steward.config.json 时，未探测到命令的 lint/typecheck 被误判为「启用但缺命令」直接退出；现自动模式只运行探测到命令的门禁（config 模式仍严格校验）。由 taskboard M/L 演练的 QA 阶段复现。
+- **guard.mjs 宿主契约对齐**：阻断原因从 stdout 改为 stderr，stdout 保持空（宿主对 hooks stdout 做严格 JSON 校验，未知键会判失败）；exit 2 语义不变。
+- **hooks/hooks.json 格式修正**：移除非法注释键，改用 `${CLAUDE_PLUGIN_ROOT}` 展开插件内 guard 路径，事件名收敛到宿主白名单。
+
+### Added
+
+- **hooks 契约自检** `scripts/hooks/selftest.mjs`：11 例覆盖危险命令（rm -rf/force push/reset --hard）、密钥（sk-/PEM）、所有权（白名单内外/无上下文）、坏 JSON fail-open，断言 exit 0/2 与 stdout 为空；全部 PASS。
+- **工作区 hooks 挂载** `.zcode/config.json`（enabled=true + PreToolUse 三守卫，`${ZCODE_PROJECT_DIR}` 相对路径）；插件级 `zcode/hooks/hooks.json` 同时随插件分发。hook 配置在会话启动时加载，**宿主级拦截在新会话生效**（本会话内以 selftest + 配置校验验证）。
+- **hooks 使用说明** `zcode/hooks/README.md`（契约、两种激活方式、关闭方法、ownership 文件格式）。
+
+### 演练（本版验证路线图能力，非产品行为变更）
+
+- **M/L 全流程**：taskboard fixture（Node HTTP + 静态 UI）走完 spec → architect 真实派单 → validate-plan → Plan Critic（修正后批准）→ T1/T2 并行真实派单 → QA 独立门（18/18，--repeat 3 无 flaky）→ 真实浏览器 7 步证据（browser-evidence.json）→ reviewer 终审「可交付」→ 05-record；过程中发现并修复 verify.mjs 缺陷。
+- **codemod 演练**：legacy-api fixture（12 call site）4 批 + 清理，每批 npm test exit 0 + baseline check PASS，最终无旧引用、run completed。
+- 演练工件在 `tmp/steward-fixtures/`（gitignored），结论与证据汇总见 `docs/ROADMAP-STATUS.md`。
+
 ## [ZCode 0.7.1 / MiniMax 1.5.1] - 2026-11-06
 
 ### Changed（内部构建，兑现 P2 项 16）

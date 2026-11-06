@@ -27,7 +27,7 @@
 | # | 交付 | 状态 | 证据 | 备注 |
 |---|---|---|---|---|
 | 8 | /steward maintain：八类扫描 → HEALTH.md + 维护 backlog | 已实现 | `maintain.mjs` 自扫插件仓库：7 findings / 健康分 13.0——含「836 个跨文件重复窗口」（与已知偏差「脚本双份」一致，佐证 P2 项 16）、「缺 AGENTS.md（T0）」、16 处 TODO；fixture 扫描干净（健康分 0）且完成 Record 演练：报告落 `.steward/maintain-run/reports/maintenance.md`、HEALTH.md 回填 lockfile backlog 条目 | npm audit / outdated 离线 fail-open 标记人工补跑；不自动升级依赖 |
-| 9 | 浏览器证据契约 | 部分实现 | 双宿主 browser-tester.md 已写入契约（browser-evidence.json：ARIA/DOM/console/network/URL、provider/fallbackUsed、visual unverified）；SKILL Stage 4 同步 | schema+提示词已落地；browser-evidence.json 的真实 UI 全流程演练待首个带 UI 的任务（fixture 无 UI）——不下「已验证」结论 |
+| 9 | 浏览器证据契约 | 已实现（v0.7.2 演练） | taskboard fixture 真实浏览器（ZCode IAB）7 步证据落 `.steward/ml-run/browser-evidence.json`：优先级徽标（ARIA/DOM）、过滤三态（DOM + fetch 捕获 ?priority=）、导出 tasks.json（下载内容四字段 + 锚点 download 钩子）、空结果导出 []（Blob 运行时捕获）、完成/取消、失败态「加载失败：…」→恢复「暂无任务」、console/网络（宿主 [RUM] 噪声已区分）；visual=unverified | 演练同时发现真实问题：GET /api/tasks 无 Cache-Control 时停机瞬间可能读到缓存（已记 non-blocking）；截图未采集，视觉判定未做 |
 | 10 | ADR/CHANGELOG/05-record 学习循环 | 已实现 | SKILL「学习循环（05-record）」节（六类来源 → 五个沉淀位置，双宿主）；机制已在 P0 演练：postmortem 教训回填 fixture CONSTITUTION（金额求和不变量红线）、maintain 结论回填 HEALTH.md | 用户拍板类回填须先问 |
 | 11 | systematic-debugging / TDD / verification 技能 | 已实现 | 双宿主 `skills/{systematic-debugging,tdd,verification-before-completion}/SKILL.md`；minimax plugin.json skills 列表注册（JSON 校验通过）；SKILL 派单指引：Bug 模式加载 systematic-debugging | 按需加载，不默认注入 |
 | 12 | 可选 worktree + 任务分支 + finishing | 已实现（规则） | SKILL Stage 5.5 finishing（05-record → 汇报 → 询问处置）+「隔离与并行写」节（worktree 三种触发条件、DAG 顺序串行合并、每合并跑 verify）；默认仍 baseline-hash 单写者 | worktree 合并流程未在真实多分支场景演练（无此类 fixture 场景）；规则以提示词为准 |
@@ -35,20 +35,35 @@
 
 ### P1 已知偏差
 
-- 浏览器证据与 worktree 合并为「规则已落地、端到端演练待真实场景」，未声称已验证。
+- 项 9 已于 v0.7.2 完成真实浏览器演练（证据见上）；worktree 合并仍为规则落地、待真实多分支场景。
 - token/轮次预算采用失败重试次数口径（maxTotalAttempts）；宿主未暴露 token 计数接口，不做假预算。
 
-## P2（v0.7，ZCode 0.7.1 / MiniMax 1.5.1）— 2026-11-06
+## P2（v0.7，ZCode 0.7.2 / MiniMax 1.5.2）— 2026-11-06
 
 | # | 交付 | 状态 | 证据 | 备注 |
 |---|---|---|---|---|
 | 14 | 架构演进：模块边界/循环依赖/重复率/重构比例检查，codemod/批量改动计划 | 已实现 | maintain.mjs 新增重构比例检查（`<0.1` 报警，<20 提交窗口正确跳过——自扫实测）；SKILL「演进循环」节（双宿主）：四类检查 + codemod 走计划模式分批执行（每批 verify+baseline，红了即停）+ 边界变化先立 ADR | 循环依赖/重复率/churn 检查 P1 已有，此处纳入演进循环口径 |
 | 15 | T3 文档按需升级 | 已实现 | `scripts/templates/t3/` 六件（PRD/FRD/CONTRACT/PAGE-LAYOUT/TEST-PLAN/DEPLOYMENT），build.mjs 已同步 minimax；SKILL「T3 按需升级」节（docTier=3，验收条目收敛进 AC 由 validate-plan 机检） | 模板为骨架；PRD/FRD 的实际产出质量待首个 docTier=3 项目检验 |
 | 16 | 双宿主单一正文源 + 本地构建脚本 | 已实现（v0.7.1） | **技能/agent 正文单一源**：`shared/`（共享正文 + `@@SLOT@@`）+ `host/<宿主>/`（frontmatter/名册与派发/标签/浏览器操作方式）→ `build.mjs` 生成 2 宿主 ×（4 技能 + 7 agent）= 22 个文件；生成物带「请勿手改」标记。`--check` 校验：生成一致性（篡改测试：手改 `minimax/agents/pm.md` → FAIL exit 1，重建恢复）、脚本/模板同步、清单、frontmatter、版本节奏、残留槽位；缺 `shared/`+`host/` 布局友好失败 exit 2。生成前后逐文件 diff：仅计划内归一 + 生成标记，无内容丢失（minimax 模型表/派发方式/可视化/glm 注记、zcode hooks 行均保留） | 维护方式：只改 `shared/` 或 `host/` 后跑 `node zcode/scripts/build.mjs`；脚本仍以 zcode 为源同步到 minimax（宿主包自包含） |
-| 17 | ZCode hooks：所有权/危险命令/密钥 | 部分实现 | `scripts/hooks/guard.mjs` 三模式真实 stdin 用例全过：dangerous（rm -rf/force push 拦、npm test 放）、secret（sk-/PEM 拦、env 引用放）、ownership（白名单外拦/白名单内放，POSIX+Windows 双路径风格）、坏 JSON fail-open；配置示例 `zcode/hooks/hooks.json` + README 挂载说明 | 脚本级验证完成；**宿主级拦截端到端验证需用户在 settings 挂载**（插件级 hooks 支持未经验证，如实标注） |
+| 17 | ZCode hooks：所有权/危险命令/密钥 | 已实现（配置+契约自检；live 拦截待新会话） | 按宿主权威格式修正：`zcode/hooks/hooks.json`（PreToolUse + Write/Edit/Bash matcher + `${CLAUDE_PLUGIN_ROOT}`，无非法键）随插件分发；工作区 `.zcode/config.json`（`enabled:true` + `${ZCODE_PROJECT_DIR}` 三守卫）已挂载；`scripts/hooks/selftest.mjs` **11/11 PASS**（危险命令/密钥/所有权/坏 JSON，exit 0/2 + stdout 为空契约）；`zcode/hooks/README.md` 说明激活/关闭/ownership 文件格式 | hook 配置会话启动时加载：**宿主级 live 拦截在新会话生效**，本会话内以契约自检+配置校验验证，不虚报「已拦截」 |
 | 18 | GenUI 健康/进度看板 | 已实现（契约） | visualizer data-schema.json 新增 `maintenance` 数据集（健康分/分类计数/backlog 条目 + fieldRules + nullPolicy），JSON 校验通过；渲染配方复用既有 dashboard 模式 | 视图渲染实际效果待 MiniMax 宿主验证（ZCode 无 GenUI） |
 | 19 | Monorepo / 多服务 | 已实现（口径） | SKILL「Monorepo / 多服务」节（双宿主）：workspaces 探测（take-over 已有 monorepoNote）、services 多服务配置（P0 schema 已支持）、按 package 所有权、子包级 maintain 汇总 | 未建 monorepo fixture 实测；口径与既有脚本能力一致，无新增未验证声明 |
 
 ### P2 已知偏差
 
-- 项 17：宿主挂载属用户环境操作，脚本侧已验证；项 18：GenUI 渲染效果待 MiniMax 宿主实测。均如实标注，不虚报「已验证」。项 16 已于 v0.7.1 完整落地（技能/agent 正文单一源 + 生成一致性校验）。
+- 项 17：配置已挂载、契约自检通过，宿主级 live 拦截需新会话验证；项 18：GenUI 渲染效果待 MiniMax 宿主实测（用户自行验证）。项 16 已于 v0.7.1 完整落地。
+
+## 能力演练汇总（v0.7.2）— 2026-11-06
+
+| 演练 | 覆盖能力 | 结果 | 证据（tmp/steward-fixtures/，gitignored） |
+|---|---|---|---|
+| taskboard M/L 全流程 | 规格 → architect 真实派单 → validate-plan → Plan Critic（干净上下文）→ 批准门 → T1/T2 并行真实派单 → QA 独立门 → 浏览器证据 → 终审 → 05-record | 交付完成：QA 18/18（--repeat 3 无 flaky）、终审「可交付」 | `taskboard/.steward/ml-run/`（02-spec/impact/plan、01-approval、reports/{t1,t2,qa,review}、browser-evidence.json、verify-result.json、05-record.md） |
+| 浏览器证据 | ARIA/DOM/console/network/URL、下载内容、空态、失败恢复、visual unverified | 7 步全 pass；失败态→恢复真实验证 | `taskboard/.steward/ml-run/browser-evidence.json` |
+| codemod 分批迁移 | 演进循环：12 call site 4 批 + 清理，每批 verify + baseline check，串行 DAG | 5/5 任务 done，每批 exit 0，最终无旧引用 | `legacy-api/.steward/codemod-run/`（03-plan.json、verify-T1..T5.json、05-record.md） |
+| hooks 守卫 | 危险命令/密钥/所有权 + 宿主契约（exit 0/2、stdout 空、fail-open） | 11/11 PASS；工作区配置已挂载 | `zcode/scripts/hooks/selftest.mjs` 输出；`.zcode/config.json` |
+
+### 演练中发现并修复的产品问题
+
+- v0.7.2：`verify.mjs` 自动探测模式误判未探测门禁（M/L 演练 QA 阶段复现）→ 已修复并回归。
+- v0.7.2：`guard.mjs` stdout 输出不符合宿主严格 JSON 契约 → 改为 stderr + exit 2。
+- 记录待跟进（non-blocking）：taskboard 过滤快速切换响应竞态；GET /api/tasks 缺 Cache-Control。

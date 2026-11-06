@@ -67,11 +67,12 @@ function cmdRun(args) {
   const gates = GATES.filter((g) => {
     if (only && !only.includes(g)) return false;
     if (config?.gates) return config.gates[g] === true;
-    return g !== 'build'; // 无配置时默认不跑 build
+    // 无配置（自动探测）时：只跑探测到命令的门禁，不跑 build；未探测到的 lint/typecheck 静默跳过
+    return g !== 'build' && Boolean(commands[g]);
   });
   const missing = gates.filter((g) => !commands[g]);
   if (missing.length) die(2, `门禁 ${missing.join(', ')} 被启用但没有对应命令（检查 steward.config.json 的 commands/gates）`);
-  if (!gates.length) die(2, '没有启用的门禁（检查 steward.config.json 的 gates 或 --only 参数）');
+  if (!gates.length) die(2, '没有可运行的门禁（检查 steward.config.json 的 gates、package.json 脚本或 --only 参数）');
 
   const repeat = Math.max(1, parseInt(args.repeat, 10) || 1);
   const results = [];

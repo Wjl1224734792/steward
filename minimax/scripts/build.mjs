@@ -213,6 +213,18 @@ if (zm && mm) {
   }
 }
 
+// --- 3.5 hooks.json 校验（事件名白名单 + JSON 合法） ---
+const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'PostToolUseFailure', 'Stop'];
+for (const p of [join(zc, 'hooks', 'hooks.json'), join(mx, 'hooks', 'hooks.json')]) {
+  if (!existsSync(p)) continue;
+  try {
+    const j = JSON.parse(readFileSync(p, 'utf8'));
+    for (const e of Object.keys(j.hooks ?? {})) if (!HOOK_EVENTS.includes(e)) errors.push(`[hooks] ${p} 含不支持的事件名：${e}`);
+  } catch (e) {
+    errors.push(`[hooks] ${p} JSON 解析失败：${e.message}`);
+  }
+}
+
 // --- 4. frontmatter 校验（双宿主全部技能与 agent，含生成物） ---
 for (const [label, base, hostMx] of [['zcode', zc, false], ['minimax', mx, true]]) {
   for (const d of readdirSync(join(base, 'skills'))) {

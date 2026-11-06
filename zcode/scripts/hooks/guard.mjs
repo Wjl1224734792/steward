@@ -32,8 +32,9 @@ const command = typeof input.command === 'string' ? input.command : '';
 const content = typeof input.content === 'string' ? input.content
   : typeof input.new_string === 'string' ? input.new_string : '';
 
+// 宿主契约：stdout 走严格 JSON 校验，未知键会判失败；因此阻断原因走 stderr，stdout 保持空，靠 exit 2 表达 deny。
 const block = (reason) => {
-  console.log(JSON.stringify({ decision: 'block', reason, mode }));
+  console.error(reason);
   process.exit(2);
 };
 
