@@ -53,18 +53,21 @@
 
 - 项 17：配置已挂载、契约自检通过，宿主级 live 拦截需新会话验证；项 18：配方 C 与本地预览验收完成（v1.5.3），MiniMax 宿主实机待用户确认。项 16 已于 v0.7.1 完整落地。
 
-## P3（v0.8，ZCode 0.8.0 / MiniMax 1.6.0）— 2026-11-06
+## P3（v0.8，ZCode 0.8.1 / MiniMax 1.6.0）— 2026-11-07
 
 | # | 交付 | 状态 | 证据 | 备注 |
 |---|---|---|---|---|
 | 20 | 文档流水线完整吸收（双宿主） | 已实现 | `zcode/skills/steward/references/doc-pipeline/`：hub README + 7 references + 19 类模板 + `templates/README.md` + T2 `01-REQUIREMENT`/`04-EVIDENCE`/`05-RECORD` + assets 基线（共 33 个 md）；`PROVENANCE.md` 记录来源/改编。`zcode/scripts/doc/`：`doc-init` / `doc-check` / `guard-naming`。技能经共享正文渲染，两宿主同节。fixture `tmp/steward-fixtures/doc-pipeline-demo/`：`test-doc-scripts.mjs` **30/30 PASS**（doc-init dry-run/写入/幂等；doc-check 正例 + 死链/未索引/缺 T1 负例；guard-naming WAVE/PRIORITY/`--init`/拒绝覆盖/stale/误伤保护）；模板拆分对照仅计划内适配。**MiniMax 1.6.0 同步**：`minimax/skills/steward/references/doc-pipeline/`（33 个 md）与 `minimax/scripts/doc/`（4 个文件）由 build.mjs 从 `zcode/` 侧单向同步，逐字节同源；对齐自检 **13/13 PASS**（含两树同源、MiniMax 包内 doc-init 五态、doc-check/guard-naming 对 fixture exit 0、库内 83 条引用可解析） | 外部 skill 快照冻结；文档流水线自 1.6.0 起为双宿主共享事实源 |
 | 21 | 需求澄清内核（第一性原理 + 提问预算，双宿主） | 已实现（提示词级） | 技能 Stage 0.1（共享正文，两宿主同节）：M/L / 二义 / 新领域启用；第一性原理四问（问题/约束/备选/非目标+成功指标）+ 最多 3 个 P0 提问预算；S 级不追问；`templates/01-REQUIREMENT.md`。不引入「强制先问后写」硬门槛。提问工具按宿主分流：ZCode `AskUserQuestion` / MiniMax `ask_user` | 未做 agent 行为回归；等真实 M/L 需求观察是否只问 3 个 P0、是否把假设落盘 |
+| 22 | 技能路由 `steward:using-steward`（ZCode 侧） | 已实现（提示词级） | `zcode/skills/using-steward/SKILL.md`：7 类入口（功能 / Bug / 计划 / 维护 / 接手 / 文档 / 澄清）+ 3 个轻量技能加载信号 + 3 条纪律 + 反例；主技能 ZCode frontmatter/banner 增加 ⑥ 技能路由；`build.mjs --check` PASS（仅预期 warning 0.8.1 vs 1.6.0）；MiniMax 生成物逐字节不变 | MiniMax 1.6.0 未同步，1.6.1 待补；路由为提示词级，未做 agent 行为回归 |
 
 ### P3 已知偏差
 
 - MiniMax 侧已于 1.6.0 完成对齐（文档流水线 + 澄清内核 + 斜杠命令口径），版本节奏 warning 消失。
+- `steward:using-steward` 为 ZCode-only（v0.8.1）；MiniMax 1.6.0 未带该技能，1.6.1 待补，因此当前版本节奏 warning 为预期。
 - AFC/AIAPaaS 分支的 §5.0 仅**部分吸收**（第一性原理 + 提问预算），未引入「强制先问后写」；见 `PROVENANCE.md`。
 - 需求澄清（Stage 0.1）为提示词级规则，未做 agent 行为回归；S/M 不触发，等真实 M/L 需求观察。
+- 技能路由为提示词级规则，未做 agent 行为回归。
 
 ## 能力演练汇总（v0.7.2）— 2026-11-06
 
