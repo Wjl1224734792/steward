@@ -169,7 +169,7 @@ Parnas 1994 年的《Software Aging》指出：
 - Stage 5：reviewer 增量审 + 测试完整性；
 - Stage 5.5：finishing：验证、总结、询问 merge/PR/保留/丢弃、清理。
 
-### 4.2 `/steward fix` — Bug 调试与修复（新增，重点）
+### 4.2 `/steward:fix` — Bug 调试与修复（新增，重点）
 
 Bug 不应该走 feature 流程。按严重度分流：
 
@@ -241,7 +241,7 @@ tmp/steward/<run-id>/
 - 复现时间、修复时间、回归率、逃逸率（QA 未发现）、新增回归测试数；
 - 按模块统计 Bug 密度，作为维护 backlog 的输入。
 
-### 4.3 `/steward maintain` — 维护循环（新增）
+### 4.3 `/steward:maintain` — 维护循环（新增）
 
 | 步骤 | 做什么 | 产出 |
 |---|---|---|
@@ -254,7 +254,7 @@ tmp/steward/<run-id>/
 - 输出：`reports/maintenance-YYYYMMDD.md` + 更新 `HEALTH.md`。
 - 大改造不在这里做，转入 `/steward` 或演进循环。
 
-### 4.4 `/steward take-over` — 接手存量项目（新增）
+### 4.4 `/steward:take-over` — 接手存量项目（新增）
 
 - 扫描 README/文档/依赖/目录/测试/CI/部署；
 - 生成 `AGENTS.md` + `docs/project/` 初稿；
@@ -262,7 +262,7 @@ tmp/steward/<run-id>/
 - **先盘点后动手**，不做大重构；
 - 需拍板项列给用户，不私改。
 
-### 4.5 `/steward plan` — 只出计划（可选）
+### 4.5 `/steward:plan` — 只出计划（可选）
 
 - 只做受理、影响面、计划、Plan Critic、批准；
 - 不写代码；
@@ -450,8 +450,8 @@ tmp/steward/<run-id>/
 | 2 | `tasks.json` + `validate-plan.mjs` | 成环/重叠/路径不存在/AC 未覆盖都能报错 |
 | 3 | `run.json` + 恢复 + 同错误 2 次即停 | 中断后可续跑；死循环被拦住 |
 | 4 | `verify.mjs` + 反作弊 + 基线 hash/越界 diff 守卫 | 改测试变绿被判 blocking；越界改动被拦；可回滚 |
-| 5 | `/steward fix` MVP（B2/B3） | 一个真实 Bug：复现 → 失败测试 → 根因 → 修复 → 验证 → 记录 |
-| 6 | `/steward fix` B0/B1 文档化流程 + postmortem 模板 | 演练一次：止损 → 根因 → 回归 → 复盘 |
+| 5 | `/steward:fix` MVP（B2/B3） | 一个真实 Bug：复现 → 失败测试 → 根因 → 修复 → 验证 → 记录 |
+| 6 | `/steward:fix` B0/B1 文档化流程 + postmortem 模板 | 演练一次：止损 → 根因 → 回归 → 复盘 |
 | 7 | 计划批准门 + Plan Critic | M/L 计划未批准不实施；Critic 能指出 AC/依赖问题 |
 
 **P0 不做**：完整维护循环、自动依赖升级、worktree 默认、T3 全套文档。
@@ -462,7 +462,7 @@ tmp/steward/<run-id>/
 
 | # | 交付 | 验收 |
 |---|---|---|
-| 8 | `/steward maintain`：依赖/安全/重复/churn/漂移/flaky/TODO 扫描 → `HEALTH.md` | 在一个项目跑出可执行的维护 backlog |
+| 8 | `/steward:maintain`：依赖/安全/重复/churn/漂移/flaky/TODO 扫描 → `HEALTH.md` | 在一个项目跑出可执行的维护 backlog |
 | 9 | 浏览器证据契约（Playwright/Chrome DevTools MCP → ARIA/console/network；内置浏览器兜底） | UI Bug 的 pass/fail 有可读证据；视觉问题标未验证 |
 | 10 | ADR/CHANGELOG/05-record 学习循环 | 评审发现/用户纠正能回填 CONSTITUTION/rules |
 | 11 | `systematic-debugging` / TDD / verification 技能 | Bug 任务能按技能执行；完成声明有证据 |

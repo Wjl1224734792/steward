@@ -2,6 +2,32 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.8.2 / MiniMax 1.6.0] - 2026-11-07
+
+> ZCode-only 修复：斜杠命令后缀入口此前全部未注册。`.md` 文件名里的点号不合法（宿主规则 `^[a-z0-9][a-z0-9_:-]{0,63}$`），`/steward fix` 实际只是 `/steward` 带参数 `fix ...`。改为子目录命名后，入口变为 `/steward:fix` / `/steward:plan` / `/steward:take-over`，并新增 `/steward:maintain`。
+
+### Fixed
+
+- **命令注册**：`zcode/commands/steward.fix.md` / `steward.plan.md` / `steward.take-over.md` → `zcode/commands/steward/{fix,plan,take-over}.md`。命令名由相对 `commands/` 的路径推导，子目录用 `:` 连接，因此触发方式变为 `/steward:fix`、`/steward:plan`、`/steward:take-over`；`/steward` 保持不变。
+- **补缺失入口**：新增 `zcode/commands/steward/maintain.md` → `/steward:maintain`，此前技能正文写了维护循环入口但没有命令文件。
+
+### Changed
+
+- `host/zcode/skills/steward/{entry-points,frontmatter,banner}.md`、`zcode/skills/using-steward/SKILL.md`、根 README、`zcode/README.md`、`docs/ROADMAP.md` 的命令口径统一改为冒号命名。
+- `zcode/.zcode-plugin/plugin.json` 0.8.1 → 0.8.2；`marketplace.json` 同步 0.8.2（本地目录市场按清单版本判更新）。
+
+### 验证
+
+- `node zcode/scripts/build.mjs --check` exit 0；仅 1 条预期版本节奏 warning（ZCode 0.8.2 / MiniMax 1.6.0，期望 1.6.2）。
+- 按宿主同一规则推导命令名：`/steward`、`/steward:fix`、`/steward:plan`、`/steward:take-over`、`/steward:maintain` **5/5 OK**。
+- `plugins update steward@dev-codestore-f437d635` 成功（0.8.0 → 0.8.2）；随后 `zcode commands list` 实际列出 5 条：`/steward`、`/steward:fix`、`/steward:maintain`、`/steward:plan`、`/steward:take-over`。
+- `zcode/skills/steward/SKILL.md` 已由 `build.mjs` 重新生成，入口行为冒号形态。
+
+### 已知偏差
+
+- MiniMax 侧无斜杠命令能力，本修复不改 `minimax/`；版本节奏 warning 为预期。
+- 桌面端已在跑的会话不会热加载新命令，需重启 ZCode 或开新会话后生效（宿主在会话启动时载入插件命令）。
+
 ## [ZCode 0.8.1 / MiniMax 1.6.0] - 2026-11-07
 
 > ZCode-only patch：新增 `steward:using-steward` 技能路由。MiniMax 1.6.0 未同步该技能；若要双宿主，1.6.1 再同步（版本节奏 warning 预期）。

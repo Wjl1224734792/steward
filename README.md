@@ -12,7 +12,7 @@
 
 ### Steward 是什么
 
-Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.8.1 / MiniMax 1.6.0）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；v0.8 起双宿主共享 docTier=3 完整文档流水线（七阶段文档树 + PRD/FRD/契约/页面/测试/部署全量模板 + 命名守卫与文档检查）与 M/L 需求的第一性原理澄清/提问预算，v0.8.1 起 ZCode 侧新增 `steward:using-steward` 技能路由，技能/agent 正文单一源生成，MiniMax 另附带维护健康看板等可选 GenUI 视图。
+Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.8.2 / MiniMax 1.6.0）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；v0.8 起双宿主共享 docTier=3 完整文档流水线（七阶段文档树 + PRD/FRD/契约/页面/测试/部署全量模板 + 命名守卫与文档检查）与 M/L 需求的第一性原理澄清/提问预算，v0.8.1 起 ZCode 侧新增 `steward:using-steward` 技能路由，技能/agent 正文单一源生成，MiniMax 另附带维护健康看板等可选 GenUI 视图。
 
 ### 工作模式
 
@@ -20,10 +20,10 @@ Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代�
 |---|---|---|
 | 功能交付 | `/steward <需求>` | 0.6.0 可用 |
 | 需求澄清 | 随 `/steward`（M/L/二义） | 0.8.0 起双宿主可用（第一性原理四问 + 最多 3 个 P0；S 级不追问） |
-| Bug 修复 | `/steward fix <Bug>` | 0.5.0 可用（ZCode 命令；MiniMax 用自然语言触发） |
-| 只出计划 | `/steward plan <需求>` | 0.5.0 可用（ZCode 命令；MiniMax 用自然语言触发） |
-| 维护循环 | `/steward maintain` | 0.6.0 可用（`maintain.mjs` 扫描 + backlog；MiniMax 用自然语言触发） |
-| 接手存量 | `/steward take-over` | 0.7.0 可用（扫描生成 T1 + 首轮健康扫描；MiniMax 用自然语言触发） |
+| Bug 修复 | `/steward:fix <Bug>` | 0.5.0 可用（ZCode 命令；MiniMax 用自然语言触发） |
+| 只出计划 | `/steward:plan <需求>` | 0.5.0 可用（ZCode 命令；MiniMax 用自然语言触发） |
+| 维护循环 | `/steward:maintain` | 0.6.0 可用（`maintain.mjs` 扫描 + backlog；MiniMax 用自然语言触发） |
+| 接手存量 | `/steward:take-over` | 0.7.0 可用（扫描生成 T1 + 首轮健康扫描；MiniMax 用自然语言触发） |
 | 文档流水线 | `docTier: 3`（随 `/steward`） | 0.8.0 起双宿主可用（七阶段树 + 全量模板 + 文档检查；MiniMax 1.6.0 同步） |
 
 功能交付：受理定级（S/M/L）→ 方案 → 批准门 → 实施 → QA → 浏览器验收 → 终审 → 收尾。Bug 修复按严重度分流：B2/B3 走「复现 → 失败测试 → 根因 → 最小修复 → 回归 → 记录」，B0/B1 增加止损与 postmortem 复盘。只出计划：方案 → 计划校验 → Plan Critic → 用户批准后停止，不实施。维护循环：八类扫描（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO/重构比例）→ 评分排序 backlog → 小修 → 更新 HEALTH。接手：扫描生成 T1 项目记忆 + 首轮健康扫描，先盘点后动手。演进与 T3/文档流水线见 [docs/ROADMAP.md](docs/ROADMAP.md)。
@@ -88,7 +88,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.8.1",
+      "version": "0.8.2",
       "displayName": "Steward · 长期维护型研发团队",
       "category": "developer-tools"
     }
@@ -136,7 +136,7 @@ Steward 是原 `dev-team` 插件的更名版本。插件 ID、命令、agent 前
 
 ### What is Steward
 
-Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.8.1 / MiniMax 1.6.0) covers feature delivery, bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), and the evolution loop; both hosts share the full docTier=3 documentation pipeline (seven-phase docs tree + full PRD/FRD/contract/page/test/deployment templates + naming guard and doc checks) plus a first-principles clarification step with a 3-question P0 budget for M/L requests, and the ZCode side adds a using-steward router skill, with optional MiniMax GenUI views for the task DAG, defect triage, and maintenance health.
+Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.8.2 / MiniMax 1.6.0) covers feature delivery, bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), and the evolution loop; both hosts share the full docTier=3 documentation pipeline (seven-phase docs tree + full PRD/FRD/contract/page/test/deployment templates + naming guard and doc checks) plus a first-principles clarification step with a 3-question P0 budget for M/L requests, and the ZCode side adds a using-steward router skill, with optional MiniMax GenUI views for the task DAG, defect triage, and maintenance health.
 
 ### Modes
 
@@ -144,10 +144,10 @@ Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead 
 |---|---|---|
 | Feature delivery | `/steward <request>` | Available in 0.6.0 |
 | Clarification | with `/steward` (M/L/ambiguous) | Available in 0.8.0+ on both hosts (first-principles four questions + max 3 P0 questions; S-level skips) |
-| Bug fix | `/steward fix <bug>` | Available in 0.5.0 (ZCode command; on MiniMax trigger by natural language) |
-| Plan only | `/steward plan <request>` | Available in 0.5.0 (ZCode command; on MiniMax trigger by natural language) |
-| Maintenance | `/steward maintain` | Available in 0.6.0 (`maintain.mjs` scan + backlog; on MiniMax trigger by natural language) |
-| Takeover | `/steward take-over` | Available in 0.7.0+ (T1 generation + first health scan; on MiniMax trigger by natural language) |
+| Bug fix | `/steward:fix <bug>` | Available in 0.5.0 (ZCode command; on MiniMax trigger by natural language) |
+| Plan only | `/steward:plan <request>` | Available in 0.5.0 (ZCode command; on MiniMax trigger by natural language) |
+| Maintenance | `/steward:maintain` | Available in 0.6.0 (`maintain.mjs` scan + backlog; on MiniMax trigger by natural language) |
+| Takeover | `/steward:take-over` | Available in 0.7.0+ (T1 generation + first health scan; on MiniMax trigger by natural language) |
 | Documentation pipeline | `docTier: 3` (with `/steward`) | Available in 0.8.0+ on both hosts (seven-phase tree + full templates + doc checks; MiniMax synced in 1.6.0) |
 
 Feature delivery: intake & sizing (S/M/L) → plan → approval gate → implementation → QA → browser acceptance → final review → finishing. Bug fixes are triaged by severity: B2/B3 follow "repro → failing test → root cause → minimal fix → regression → record"; B0/B1 add mitigation-first and a postmortem. Plan-only mode stops after the approval gate — no implementation. Maintenance: an eight-category scan (deps / security / duplication / churn / doc drift / cycles / flaky / TODO) → scored backlog → small fixes → HEALTH.md updates. Full design: [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -212,7 +212,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.8.1",
+      "version": "0.8.2",
       "displayName": "Steward — long-lived engineering team",
       "category": "developer-tools"
     }
