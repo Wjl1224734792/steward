@@ -33,6 +33,7 @@
 - `zcode/.zcode-plugin/plugin.json` 0.7.3 → 0.8.0；`minimax/.minimax-plugin/plugin.json` 1.5.3 → 1.6.0；根 README / `zcode/README.md` / `minimax/README.md` 中英同步。
 - **build.mjs 同步范围扩展**：新增 `zcode/scripts/doc/` 与 `zcode/skills/steward/references/` → `minimax/` 的单向同步（文档流水线参考库与本地脚本自此为单一正文源）。
 - **删除 v0.7.1 遗留的孤儿生成物** `host/zcode/skills/steward/SKILL.md`（build.mjs 自 v0.7.1 起不读不写它，内容停在 0.7.1）。
+- **安装说明订正**：原「MiniMax 会自动重扫本地插件，无需重启」与实测不符——本地插件在**会话启动时**被扫描并载入，运行中的会话不热加载（新插件从下一个新会话起生效）；`minimax/README.md` 中英同步订正。
 
 ### 验证
 
@@ -49,6 +50,7 @@
 ### 已知偏差
 
 - 外部 `eng-doc-pipeline` 快照冻结；后续以 vendored 库为双宿主事实源。
+- **运行时载入时点**：`~/.minimax/plugins/steward/` 已部署且通过包校验，但**安装它的那个会话不会热加载**——实测证据：安装后新开的子会话既无 `steward:*` 技能也无 steward 的 `UserPromptSubmit` 注入块，`plugin-hook-cache` 无新快照（本地包物化发生在会话启动时，见 `dev-team` v1.1.0 快照时间戳与会话启动一致）。需开新会话或重启 app 才生效。
 - 需求澄清仍是提示词级规则，未做 agent 行为回归；等真实 M/L 需求观察。
 - AFC/AIAPaaS 分支的 §5.0 仅**部分吸收**（第一性原理 + 提问预算），未引入「强制先问后写」；需求澄清为提示词级规则，未做 agent 行为回归，等真实 M/L 需求观察。
 

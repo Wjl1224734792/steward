@@ -105,7 +105,7 @@ minimax/
 Copy-Item -LiteralPath "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minimax\plugins\steward\" -Recurse -Force
 ```
 
-MiniMax 会自动重扫本地插件，无需重启。改动后重新拷贝即可。
+本地插件在**会话启动时**被扫描并载入，运行中的会话不会热加载：改动后重新拷贝，**新插件从下一个新会话起生效**（当前会话里仍是旧清单）。要立刻拿到新清单，重启 MiniMax Code 最稳。
 
 ## English
 
@@ -113,6 +113,6 @@ Steward is a role-based engineering team plugin for MiniMax. The lead agent acts
 
 Skills: `steward:steward` (Tech Lead workflow) and `steward:steward-visualizer` (optional GenUI views: task DAG, defect triage, maintenance health).
 
-Trigger: the `UserPromptSubmit` hook loads the skill when the input contains "开发团队", "开发小组", or "Steward". Install by copying `minimax/` into `%USERPROFILE%\.minimax\plugins\steward\`.
+Trigger: the `UserPromptSubmit` hook loads the skill when the input contains "开发团队", "开发小组", or "Steward". Install by copying `minimax/` into `%USERPROFILE%\.minimax\plugins\steward\`. Local plugins are scanned when a session starts and are not hot-reloaded into a running session — a newly installed plugin becomes available from the next new session (restart MiniMax Code to pick it up immediately).
 
 Version: 1.6.0 · License: MIT · Copyright (c) 2026 Lin
