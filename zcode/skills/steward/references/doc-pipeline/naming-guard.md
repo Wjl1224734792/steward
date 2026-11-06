@@ -44,7 +44,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const BASELINE_FILE = join(ROOT, 'scripts/file-naming-baseline.txt');
 
 const EXCLUDE_SEGMENTS = new Set([
-  '.git', '.zcode', 'docs', 'tmp', 'node_modules', 'dist', 'coverage',
+  '.git', '.zcode', '.minimax', 'docs', 'tmp', 'node_modules', 'dist', 'coverage',
   'playwright-report', 'test-results', 'generated', '.umi', '.umi-production', '.umi-test',
 ]);
 const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|sql|prisma|css|scss|less|json)$/;

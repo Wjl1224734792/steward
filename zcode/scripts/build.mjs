@@ -3,7 +3,7 @@
  * build.mjs — Steward 双宿主构建与校验（本地脚本，不做 CI）。
  *
  * 单一正文源（v0.7.1）：
- *   - 脚本 / 模板：`zcode/scripts/` 是唯一正文源，`minimax/scripts/` 由本脚本同步。
+ *   - 脚本 / 模板 / 文档流水线参考库：`zcode/` 侧是唯一正文源，`minimax/` 由本脚本同步。
  *   - 技能 / agent 正文：`shared/` 是唯一正文；宿主差异（frontmatter、派发机制、工具名、
  *     模型表、浏览器操作方式等）放 `host/<host>/` 片段；本脚本渲染出两版并校验一致性。
  *   - 生成物带「请勿手改」标记；`--check` 会发现手改/未重建并报错。
@@ -13,7 +13,7 @@
  *   @@SLOT?:相对路径@@  可选片段（缺失或为空则删除该行）
  *
  * 用法：
- *   node zcode/scripts/build.mjs            # 同步 scripts + 渲染 22 个技能/agent 文件
+ *   node zcode/scripts/build.mjs            # 同步 scripts/templates/references + 渲染 22 个技能/agent 文件
  *   node zcode/scripts/build.mjs --check    # 只校验不写（不一致即 exit 1）
  *   node zcode/scripts/build.mjs --json     # 机读结果
  *
@@ -98,6 +98,9 @@ function syncDir(src, dst, label) {
   }
 }
 syncDir(tplSrc, tplDst, 'minimax/scripts/templates');
+// 文档流水线的本地脚本与参考库同样纳入单一正文源（v0.8.0 起双宿主共享）
+syncDir(join(zc, 'scripts', 'doc'), join(mx, 'scripts', 'doc'), 'minimax/scripts/doc');
+syncDir(join(zc, 'skills', 'steward', 'references'), join(mx, 'skills', 'steward', 'references'), 'minimax/skills/steward/references');
 
 // --- 2. 渲染引擎：shared/ + host/<host>/ → 技能与 agent 两版 ---
 const bannerOf = (host) => `<!-- 由 zcode/scripts/build.mjs 从 shared/ + host/${host}/ 生成，请勿手改；改源后重跑 build.mjs。 -->`;

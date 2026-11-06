@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * doc-init.mjs — 为 docTier=3 项目建七阶段文档树骨架（Steward ZCode 侧）。
+ * doc-init.mjs — 为 docTier=3 项目建七阶段文档树骨架（Steward 双宿主）。
  *
  * 用法：
  *   node doc-init.mjs <root> [--write] [--tier 3] [--json]
@@ -74,7 +74,7 @@ ${hasProject
       '- [CHANGELOG](project/CHANGELOG.md)',
       '- [HEALTH](project/HEALTH.md)',
     ].join('\n')
-  : '尚未生成 T1。先运行插件 `scripts/take-over.mjs <root> --write`（或 `/steward take-over`）生成 `AGENTS.md` + `docs/project/` 六件，再写 T3 文档。'}
+  : '尚未生成 T1。先运行插件 `scripts/take-over.mjs <root> --write`（或「接手这个项目」）生成 `AGENTS.md` + `docs/project/` 六件，再写 T3 文档。'}
 `;
 
 const actions = [];

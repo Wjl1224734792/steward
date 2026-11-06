@@ -1,8 +1,8 @@
-# 工程文档流水线（Steward · ZCode 完整库）
+# 工程文档流水线（Steward 完整库）
 
-> 来源：`C:\Users\12247\Desktop\skills\eng-doc-pipeline`（Desktop 快照 2026-10-28）；已适配 Steward ZCode 侧，MiniMax 侧 1.6.0 再同步。改编明细见 `PROVENANCE.md`。
+> 来源：`C:\Users\12247\Desktop\skills\eng-doc-pipeline`（Desktop 快照 2026-10-28）；已适配 Steward 双宿主。改编明细见 `PROVENANCE.md`。
 >
-> **本库只在 ZCode 侧提供**，按需加载：先读本索引，再按 §3/§5 取模板（`templates/`）；docTier<3 不建深文档树。
+> **本库双宿主都提供**，按需加载：先读本索引，再按 §3/§5 取模板（`templates/`）；docTier<3 不建深文档树。
 
 ## 与 Steward T0–T3 的映射（先看这张表）
 

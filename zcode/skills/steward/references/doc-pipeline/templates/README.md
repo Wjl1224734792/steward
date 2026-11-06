@@ -1,6 +1,6 @@
-<!-- 来源：eng-doc-pipeline templates.md（2026-10-28 快照）；Steward ZCode 侧适配见 ../PROVENANCE.md -->
+<!-- 来源：eng-doc-pipeline templates.md（2026-10-28 快照）；Steward 适配见 ../PROVENANCE.md -->
 
-# 文档模板索引（Steward ZCode 完整库）
+# 文档模板索引（Steward 完整库）
 
 > 所有模板只做「骨架 + 填空」，不写教程。落位以七阶段树为准；docTier<3 **不要**为了完整而建空目录。
 

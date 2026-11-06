@@ -2,17 +2,25 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
-## [ZCode 0.8.0] - 2026-11-06
+## [ZCode 0.8.0 / MiniMax 1.6.0] - 2026-11-06
 
-> MiniMax 侧保持 1.5.3；文档流水线待 1.6.0 用 MiniMax harness 同步。版本节奏因此有一条预期 warning。
+> MiniMax 侧在 1.6.0 对齐 ZCode 0.8.0：文档流水线与需求澄清内核同步到 MiniMax，版本节奏 warning 消失。
 
 ### Added（ZCode 侧：文档流水线）
 
 - **完整吸收 `eng-doc-pipeline`（Desktop 2026-10-28 快照）**：新增 `zcode/skills/steward/references/doc-pipeline/`——hub README（保留七阶段流水线、SSOT 地图、SOP、阶段门禁、错误表）、7 个 references（AGENTS 层级 / 编码规范 / 数据访问 / 前端规范 / 命名守卫 / 联动表 / 接手 SOP）、19 类模板 + `templates/README.md` + T2 的 `01-REQUIREMENT.md` / `04-EVIDENCE.md` / `05-RECORD.md`、通用编程规范基线；`PROVENANCE.md` 记录来源与逐项改编。
 - **T0–T3 映射**：T1 `docs/project/` 只放摘要 + 链接；docTier=3 的深正文进 `docs/01..07`；T0 仍 ≤100 行；约束正文进 `AGENTS.md` / `.agents/rules/`；视觉 token 进 `.agents/designs/DESIGN.md`。
-- **三个 ZCode-only 本地脚本**（`zcode/scripts/doc/`，不进 build.mjs 同步范围）：`doc-init.mjs`（建七阶段树 + 索引骨架，幂等不覆盖）、`doc-check.mjs`（T1 / 索引 / 死链 / 未索引文件）、`guard-naming.mjs`（波次/工单/优先级/批次命名守卫，`[FROZEN]` / `[BURN-DOWN]` 基线只减不增）。
-- **技能路由**：`shared` 技能正文在 T3 节后加可选槽位；`host/zcode/.../doc-pipeline.md` 渲染出「文档流水线（ZCode 完整版，docTier=3）」节；MiniMax 无该片段，生成物逐字节不变。
-- **需求澄清内核（ZCode-only）**：Stage 0.1 条件启用（M/L / 二义 / 新领域）；第一性原理四问（问题 / 约束 / 备选 / 非目标+成功指标）+ 最多 3 个 P0 提问预算；S 级不追问；新增 `templates/01-REQUIREMENT.md`。不引入「强制先问后写」硬门槛。
+- **三个本地脚本**（`zcode/scripts/doc/`；自 MiniMax 1.6.0 起进入 build.mjs 同步范围，双宿主共享）：`doc-init.mjs`（建七阶段树 + 索引骨架，幂等不覆盖）、`doc-check.mjs`（T1 / 索引 / 死链 / 未索引文件）、`guard-naming.mjs`（波次/工单/优先级/批次命名守卫，`[FROZEN]` / `[BURN-DOWN]` 基线只减不增）。
+- **技能路由**：文档流水线与需求澄清两节自 MiniMax 1.6.0 起上提为 `shared/skills/steward.body.md` 的共享正文，双宿主渲染出同一节（宿主差异只剩提问工具名与入口形态两个小槽位）。
+- **需求澄清内核**：Stage 0.1 条件启用（M/L / 二义 / 新领域）；第一性原理四问（问题 / 约束 / 备选 / 非目标+成功指标）+ 最多 3 个 P0 提问预算；S 级不追问；新增 `templates/01-REQUIREMENT.md`。不引入「强制先问后写」硬门槛。
+
+### Added（MiniMax 1.6.0 对齐）
+
+- **文档流水线同步到 MiniMax**：`minimax/skills/steward/references/doc-pipeline/`（33 个 md：hub README + 7 references + 19 类模板 + `templates/README.md` + assets 基线 + PROVENANCE）与 `minimax/scripts/doc/`（`doc-init` / `doc-check` / `guard-naming` + README）由 `build.mjs` 从 `zcode/` 侧单向同步，两树逐字节同源。
+- **需求澄清内核同步到 MiniMax**：Stage 0.1 渲染进 MiniMax 技能正文，提问工具用宿主原生 `ask_user`（ZCode 侧仍是 `AskUserQuestion`）。
+- **斜杠命令口径宿主中立**：共享正文里的 `/steward fix` / `/steward maintain` / `/steward plan` / `/steward take-over` 改为中性措辞，命令形态下沉到 `host/<host>/skills/steward/entry-points.md`（ZCode 斜杠命令 / MiniMax 自然语言 + Hook 自动加载）。
+- **版本与清单**：`minimax/.minimax-plugin/plugin.json` 1.5.3 → 1.6.0，描述补文档流水线与澄清内核；技能 frontmatter 同步补 ④文档流水线 / ⑤需求澄清，并去掉 MiniMax 侧无效的 `/steward` 入口。
+- **宿主适配**：doc 脚本的排除目录加 `.minimax`（目标仓库的宿主目录不该被命名守卫 / 文档检查扫到）；接手模式提示从 `/steward take-over` 改为「接手这个项目」。
 
 ### 演练与清理
 
@@ -22,24 +30,26 @@
 ### Changed
 
 - 口径统一：CI/CD → 本地门禁脚本 + 可选 git hook（不创建 `.github/workflows`）；「同 commit」→「同一批变更」（默认不提交）；浏览器优先级改为 Playwright MCP / Chrome DevTools MCP → 内置浏览器兜底，证据统一 `browser-evidence.json`；可靠性排序链统一（原 `agents-files.md` 与 SKILL §6.3 不一致）。
-- `zcode/.zcode-plugin/plugin.json` 0.7.3 → 0.8.0；根 README / `zcode/README.md` 中英同步；MiniMax 清单未动。
+- `zcode/.zcode-plugin/plugin.json` 0.7.3 → 0.8.0；`minimax/.minimax-plugin/plugin.json` 1.5.3 → 1.6.0；根 README / `zcode/README.md` / `minimax/README.md` 中英同步。
+- **build.mjs 同步范围扩展**：新增 `zcode/scripts/doc/` 与 `zcode/skills/steward/references/` → `minimax/` 的单向同步（文档流水线参考库与本地脚本自此为单一正文源）。
+- **删除 v0.7.1 遗留的孤儿生成物** `host/zcode/skills/steward/SKILL.md`（build.mjs 自 v0.7.1 起不读不写它，内容停在 0.7.1）。
 
 ### 验证
 
-- `node zcode/scripts/build.mjs --check` exit 0（仅版本节奏 warning：0.8.0 vs 1.5.3）。
-- `git status --porcelain -- minimax/` 空；`git show HEAD:minimax/skills/steward/SKILL.md` 与工作区 CRLF 归一后逐字节相同；ZCode SKILL.md 含新节且 `@@SLOT` 残留 0。
+- `node zcode/scripts/build.mjs --check` exit 0，**零 warning**（版本节奏 0.8.0 ↔ 1.6.0 已匹配）；`build.mjs` 同步 38 个文件、渲染 2 个技能文件。
+- 两版 SKILL.md 残留 `@@SLOT` 均为 0；ZCode 出「AskUserQuestion」+ 斜杠命令入口，MiniMax 出「ask_user」+ 自然语言入口，各一份、无交叉。
+- YAML frontmatter 用真解析器（python + pyyaml）校验：25 个技能/agent frontmatter 全过（0 bad），两版清单 JSON 合法。
 - `check-doc-refs.mjs`：33 个 md、markdown 链接 + 反引号引用全部解析通过。
 - 模板拆分对照：19 个模板与源 `templates.md` 对照，缺失行 21 条，全部为计划内适配（CI→本地门禁 / commit→同一批变更 / 路径 / Steward 说明），无大段丢失。
-- ZCode SKILL.md 渲染出 Stage 0.1 需求澄清节；MiniMax 生成物仍逐字节不变（可选槽位）。
+- 对齐自检 `tmp/verify-1.6.0.mjs` **13/13 PASS**：scripts/doc（4 个文件）与 references/doc-pipeline（33 个文件）两树与 ZCode 侧逐字节同源；MiniMax 包内 `doc-init` dry-run / `--write` 建树 / 幂等 / tier<3 跳过 / 非法根 exit 2 全对；`doc-check` 与 `guard-naming` 对 fixture exit 0；references 内无 ZCode 专属措辞、无 `/steward take-over`；库内 83 条引用全部可解析（顺带修掉 PROVENANCE 里 3 个指向 `templates/` 的不可解析路径）。
 - fixture `tmp/steward-fixtures/doc-pipeline-demo/`：`test-doc-scripts.mjs` **30/30 PASS**——doc-init dry-run/写入/幂等；doc-check 正例 + 死链 / 未索引 / 缺 T1 三个负例；guard-naming 干净 / WAVE / PRIORITY / `--init` / 拒绝覆盖 / stale / 最终通过；`maintain.mjs` exit 0 且无 docDrift finding。
 - `guard-naming` 误伤用例 `web3-client.ts` / `test-s3.ts` / `approval-batch.ts` 不命中。
 - taskboard `npm test` **22/22 PASS**；worktree `DRILL.md` **6/6 PASS**。
 
 ### 已知偏差
 
-- MiniMax 侧未同步（按用户要求本次只动 ZCode 侧）；`minimax/` 与 `host/minimax/` 零改动。
-- 版本节奏 warning 预期存在，1.6.0 后消失。
-- 外部 `eng-doc-pipeline` 快照冻结；后续以 vendored 库为 ZCode 事实源。
+- 外部 `eng-doc-pipeline` 快照冻结；后续以 vendored 库为双宿主事实源。
+- 需求澄清仍是提示词级规则，未做 agent 行为回归；等真实 M/L 需求观察。
 - AFC/AIAPaaS 分支的 §5.0 仅**部分吸收**（第一性原理 + 提问预算），未引入「强制先问后写」；需求澄清为提示词级规则，未做 agent 行为回归，等真实 M/L 需求观察。
 
 ## [ZCode 0.7.3 / MiniMax 1.5.3] - 2026-11-06

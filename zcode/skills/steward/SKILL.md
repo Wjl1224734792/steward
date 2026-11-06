@@ -1,13 +1,13 @@
 ---
 name: steward
-description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「启动开发团队」「/steward」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」「/steward fix」，按 B0–B3 分流走调试与修复通道；③只出计划——「/steward plan」，出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层（ZCode 侧完整库）；⑤需求澄清——M/L/二义需求先做第一性原理四问 + 最多 3 个 P0 问题，S 级不追问。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
+description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「启动开发团队」「/steward」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」「/steward fix」，按 B0–B3 分流走调试与修复通道；③只出计划——「/steward plan」，出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层（完整库）；⑤需求澄清——M/L/二义需求先做第一性原理四问 + 最多 3 个 P0 问题，S 级不追问。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
 ---
 
 <!-- 由 zcode/scripts/build.mjs 从 shared/ + host/zcode/ 生成，请勿手改；改源后重跑 build.mjs。 -->
 
 # Steward · Tech Lead 手册
 
-> 当前版本（0.8.0）实现：功能交付（六阶段 + 批准门）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（`/steward take-over`）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3，ZCode 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ Monorepo/多服务口径 + 可选宿主守卫 hooks。完整设计见 ROADMAP §4–§6。
+> 当前版本（0.8.0）实现：功能交付（六阶段 + 批准门）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（`/steward take-over`）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ Monorepo/多服务口径 + 可选宿主守卫 hooks。完整设计见 ROADMAP §4–§6。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 
@@ -25,6 +25,8 @@ description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三�
 
 **外援（非本插件角色，按需派）**：内置 `Explore` 代理（只读 fan-out 搜索）——L 级需求开工前的仓库勘察（Stage 0.5）。
 
+**入口（斜杠命令）**：`/steward`（功能交付）、`/steward fix`（Bug 通道）、`/steward plan`（只出计划）、`/steward maintain`（维护循环）、`/steward take-over`（接手存量）。
+
 
 **检索工具栈（宿主 MCP，团队全员继承可用）**：`tavily`（网页搜索 / 抽取 / 深度研究）与 `context7`（库文档查询）。各角色的查证纪律已写进自身提示词。宿主未配置这些 MCP 时各角色自动退回 `WebSearch` / `WebFetch`，不阻塞流程。
 
@@ -40,7 +42,7 @@ description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三�
 2. `docs/project/CONSTITUTION.md`：红线（质量/安全/架构/测试/数据）。与红线冲突的做法一律不可。
 3. `steward.config.json`：docTier、门禁开关、命令、浏览器与隔离配置（结构见 ROADMAP §5.4）。
 
-T1（AGENTS.md + docs/project/ 七件套）缺失时，可运行插件的 `take-over.mjs` 扫描生成初稿（确认占位符后才能用），或走接手模式（ZCode：`/steward take-over`）。**占位符 `{{...}}` / `TODO(拍板)` 未确认前不许当事实引用。**
+T1（AGENTS.md + docs/project/ 七件套）缺失时，可运行插件的 `take-over.mjs` 扫描生成初稿（确认占位符后才能用），或走接手模式（接手存量）。**占位符 `{{...}}` / `TODO(拍板)` 未确认前不许当事实引用。**
 
 **门禁脚本**（位于本技能所属插件包的 `scripts/` 目录，即技能文件向上两级；纯 Node 无依赖，在目标仓库根用绝对路径执行）：
 
@@ -52,7 +54,7 @@ T1（AGENTS.md + docs/project/ 七件套）缺失时，可运行插件的 `take-
 | `run-state.mjs init/start/done/fail/next/resume --dir <run目录>` | run.json 状态机：DAG 进度、断点恢复、**同一错误连续 2 次即停（exit 2）**、预算超限即停 | M/L 与 Bug 修复的实施阶段 |
 | `verify.mjs run [--repeat N] [--out <file>]` | 独立复跑门禁（test/lint/typecheck），记录 exit code/耗时/输出；`--repeat` 查 flaky | Stage 3、终审前、修复回归 |
 | `verify.mjs baseline record/check` | 派发前记 HEAD+脏文件 hash；回收时比对：所有权外 diff=越界（exit 1）、测试 diff 未声明理由=反作弊（exit 1） | 每个实施批次前后 |
-| `maintain.mjs <root> [--out <报告>] [--skip-flaky]` | 维护扫描八类（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO/重构比例）→ 评分排序 backlog | `/steward maintain`、发布前 |
+| `maintain.mjs <root> [--out <报告>] [--skip-flaky]` | 维护扫描八类（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO/重构比例）→ 评分排序 backlog | 用户手动、发布前 |
 | `build.mjs [--check]` | 双宿主构建：scripts/templates 同步 + 技能/agent 正文单一源渲染 + 清单/frontmatter 校验 | 改动插件内容后、发版前 |
 | `hooks/guard.mjs ownership\|dangerous\|secret` | 可选宿主守卫（stdin JSON → exit 2 阻断），配置见 `hooks/hooks.json` | 用户在宿主挂载后自动生效 |
 
@@ -78,7 +80,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 **Stage 0 受理（你，串行）**：把用户需求原样落 01-requirement.md；补上你的澄清假设（不追问用户，除非需求存在二义且影响方案方向）。读项目记忆（见上节），定级 S/M/L，向用户一句话同步计划。
 
-**Stage 0.1 需求澄清与第一性原理（条件启用，ZCode 侧）**
+**Stage 0.1 需求澄清与第一性原理（条件启用）**
 
 只在 **M/L 级、需求存在二义、或进入新领域** 时启用；S 级直接按合理默认推进，不追问。需求模糊仍可派 `steward:pm`，澄清结论与 pm 报告一起落 `01-requirement.md`。
 
@@ -105,7 +107,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 **Stage 1.5 计划批准门（M/L 必经；S 级跳过）**：
 1. **Plan Critic**：派 `steward:reviewer` 一个**全新实例**（干净上下文，只见规格与计划，不给实施上下文；prompt 标注「计划评审模式」），攻击：AC 是否可测且全覆盖、依赖是否正确、所有权是否不相交、影响面是否有漏（迁移/回滚/文档）、风险是否有对策。Critic 的 blocking 项回派 architect 修正后重审。
 2. **用户批准**：把计划摘要（目标 / 任务数 / 文件面 / 风险 / 开放问题）给用户，**拿到明确批准才能进 Stage 2**。用户否决或要求修改 → 回 Stage 1。
-3. 只出计划模式（`/steward plan`）：到此为止，不进实施。
+3. 只出计划模式：到此为止，不进实施。
 
 **Stage 2 实施（依赖驱动，默认单写者）**：先 `verify.mjs baseline record --out <工件>/baseline.json` 记回滚锚点；M/L 再 `run-state.mjs init --dir <工件> --plan <03-plan.json>`。按任务表 DAG **循环**派发——每轮取「依赖已全部完成、且文件集与在跑任务不相交」的任务组一批派出（start 标记），收齐报告落盘 `reports/`（done 标记）再取下一轮，直到任务表清空。**派发单位是任务、不是角色名额**：同一派发名可以跑多个实例，每个实例独立套派单模板。收到报告有「偏差与遗留」要你判断：可接受则记录，不可接受当轮就回派说清。实施批次结束后跑 `verify.mjs baseline check`：越界/未声明测试 diff 一律回派处理。
 
@@ -167,7 +169,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 `05-record.md` 结构：改了什么 / 为什么 / 文档更新清单 / 决策（ADR 链接）/ 遗留与建议。
 
-## 维护循环（`/steward maintain`，v0.6）
+## 维护循环（v0.6）
 
 按 ROADMAP §4.3 四步：**Observe**（跑 `maintain.mjs <root> --out tmp/steward/<run>/reports/maintenance.md`，八类扫描）→ **Score**（脚本已按 权重×影响÷成本 排序）→ **Fix small**（一次一个、单写者、证据闭环：修 + 测试 + verify 绿；小修不必走六阶段，但要 baseline record/check）→ **Record**（更新 `docs/project/HEALTH.md` 台账 + 维护 backlog、CHANGELOG；大改造不在这里做，转功能交付流程立项）。触发：用户手动、发布前。**不做 CI/CD，不自动升级依赖**——依赖/漏洞类发现列成清单请用户拍板。
 
@@ -176,7 +178,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 维护循环管「还债」，演进循环管「升级」：
 
 - **检查**（`maintain.mjs` 已内置）：循环依赖（architectureDrift）、跨文件重复率（duplication）、churn 热点、重构比例（近 N 天 refactor/还债类提交占比 <10% 报警——只堆功能不还债是演进欠账）。
-- **批量改动 / codemod**：需要跨大量文件的机械改动时**不直接动手**——走只出计划模式（`/steward plan`）出 codemod 计划（转换脚本 + 抽样验证 + 全量执行 + diff 审查 + 回滚点），执行按任务 DAG 分批，每批跑 `verify.mjs run` + `baseline check`，任何一批红了立即停。
+- **批量改动 / codemod**：需要跨大量文件的机械改动时**不直接动手**——走只出计划模式出 codemod 计划（转换脚本 + 抽样验证 + 全量执行 + diff 审查 + 回滚点），执行按任务 DAG 分批，每批跑 `verify.mjs run` + `baseline check`，任何一批红了立即停。
 - **模块边界**：架构漂移（新循环依赖、层级越界）先在 DECISIONS 立 ADR 记决策，重构单独立项走功能交付流程，不在维护小修里夹带。
 
 ## T3 文档按需升级（docTier=3，v0.7）
@@ -185,9 +187,8 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 - 产物六件：PRD、FRD、契约（CONTRACT）、页面布局（PAGE-LAYOUT）、测试方案（TEST-PLAN）、部署工程化（DEPLOYMENT）——模板在插件 `scripts/templates/t3/`，按需复制填空；PRD/FRD 的验收条目最终收敛进 02-spec.md 的 AC，被 validate-plan 机检。
 - T3 是升级不是常态：每个 T3 文档都要能回答「它防的是什么漂移」，答不出就别建。
 
-## 文档流水线（ZCode 完整版，docTier=3）
+## 文档流水线（完整版，docTier=3）
 
-> 本节只在 ZCode 侧渲染；MiniMax 侧仍用上面 T3 六件骨架，1.6.0 再同步。
 
 **启用**：`steward.config.json` 设 `docTier: 3`，或 L 级 / 合规 / 新项目由你提升。docTier<3 **不建**深文档树，只维护 T0 `AGENTS.md` + T1 `docs/project/`。
 
@@ -206,9 +207,9 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 - `node <插件>/scripts/doc/doc-init.mjs <root> --tier 3 [--write]`：建七阶段树 + 索引骨架；幂等不覆盖。
 - `node <插件>/scripts/doc/doc-check.mjs <root>`：T1 / 索引 / 死链 / 未索引文件；exit 1 即失败。
 - `node <插件>/scripts/doc/guard-naming.mjs <root>`：代码产物禁波次/工单/批次编号；基线只减不增。
-三个脚本 exit code 非 0 一律如实上报；脚本只在 ZCode 侧提供。
+三个脚本 exit code 非 0 一律如实上报。
 
-**与 T3 六件骨架的关系**：ZCode 以 `references/doc-pipeline/templates/` 完整库为准；`scripts/templates/t3/` 六件保留给 MiniMax 与轻量场景，不重复维护正文。
+**与 T3 六件骨架的关系**：以 `references/doc-pipeline/templates/` 完整库为准；`scripts/templates/t3/` 六件保留给轻量场景，不重复维护正文。
 
 **DocTier 判定**：S/M 级不建深树；L 级且涉及契约/多端/合规/新项目才提升到 3。不要为了「完整」建空目录。
 
@@ -218,9 +219,9 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 - 任务所有权按 package 划分：03-plan.json 的 files 带包前缀，所有权不相交规则不变。
 - 子包级维护：对子包根分别执行 `maintain.mjs <子包根>`，backlog 汇总进同一份 HEALTH.md 并标注来源包。
 
-## Bug 通道（`/steward fix`，v0.5）
+## Bug 通道（v0.5）
 
-用户报 Bug（「修这个 Bug」「这个功能坏了」，或 `/steward fix`）时不走 feature 六阶段。先分流：
+用户报 Bug（「修这个 Bug」「这个功能坏了」）时不走 feature 六阶段。先分流：
 
 | 等级 | 判定 | 流程 | 角色 |
 |---|---|---|---|
@@ -245,9 +246,9 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 **Bug 工件**：`tmp/steward/<run-id>/` 下 `bug-report.md` / `repro.md` / `root-cause.md` / `fix.md` / `evidence/` / `postmortem.md`（B0/B1）。
 
-## 只出计划模式（`/steward plan`）
+## 只出计划模式
 
-用户只要方案不要实施时（「出个方案」「先做计划」，或 `/steward plan`）：走 Stage 0 → 0.5（如需）→ 1 → 1.5（Critic + 用户批准）后**停止**：不派 dev / qa，不建 run.json。最终交付：规格、影响面、计划（含机读 03-plan.json 与 validate-plan.mjs 校验结果）、Critic 意见、待拍板问题清单。
+用户只要方案不要实施时（「出个方案」「先做计划」「方案先别写」）：走 Stage 0 → 0.5（如需）→ 1 → 1.5（Critic + 用户批准）后**停止**：不派 dev / qa，不建 run.json。最终交付：规格、影响面、计划（含机读 03-plan.json 与 validate-plan.mjs 校验结果）、Critic 意见、待拍板问题清单。
 
 ## 铁律
 

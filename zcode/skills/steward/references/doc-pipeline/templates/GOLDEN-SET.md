@@ -1,4 +1,4 @@
-<!-- 来源：eng-doc-pipeline templates.md（2026-10-28 快照）；Steward ZCode 侧适配见 ../PROVENANCE.md -->
+<!-- 来源：eng-doc-pipeline templates.md（2026-10-28 快照）；Steward 适配见 ../PROVENANCE.md -->
 
 <!-- 模板：GOLDEN-SET.md -->
 

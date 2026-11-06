@@ -1,6 +1,6 @@
-# 文档流水线本地脚本（ZCode 侧）
+# 文档流水线本地脚本（双宿主）
 
-> **仅 ZCode 侧提供**：本目录不在 `build.mjs` 的同步范围内（它只同步顶层 `scripts/*.mjs` 与 `scripts/hooks/`），MiniMax 侧 1.6.0 再同步。三个脚本纯 Node 无依赖，本地运行，不做 CI。
+> **双宿主都提供**：本目录由 `build.mjs` 从 `zcode/scripts/doc/` 单向同步到 `minimax/scripts/doc/`，以 `zcode/` 侧为准，勿手工改副本。三个脚本纯 Node 无依赖，本地运行，不做 CI。
 
 ## 脚本
 

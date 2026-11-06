@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * doc-check.mjs — docTier=3 文档索引 / 死链 / T1 检查（Steward ZCode 侧）。
+ * doc-check.mjs — docTier=3 文档索引 / 死链 / T1 检查（Steward 双宿主）。
  *
  * 用法：
  *   node doc-check.mjs <root> [--tier <n>] [--json]
@@ -37,7 +37,7 @@ const T1 = [
   'docs/project/HEALTH.md',
 ];
 const DEEP_DIRS = ['docs/01-需求', 'docs/02-架构', 'docs/03-契约', 'docs/04-专项', 'docs/05-页面', 'docs/06-测试', 'docs/07-治理'];
-const EXCLUDE_SEGMENTS = new Set(['.git', '.zcode', '.steward', 'node_modules', 'dist', 'coverage', 'playwright-report', 'test-results', 'tmp']);
+const EXCLUDE_SEGMENTS = new Set(['.git', '.zcode', '.minimax', '.steward', 'node_modules', 'dist', 'coverage', 'playwright-report', 'test-results', 'tmp']);
 
 const configTier = readConfigTier(root);
 const tier = tierIdx >= 0
@@ -54,7 +54,7 @@ const add = (level, code, message, extra = {}) => (level === 'error' ? errors : 
 // 1. T1
 const missingT1 = T1.filter((p) => !existsSync(join(root, p)));
 if (missingT1.length > 0) {
-  const message = `缺 T1 项目记忆：${missingT1.join('、')}（先跑 scripts/take-over.mjs <root> --write 或 /steward take-over）`;
+  const message = `缺 T1 项目记忆：${missingT1.join('、')}（先跑 scripts/take-over.mjs <root> --write 或「接手这个项目」）`;
   if (tier >= 3) add('error', 'E-T1-MISSING', message, { tier });
   else add('warning', 'W-T1-MISSING', message, { tier });
 }

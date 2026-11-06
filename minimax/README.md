@@ -1,8 +1,8 @@
 # Steward · MiniMax 插件版
 
-角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（1.5.3）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，并自带可信变更门禁与演进循环（T3 按需升级）；演进细节见 [路线图](../docs/ROADMAP.md)。
+角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（1.6.0）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，并自带可信变更门禁、演进循环（T3 按需升级）、需求澄清内核与 docTier=3 完整文档流水线；演进细节见 [路线图](../docs/ROADMAP.md)。
 
-本包是 ZCode 版 Steward（0.7.3）的 **MiniMax Plugin V1 移植版**，团队名册、六阶段流程、调度规则与铁律一致，差异只在宿主适配。v1.2.0 起使用 Steward 名称，并继续附带可选的 GenUI 可视化技能。
+本包是 ZCode 版 Steward（0.8.0）的 **MiniMax Plugin V1 移植版**，团队名册、六阶段流程、调度规则与铁律一致，差异只在宿主适配。v1.2.0 起使用 Steward 名称，并继续附带可选的 GenUI 可视化技能。
 
 ## 团队名册（7 角色 + 外援）
 
@@ -23,6 +23,8 @@
 - **串行/并行调度**：派发单位是任务不是角色名额，同类角色可多实例；并行条件 = 无依赖 且 文件所有权不相交；并行批撞并发上限自动回退串行。
 - **可信变更门禁（scripts/，本地 Node 脚本，不做 CI）**：`validate-plan.mjs` 机检计划（路径/DAG 环/所有权/AC 覆盖/测试改动声明）；`verify.mjs` 独立复跑门禁并查 flaky；`baseline record/check` 回滚锚点 + 越界 diff 守卫 + 未声明测试 diff 拦截（反作弊）；`run-state.mjs` 断点恢复、同一错误连续 2 次即停；`take-over.mjs` 生成目标项目 AGENTS.md + docs/project/（T0/T1）初稿。
 - **Bug 通道**：输入描述 Bug（「修这个 Bug」「这个功能坏了」）即按 B0–B3 分流：B2/B3 走复现 → 失败测试 → 根因 → 最小修复 → 回归 → 记录；B0/B1 先止损并写 postmortem。
+- **需求澄清内核（Stage 0.1）**：M/L 级、需求二义或新领域时先做第一性原理四问（问题 / 约束 / 备选 / 非目标+成功指标），最多问 3 个 P0 问题（S 级不追问）；P1/P2 按默认值写进 `01-requirement.md` 的假设并一句话告知。
+- **文档流水线（docTier=3）**：完整参考库在 `skills/steward/references/doc-pipeline/`（七阶段文档树 + 19 类模板 + 规范正文），本地门禁脚本在 `scripts/doc/`（`doc-init` 建树 / `doc-check` 索引死链 / `guard-naming` 命名守卫）——与 ZCode 侧逐字节同源，由 build.mjs 同步，勿手工改副本。
 - **检索工具栈**：全员继承宿主 `tavily-remote`（搜索/深度研究）与 `context7`（库文档查证），缺省退回 `web_search` / `web_fetch`。
 - **工件交接**：`tmp/steward/<run-id>/` 下 00-context / 01-requirement / 02-spec / 02-impact / 03-plan(.md/.json) / run.json / baseline.json / reports / final-report。
 - **修复回派**：QA / 浏览器 / 评审发现的缺陷按归属回派原开发，循环上限 2 轮。
@@ -80,8 +82,10 @@ minimax/
 ├── hooks/hooks.json              # UserPromptSubmit 触发器
 ├── scripts/trigger.mjs           # 触发脚本（Node，fail open）
 ├── scripts/*.mjs                 # 可信变更门禁脚本（validate-config / take-over / validate-plan / run-state / verify）与 templates/ 模板
+├── scripts/doc/                  # 文档流水线本地脚本（doc-init / doc-check / guard-naming）
 ├── skills/
 │   ├── steward/SKILL.md          # Tech Lead 调度手册
+│   ├── steward/references/       # 文档流水线参考库（七阶段树规范 + 全量模板，与 ZCode 侧同源）
 │   └── steward-visualizer/       # 可选 GenUI 呈现层
 │       ├── SKILL.md
 │       ├── genui.json            # fork 出处与基座摘要
@@ -105,10 +109,10 @@ MiniMax 会自动重扫本地插件，无需重启。改动后重新拷贝即可
 
 ## English
 
-Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 1.5.3 covers feature delivery, the B0-B3 bug track, plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), the evolution loop (architecture drift / duplication / refactor-ratio checks, codemod planning), on-demand T3 docs, browser evidence contract, learning loop, trusted-change gates with a retry budget, and the maintenance health dashboard.
+Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 1.6.0 covers feature delivery, the B0-B3 bug track, plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), the evolution loop (architecture drift / duplication / refactor-ratio checks, codemod planning), on-demand T3 docs, the first-principles clarification kernel, the full docTier=3 documentation pipeline (seven-phase tree + 19 template types + naming guard / doc checks), browser evidence contract, learning loop, trusted-change gates with a retry budget, and the maintenance health dashboard.
 
 Skills: `steward:steward` (Tech Lead workflow) and `steward:steward-visualizer` (optional GenUI views: task DAG, defect triage, maintenance health).
 
 Trigger: the `UserPromptSubmit` hook loads the skill when the input contains "开发团队", "开发小组", or "Steward". Install by copying `minimax/` into `%USERPROFILE%\.minimax\plugins\steward\`.
 
-Version: 1.5.3 · License: MIT · Copyright (c) 2026 Lin
+Version: 1.6.0 · License: MIT · Copyright (c) 2026 Lin

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * guard-naming.mjs — 代码产物命名守卫（Steward ZCode 侧）。
+ * guard-naming.mjs — 代码产物命名守卫（Steward 双宿主）。
  *
  * 规则：文件名编码「做什么」，不编码「第几批」。波次/工单/优先级/批次编号属于进度元数据，
  * 应写执行步骤与评审记录，不写进代码产物名字。
@@ -36,7 +36,7 @@ if (!existsSync(root) || !lstatSync(root).isDirectory()) {
 }
 
 const EXCLUDE_SEGMENTS = new Set([
-  '.git', '.zcode', '.steward', 'docs', 'tmp', 'node_modules', 'dist', 'coverage',
+  '.git', '.zcode', '.minimax', '.steward', 'docs', 'tmp', 'node_modules', 'dist', 'coverage',
   'playwright-report', 'test-results', 'generated', '.umi', '.umi-production', '.umi-test',
   '.next', 'build', 'out', 'vendor',
 ]);

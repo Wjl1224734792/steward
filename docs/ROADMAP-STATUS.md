@@ -53,17 +53,16 @@
 
 - 项 17：配置已挂载、契约自检通过，宿主级 live 拦截需新会话验证；项 18：配方 C 与本地预览验收完成（v1.5.3），MiniMax 宿主实机待用户确认。项 16 已于 v0.7.1 完整落地。
 
-## P3（v0.8，ZCode 0.8.0 / MiniMax 1.5.3 未同步）— 2026-11-06
+## P3（v0.8，ZCode 0.8.0 / MiniMax 1.6.0）— 2026-11-06
 
 | # | 交付 | 状态 | 证据 | 备注 |
 |---|---|---|---|---|
-| 20 | 文档流水线完整吸收（ZCode 侧） | 已实现 | `zcode/skills/steward/references/doc-pipeline/`：hub README + 7 references + 19 类模板 + `templates/README.md` + T2 `01-REQUIREMENT`/`04-EVIDENCE`/`05-RECORD` + assets 基线（共 33 个 md）；`PROVENANCE.md` 记录来源/改编。`zcode/scripts/doc/`：`doc-init` / `doc-check` / `guard-naming`。技能经可选槽位渲染，MiniMax 生成物逐字节不变。fixture `tmp/steward-fixtures/doc-pipeline-demo/`：`test-doc-scripts.mjs` **30/30 PASS**（doc-init dry-run/写入/幂等；doc-check 正例 + 死链/未索引/缺 T1 负例；guard-naming WAVE/PRIORITY/`--init`/拒绝覆盖/stale/误伤保护）；`check-doc-refs.mjs` 33 文件链接全过；模板拆分对照仅计划内适配 | MiniMax 侧未同步（1.6.0 待用户用 MiniMax harness 做）；版本节奏 warning 预期；外部 skill 快照冻结 |
-| 21 | 需求澄清内核（第一性原理 + 提问预算，ZCode 侧） | 已实现（提示词级） | 技能 Stage 0.1（可选槽位，MiniMax 逐字节不变）：M/L / 二义 / 新领域启用；第一性原理四问（问题/约束/备选/非目标+成功指标）+ 最多 3 个 P0 提问预算；S 级不追问；`templates/01-REQUIREMENT.md`。不引入「强制先问后写」硬门槛 | 未做 agent 行为回归；等真实 M/L 需求观察是否只问 3 个 P0、是否把假设落盘 |
+| 20 | 文档流水线完整吸收（双宿主） | 已实现 | `zcode/skills/steward/references/doc-pipeline/`：hub README + 7 references + 19 类模板 + `templates/README.md` + T2 `01-REQUIREMENT`/`04-EVIDENCE`/`05-RECORD` + assets 基线（共 33 个 md）；`PROVENANCE.md` 记录来源/改编。`zcode/scripts/doc/`：`doc-init` / `doc-check` / `guard-naming`。技能经共享正文渲染，两宿主同节。fixture `tmp/steward-fixtures/doc-pipeline-demo/`：`test-doc-scripts.mjs` **30/30 PASS**（doc-init dry-run/写入/幂等；doc-check 正例 + 死链/未索引/缺 T1 负例；guard-naming WAVE/PRIORITY/`--init`/拒绝覆盖/stale/误伤保护）；模板拆分对照仅计划内适配。**MiniMax 1.6.0 同步**：`minimax/skills/steward/references/doc-pipeline/`（33 个 md）与 `minimax/scripts/doc/`（4 个文件）由 build.mjs 从 `zcode/` 侧单向同步，逐字节同源；对齐自检 **13/13 PASS**（含两树同源、MiniMax 包内 doc-init 五态、doc-check/guard-naming 对 fixture exit 0、库内 83 条引用可解析） | 外部 skill 快照冻结；文档流水线自 1.6.0 起为双宿主共享事实源 |
+| 21 | 需求澄清内核（第一性原理 + 提问预算，双宿主） | 已实现（提示词级） | 技能 Stage 0.1（共享正文，两宿主同节）：M/L / 二义 / 新领域启用；第一性原理四问（问题/约束/备选/非目标+成功指标）+ 最多 3 个 P0 提问预算；S 级不追问；`templates/01-REQUIREMENT.md`。不引入「强制先问后写」硬门槛。提问工具按宿主分流：ZCode `AskUserQuestion` / MiniMax `ask_user` | 未做 agent 行为回归；等真实 M/L 需求观察是否只问 3 个 P0、是否把假设落盘 |
 
 ### P3 已知偏差
 
-- MiniMax 侧零改动（按用户要求）；`minimax/` 与 `host/minimax/` 未变更。
-- 版本节奏 warning（ZCode 0.8.0 / MiniMax 1.5.3）预期存在，1.6.0 后消失。
+- MiniMax 侧已于 1.6.0 完成对齐（文档流水线 + 澄清内核 + 斜杠命令口径），版本节奏 warning 消失。
 - AFC/AIAPaaS 分支的 §5.0 仅**部分吸收**（第一性原理 + 提问预算），未引入「强制先问后写」；见 `PROVENANCE.md`。
 - 需求澄清（Stage 0.1）为提示词级规则，未做 agent 行为回归；S/M 不触发，等真实 M/L 需求观察。
 
@@ -88,4 +87,4 @@
 |---|---|---|---|
 | worktree 多分支合并 | 两个文件集不相交任务（sum / slug）各自 worktree + `node --test`；主工作区按 DAG 顺序 `--no-ff` 串行合并，每合并复跑；同文件冲突探针 | **6/6 PASS**：merge T1 后 pass 2；merge T2 后 pass 4；冲突 `UU README.md`；worktree/分支清理后主分支仍 pass 4 | `worktree-demo/DRILL.md` |
 | taskboard 遗留清理 | 过滤竞态（refresh-guard 序号 + AbortController）、`GET /api/tasks` 加 `Cache-Control: no-store` | **22/22 PASS**（store 10 + HTTP 9 + guard 3） | `taskboard/.steward/cleanup-20261106.md` |
-| 需求澄清内核 | Stage 0.1 第一性原理四问 + 最多 3 个 P0；S 级不追问；`templates/01-REQUIREMENT.md` | 渲染进 ZCode SKILL；MiniMax 逐字节不变 | `zcode/skills/steward/SKILL.md`；`host/zcode/skills/steward/clarify.md` |
+| 需求澄清内核 | Stage 0.1 第一性原理四问 + 最多 3 个 P0；S 级不追问；`templates/01-REQUIREMENT.md` | 渲染进双宿主 SKILL（共享正文，提问工具按宿主分流） | `shared/skills/steward.body.md`；`host/*/skills/steward/ask-tool.md` |
