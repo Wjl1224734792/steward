@@ -27,15 +27,15 @@
 | # | 交付 | 状态 | 证据 | 备注 |
 |---|---|---|---|---|
 | 8 | /steward maintain：八类扫描 → HEALTH.md + 维护 backlog | 已实现 | `maintain.mjs` 自扫插件仓库：7 findings / 健康分 13.0——含「836 个跨文件重复窗口」（与已知偏差「脚本双份」一致，佐证 P2 项 16）、「缺 AGENTS.md（T0）」、16 处 TODO；fixture 扫描干净（健康分 0）且完成 Record 演练：报告落 `.steward/maintain-run/reports/maintenance.md`、HEALTH.md 回填 lockfile backlog 条目 | npm audit / outdated 离线 fail-open 标记人工补跑；不自动升级依赖 |
-| 9 | 浏览器证据契约 | 已实现（v0.7.2 演练） | taskboard fixture 真实浏览器（ZCode IAB）7 步证据落 `.steward/ml-run/browser-evidence.json`：优先级徽标（ARIA/DOM）、过滤三态（DOM + fetch 捕获 ?priority=）、导出 tasks.json（下载内容四字段 + 锚点 download 钩子）、空结果导出 []（Blob 运行时捕获）、完成/取消、失败态「加载失败：…」→恢复「暂无任务」、console/网络（宿主 [RUM] 噪声已区分）；visual=unverified | 演练同时发现真实问题：GET /api/tasks 无 Cache-Control 时停机瞬间可能读到缓存（已记 non-blocking）；截图未采集，视觉判定未做 |
+| 9 | 浏览器证据契约 | 已实现（v0.7.2 演练） | taskboard fixture 真实浏览器（ZCode IAB）7 步证据落 `.steward/ml-run/browser-evidence.json`：优先级徽标（ARIA/DOM）、过滤三态（DOM + fetch 捕获 ?priority=）、导出 tasks.json（下载内容四字段 + 锚点 download 钩子）、空结果导出 []（Blob 运行时捕获）、完成/取消、失败态「加载失败：…」→恢复「暂无任务」、console/网络（宿主 [RUM] 噪声已区分）；visual=unverified | 演练同时发现真实问题：GET /api/tasks 无 Cache-Control 时停机瞬间可能读到缓存（已记 non-blocking）；截图未采集，视觉判定未做。**v0.8.0 已清理两项 non-blocking**（过滤竞态 + no-store），fixture 22/22 PASS |
 | 10 | ADR/CHANGELOG/05-record 学习循环 | 已实现 | SKILL「学习循环（05-record）」节（六类来源 → 五个沉淀位置，双宿主）；机制已在 P0 演练：postmortem 教训回填 fixture CONSTITUTION（金额求和不变量红线）、maintain 结论回填 HEALTH.md | 用户拍板类回填须先问 |
 | 11 | systematic-debugging / TDD / verification 技能 | 已实现 | 双宿主 `skills/{systematic-debugging,tdd,verification-before-completion}/SKILL.md`；minimax plugin.json skills 列表注册（JSON 校验通过）；SKILL 派单指引：Bug 模式加载 systematic-debugging | 按需加载，不默认注入 |
-| 12 | 可选 worktree + 任务分支 + finishing | 已实现（规则） | SKILL Stage 5.5 finishing（05-record → 汇报 → 询问处置）+「隔离与并行写」节（worktree 三种触发条件、DAG 顺序串行合并、每合并跑 verify）；默认仍 baseline-hash 单写者 | worktree 合并流程未在真实多分支场景演练（无此类 fixture 场景）；规则以提示词为准 |
+| 12 | 可选 worktree + 任务分支 + finishing | 已实现（v0.8.0 演练） | SKILL Stage 5.5 finishing +「隔离与并行写」节（三种触发条件、DAG 顺序串行合并、每合并跑 verify）；v0.8.0 真实多分支演练：T1/T2 两个文件集不相交任务各自 worktree 实现 + `node --test`，主工作区 `--no-ff` 串行合并，合并后 pass 2 → pass 4；同文件冲突探针 `UU README.md`；清理后主分支仍绿——**6/6 PASS**，记录 `tmp/steward-fixtures/worktree-demo/DRILL.md` | 路由/合并顺序/冲突边界/清理均已验证；生产项目仍未实际启用 worktree（默认关闭） |
 | 13 | 模型路由 + fallback + 预算 | 已实现 | validate-config 对 modelRouting（角色白名单告警）与 budget.maxTotalAttempts（负例 exit 1）校验通过；run-state `--budget-attempts 2` 两次 fail 后停摆 exit 2、stopReason=budget-exhausted（真实输出）；SKILL「模型路由与预算」节（MiniMax model+effort 成对传、fallback 重试一次） | 派发级 fallback 以提示词纪律落地；token 级预算无法跨宿主可靠获取，采用「失败重试次数」预算（诚实口径） |
 
 ### P1 已知偏差
 
-- 项 9 已于 v0.7.2 完成真实浏览器演练（证据见上）；worktree 合并仍为规则落地、待真实多分支场景。
+- 项 9 已于 v0.7.2 完成真实浏览器演练（证据见上）；worktree 合并已于 v0.8.0 完成真实多分支演练（DRILL.md 6/6 PASS）。
 - token/轮次预算采用失败重试次数口径（maxTotalAttempts）；宿主未暴露 token 计数接口，不做假预算。
 
 ## P2（v0.7，ZCode 0.7.3 / MiniMax 1.5.3）— 2026-11-06
@@ -57,13 +57,15 @@
 
 | # | 交付 | 状态 | 证据 | 备注 |
 |---|---|---|---|---|
-| 20 | 文档流水线完整吸收（ZCode 侧） | 已实现 | `zcode/skills/steward/references/doc-pipeline/`：hub README + 7 references + 19 类模板 + `templates/README.md` + T2 `04-EVIDENCE`/`05-RECORD` + assets 基线（共 32 个 md）；`PROVENANCE.md` 记录来源/改编。`zcode/scripts/doc/`：`doc-init` / `doc-check` / `guard-naming`。技能经可选槽位渲染，MiniMax 生成物逐字节不变。fixture `tmp/steward-fixtures/doc-pipeline-demo/`：`test-doc-scripts.mjs` **30/30 PASS**（doc-init dry-run/写入/幂等；doc-check 正例 + 死链/未索引/缺 T1 负例；guard-naming WAVE/PRIORITY/`--init`/拒绝覆盖/stale/误伤保护）；`check-doc-refs.mjs` 32 文件链接全过；模板拆分对照仅计划内适配 | MiniMax 侧未同步（1.6.0 待用户用 MiniMax harness 做）；版本节奏 warning 预期；外部 skill 快照冻结 |
+| 20 | 文档流水线完整吸收（ZCode 侧） | 已实现 | `zcode/skills/steward/references/doc-pipeline/`：hub README + 7 references + 19 类模板 + `templates/README.md` + T2 `01-REQUIREMENT`/`04-EVIDENCE`/`05-RECORD` + assets 基线（共 33 个 md）；`PROVENANCE.md` 记录来源/改编。`zcode/scripts/doc/`：`doc-init` / `doc-check` / `guard-naming`。技能经可选槽位渲染，MiniMax 生成物逐字节不变。fixture `tmp/steward-fixtures/doc-pipeline-demo/`：`test-doc-scripts.mjs` **30/30 PASS**（doc-init dry-run/写入/幂等；doc-check 正例 + 死链/未索引/缺 T1 负例；guard-naming WAVE/PRIORITY/`--init`/拒绝覆盖/stale/误伤保护）；`check-doc-refs.mjs` 33 文件链接全过；模板拆分对照仅计划内适配 | MiniMax 侧未同步（1.6.0 待用户用 MiniMax harness 做）；版本节奏 warning 预期；外部 skill 快照冻结 |
+| 21 | 需求澄清内核（第一性原理 + 提问预算，ZCode 侧） | 已实现（提示词级） | 技能 Stage 0.1（可选槽位，MiniMax 逐字节不变）：M/L / 二义 / 新领域启用；第一性原理四问（问题/约束/备选/非目标+成功指标）+ 最多 3 个 P0 提问预算；S 级不追问；`templates/01-REQUIREMENT.md`。不引入「强制先问后写」硬门槛 | 未做 agent 行为回归；等真实 M/L 需求观察是否只问 3 个 P0、是否把假设落盘 |
 
 ### P3 已知偏差
 
 - MiniMax 侧零改动（按用户要求）；`minimax/` 与 `host/minimax/` 未变更。
 - 版本节奏 warning（ZCode 0.8.0 / MiniMax 1.5.3）预期存在，1.6.0 后消失。
-- AFC/AIAPaaS 分支的 §5.0 强制头脑风暴未纳入（与 Steward Stage 0 冲突），见 `PROVENANCE.md`。
+- AFC/AIAPaaS 分支的 §5.0 仅**部分吸收**（第一性原理 + 提问预算），未引入「强制先问后写」；见 `PROVENANCE.md`。
+- 需求澄清（Stage 0.1）为提示词级规则，未做 agent 行为回归；S/M 不触发，等真实 M/L 需求观察。
 
 ## 能力演练汇总（v0.7.2）— 2026-11-06
 
@@ -78,4 +80,12 @@
 
 - v0.7.2：`verify.mjs` 自动探测模式误判未探测门禁（M/L 演练 QA 阶段复现）→ 已修复并回归。
 - v0.7.2：`guard.mjs` stdout 输出不符合宿主严格 JSON 契约 → 改为 stderr + exit 2。
-- 记录待跟进（non-blocking）：taskboard 过滤快速切换响应竞态；GET /api/tasks 缺 Cache-Control。
+- 记录待跟进（non-blocking）：taskboard 过滤快速切换响应竞态；GET /api/tasks 缺 Cache-Control。**已于 v0.8.0 清理**（22/22 PASS，见下）。
+
+## v0.8 补充演练与清理（2026-11-06）
+
+| 项 | 覆盖 | 结果 | 证据（tmp/steward-fixtures/，gitignored） |
+|---|---|---|---|
+| worktree 多分支合并 | 两个文件集不相交任务（sum / slug）各自 worktree + `node --test`；主工作区按 DAG 顺序 `--no-ff` 串行合并，每合并复跑；同文件冲突探针 | **6/6 PASS**：merge T1 后 pass 2；merge T2 后 pass 4；冲突 `UU README.md`；worktree/分支清理后主分支仍 pass 4 | `worktree-demo/DRILL.md` |
+| taskboard 遗留清理 | 过滤竞态（refresh-guard 序号 + AbortController）、`GET /api/tasks` 加 `Cache-Control: no-store` | **22/22 PASS**（store 10 + HTTP 9 + guard 3） | `taskboard/.steward/cleanup-20261106.md` |
+| 需求澄清内核 | Stage 0.1 第一性原理四问 + 最多 3 个 P0；S 级不追问；`templates/01-REQUIREMENT.md` | 渲染进 ZCode SKILL；MiniMax 逐字节不变 | `zcode/skills/steward/SKILL.md`；`host/zcode/skills/steward/clarify.md` |

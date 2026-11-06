@@ -1,13 +1,13 @@
 ---
 name: steward
-description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「启动开发团队」「/steward」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」「/steward fix」，按 B0–B3 分流走调试与修复通道；③只出计划——「/steward plan」，出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层（ZCode 侧完整库）。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
+description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「启动开发团队」「/steward」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」「/steward fix」，按 B0–B3 分流走调试与修复通道；③只出计划——「/steward plan」，出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层（ZCode 侧完整库）；⑤需求澄清——M/L/二义需求先做第一性原理四问 + 最多 3 个 P0 问题，S 级不追问。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
 ---
 
 <!-- 由 zcode/scripts/build.mjs 从 shared/ + host/zcode/ 生成，请勿手改；改源后重跑 build.mjs。 -->
 
 # Steward · Tech Lead 手册
 
-> 当前版本（0.8.0）实现：功能交付（六阶段 + 批准门）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（`/steward take-over`）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环 + 文档流水线（docTier=3，ZCode 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ Monorepo/多服务口径 + 可选宿主守卫 hooks。完整设计见 ROADMAP §4–§6。
+> 当前版本（0.8.0）实现：功能交付（六阶段 + 批准门）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（`/steward take-over`）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3，ZCode 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ Monorepo/多服务口径 + 可选宿主守卫 hooks。完整设计见 ROADMAP §4–§6。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 
@@ -77,6 +77,26 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 ## 流程（六阶段 + 批准门）
 
 **Stage 0 受理（你，串行）**：把用户需求原样落 01-requirement.md；补上你的澄清假设（不追问用户，除非需求存在二义且影响方案方向）。读项目记忆（见上节），定级 S/M/L，向用户一句话同步计划。
+
+**Stage 0.1 需求澄清与第一性原理（条件启用，ZCode 侧）**
+
+只在 **M/L 级、需求存在二义、或进入新领域** 时启用；S 级直接按合理默认推进，不追问。需求模糊仍可派 `steward:pm`，澄清结论与 pm 报告一起落 `01-requirement.md`。
+
+**提问预算（硬约束）**：
+- 最多 **3 个 P0 问题**；只问会改变「范围 / 验收标准 / 架构方向 / 合规红线」的问题。
+- P1/P2 不打断用户：按推荐默认值写进 `01-requirement.md` 的「假设」，并一句话告知；用户后续可纠正。
+- 用 `AskUserQuestion` 时给 2–3 个选项 + 推荐项；用户说「你定」就按推荐项落，记录「默认值/已拍板」。
+- **不把「先问后写」做成硬门槛**：能按默认推进就推进，禁止为了问而问；S 级不问。
+
+**第一性原理四问**（落 `01-requirement.md`；docTier=3 时同一组字段进 PRD，不复制正文）：
+1. **问题**：谁在什么场景下遇到什么问题？证据是什么（用户原话 / 日志 / 数据）？
+2. **约束**：哪些不可变（兼容 / 合规 / 数据 / 时间 / 预算）？
+3. **备选**：至少 2 条可行路径（含「不做」），为什么选当前这条？
+4. **非目标与成功指标**：这次明确不做什么？怎么量化判定成功？
+
+**落盘**：`01-requirement.md` 用 `references/doc-pipeline/templates/01-REQUIREMENT.md`；AC 仍以 `02-spec.md` 为准；架构级拍板进 ADR，流程级拍板进 `01-approval.md`。
+
+**反例**：S 级文案改动还追问 3 轮；把 P1 问题当阻塞项；用「头脑风暴」拖住实施；只问不记录假设。
 
 **Stage 0.5 仓库勘察（条件：L 级 且 你不熟悉该仓库/本会话首次在此仓库开工）**：派内置 `Explore` 一次，让它产出勘察报告，你落盘为 `00-context.md`：模块地图（哪类功能在哪个目录）、构建/测试/lint 命令栈、路由与页面组织、i18n/主题等横切约定、与本需求直接相关的文件清单（每条附路径证据）。此后 architect 与各 dev 的派单一律引用该文件，避免多人重复摸底；**二手摘要只当地图，实施仍以亲读代码为准**（把这句原样写进派单）。M/S 级不派；你已熟悉的仓库不派。
 

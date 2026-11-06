@@ -17,7 +17,7 @@
 ## 计划内改编
 
 1. **Hub**：原 `SKILL.md` → 本目录 `README.md`；删 frontmatter / locales；新增「与 Steward T0–T3 映射」、ZCode-only 说明、模板索引。
-2. **路径**：`references/xxx.md` → 同级 `xxx.md`；`templates.md` → `templates/`（19 个模板 + `templates/README.md` + `04-EVIDENCE.md` / `05-RECORD.md`）。
+2. **路径**：`references/xxx.md` → 同级 `xxx.md`；`templates.md` → `templates/`（19 个模板 + `templates/README.md` + T2 `01-REQUIREMENT.md` / `04-EVIDENCE.md` / `05-RECORD.md`）。
 3. **CI/CD → 本地门禁**：不生成 `.github/workflows`；原文「CI 拦截 / CI 薄壳 / 落 CI」改为本地脚本 + 可选 git hook。`assets/通用编程规范与指南.md` 保留通用提法，但文件头加 Steward 口径覆盖。
 4. **commit → 同一批变更**：Steward 默认不提交；用户明确要求时才同 commit。`commit message` 保留（历史坐标）。
 5. **浏览器优先级**：原「内置浏览器优先」改为 Steward 口径（Playwright MCP / Chrome DevTools MCP → 内置浏览器兜底）；证据格式统一 `browser-evidence.json`，原文四项证据作为补充检查清单；视觉问题标 `visual: "unverified"`。
@@ -26,11 +26,12 @@
 8. **T1/T3 分工**：T1 `docs/project/` 只放摘要 + 链接；深正文进 `docs/01..07`；新增 `04-EVIDENCE.md` / `05-RECORD.md` 对齐 T2 变更包。
 9. **去重**：TDD 指向 `steward:tdd`；T1 扫描指向 `take-over.mjs`；AC 收敛到 `02-spec.md` + `validate-plan.mjs`；测试门禁指向 `verify.mjs`。
 10. **命名守卫**：规则与基线语义保留；脚本提取为 `zcode/scripts/doc/guard-naming.mjs`（CLI `<root>`、`--init`、`--json`、误伤保护）；`naming-guard.md` 保留项目内参考实现并注明以插件脚本为准。
+11. **需求澄清内核（ZCode 侧）**：Stage 0.1 吸收「第一性原理四问 + 最多 3 个 P0 提问预算」；新增 `templates/01-REQUIREMENT.md`。**不引入** AFC 分支的「强制先问后写」硬门槛，S 级不追问。
 
 ## 有意省略
 
 - `locales/en-US.json`、`zh-CN.json`：Steward 插件清单自有 i18n，不需要技能级展示元数据。
-- AFC/AIAPaaS 分支独有的「§5.0 开工前头脑风暴 / 先问后写」：与 Steward 轻量 Stage 0（仅在二义且影响方向时追问）冲突，未纳入；如需要可作为 docTier=3 的可选 intake 另起增量。
+- AFC/AIAPaaS 分支的「§5.0 开工前头脑风暴」：**部分吸收**——保留第一性原理四问与提问预算（最多 3 个 P0；S 级不追问），不引入「强制先问后写」硬门槛；落点见技能 Stage 0.1 与 `templates/01-REQUIREMENT.md`。
 - 任何 GitHub Actions / CI YAML 骨架：按用户硬约束不创建。
 
 ## 保真说明

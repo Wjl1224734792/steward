@@ -12,13 +12,14 @@
 
 ### Steward 是什么
 
-Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.8.0 / MiniMax 1.5.3）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；ZCode 侧新增 docTier=3 完整文档流水线（七阶段文档树 + PRD/FRD/契约/页面/测试/部署全量模板 + 命名守卫与文档检查），技能/agent 正文单一源生成，MiniMax 附带维护健康看板等可选 GenUI 视图（文档流水线待 1.6.0 同步）。
+Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.8.0 / MiniMax 1.5.3）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；ZCode 侧新增 docTier=3 完整文档流水线（七阶段文档树 + PRD/FRD/契约/页面/测试/部署全量模板 + 命名守卫与文档检查）与 M/L 需求的第一性原理澄清/提问预算，技能/agent 正文单一源生成，MiniMax 附带维护健康看板等可选 GenUI 视图（文档流水线待 1.6.0 同步）。
 
 ### 工作模式
 
 | 模式 | 命令 | 状态 |
 |---|---|---|
 | 功能交付 | `/steward <需求>` | 0.6.0 可用 |
+| 需求澄清 | 随 `/steward`（M/L/二义） | 0.8.0 ZCode 可用（第一性原理四问 + 最多 3 个 P0；S 级不追问） |
 | Bug 修复 | `/steward fix <Bug>` | 0.5.0 可用（ZCode 命令；MiniMax 用自然语言触发） |
 | 只出计划 | `/steward plan <需求>` | 0.5.0 可用（ZCode 命令；MiniMax 用自然语言触发） |
 | 维护循环 | `/steward maintain` | 0.6.0 可用（`maintain.mjs` 扫描 + backlog；MiniMax 用自然语言触发） |
@@ -120,8 +121,8 @@ Copy-Item -LiteralPath "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minima
 - 已实现（v0.5）：Bug 通道（B0–B3）、计划批准门 + Plan Critic、计划校验 / 独立验证 / 基线守卫、run.json 断点恢复、T0/T1 项目记忆生成。
 - 已实现（v0.6）：维护循环（maintain.mjs 八类扫描）、浏览器证据契约、学习循环（05-record 回填）、systematic-debugging / TDD / verification 三个轻量技能、可选 worktree + finishing、模型路由 + 重试预算。
 - 已实现（v0.7）：接手存量（take-over 扫描 + 首轮健康扫描）、演进循环（重构比例 / codemod 计划）、T3 模板六件按需升级、双宿主本地构建（build.mjs 单一正文源 + 校验）、可选宿主守卫 hooks（所有权/危险命令/密钥）、GenUI 维护健康看板（专用配方 C）、monorepo/多服务口径。
-- 已实现（v0.8，ZCode 侧）：文档流水线完整吸收——七阶段 `docs/01..07` 树、19 类模板 + T2 证据/记录模板、AGENTS/rules 约束层、命名守卫与文档检查本地脚本（`scripts/doc/`）；MiniMax 侧待 1.6.0 同步。
-- 重点（后续）：MiniMax 文档流水线 1.6.0 同步、MiniMax 宿主 GenUI 实机验收、worktree 多分支合并演练；taskboard 遗留两个 non-blocking 项（过滤竞态、GET /api/tasks 缺 Cache-Control）。
+- 已实现（v0.8，ZCode 侧）：文档流水线完整吸收——七阶段 `docs/01..07` 树、19 类模板 + T2 需求/证据/记录模板、AGENTS/rules 约束层、命名守卫与文档检查本地脚本（`scripts/doc/`）；需求澄清内核（第一性原理四问 + 最多 3 个 P0 提问预算，S 级不追问）；worktree 多分支合并演练 6/6 PASS；taskboard 两处 non-blocking 清理（过滤竞态 + Cache-Control）22/22。MiniMax 侧待 1.6.0 同步。
+- 重点（后续）：MiniMax 文档流水线 1.6.0 同步、MiniMax 宿主 GenUI 实机验收。
 
 ### 从 dev-team 更名
 
@@ -133,13 +134,14 @@ Steward 是原 `dev-team` 插件的更名版本。插件 ID、命令、agent 前
 
 ### What is Steward
 
-Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.8.0 / MiniMax 1.5.3) covers feature delivery, bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), and the evolution loop; the ZCode side adds a full docTier=3 documentation pipeline (seven-phase docs tree + full PRD/FRD/contract/page/test/deployment templates + naming guard and doc checks), with optional MiniMax GenUI views for the task DAG, defect triage, and maintenance health (MiniMax docs pipeline pending 1.6.0).
+Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.8.0 / MiniMax 1.5.3) covers feature delivery, bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), and the evolution loop; the ZCode side adds a full docTier=3 documentation pipeline (seven-phase docs tree + full PRD/FRD/contract/page/test/deployment templates + naming guard and doc checks) plus a first-principles clarification step with a 3-question P0 budget for M/L requests, with optional MiniMax GenUI views for the task DAG, defect triage, and maintenance health (MiniMax docs pipeline pending 1.6.0).
 
 ### Modes
 
 | Mode | Command | Status |
 |---|---|---|
 | Feature delivery | `/steward <request>` | Available in 0.6.0 |
+| Clarification | with `/steward` (M/L/ambiguous) | Available in 0.8.0 on ZCode (first-principles four questions + max 3 P0 questions; S-level skips) |
 | Bug fix | `/steward fix <bug>` | Available in 0.5.0 (ZCode command; on MiniMax trigger by natural language) |
 | Plan only | `/steward plan <request>` | Available in 0.5.0 (ZCode command; on MiniMax trigger by natural language) |
 | Maintenance | `/steward maintain` | Available in 0.6.0 (`maintain.mjs` scan + backlog; on MiniMax trigger by natural language) |
@@ -241,8 +243,8 @@ When the input contains "开发团队", "开发小组", or "Steward", the `UserP
 - Shipped in v0.5: bug track (B0–B3), plan approval gate + Plan Critic, plan validation / independent verification / baseline guard, resumable run state, T0/T1 project memory generation.
 - Shipped in v0.6: maintenance loop (eight-category scan), browser evidence contract, learning loop (05-record backfill), systematic-debugging / TDD / verification skills, optional worktree + finishing, model routing + retry budget.
 - Shipped in v0.7: takeover (T1 generation + first health scan), evolution loop (refactor-ratio check, codemod planning), six on-demand T3 templates, local dual-host build (build.mjs single source + validation), optional host guards (ownership / dangerous commands / secrets), GenUI maintenance health dashboard (dedicated recipe C), monorepo / multi-service guidance.
-- Shipped in v0.8 (ZCode side): full documentation pipeline — seven-phase `docs/01..07` tree, 19 template types + T2 evidence/record templates, AGENTS/rules constraint layer, naming guard and doc checks as local scripts (`scripts/doc/`); MiniMax side pending 1.6.0.
-- Next: MiniMax docs pipeline 1.6.0 sync, MiniMax-host GenUI verification, a real worktree multi-branch merge drill, and the two non-blocking taskboard leftovers (filter race, missing Cache-Control on GET /api/tasks).
+- Shipped in v0.8 (ZCode side): full documentation pipeline — seven-phase `docs/01..07` tree, 19 template types + T2 requirement/evidence/record templates, AGENTS/rules constraint layer, naming guard and doc checks as local scripts (`scripts/doc/`); first-principles clarification kernel (four questions + a max-3 P0 question budget, S-level skips); worktree multi-branch merge drill 6/6 PASS; taskboard two non-blocking leftovers cleaned up (filter race + Cache-Control), fixture 22/22. MiniMax side pending 1.6.0.
+- Next: MiniMax docs pipeline 1.6.0 sync, MiniMax-host GenUI verification.
 
 ### Renamed from dev-team
 

@@ -41,11 +41,13 @@
 | 开发顺序 | `DEV-ORDER.md` | 开工顺序 SSOT：依赖链/波次/并行/估算 |
 | 测试方案 | `TEST-PLAN.md` | 测试金字塔/黄金集/NFR 映射/门禁清单 |
 | 提交前自检 | `PRE-COMMIT-CHECKLIST.md` | 23 项打印版检查表 |
+| 受理与澄清 | `01-REQUIREMENT.md` | T2 变更包：原始需求 + 第一性原理四问 + 假设/问题台账 |
 | 变更证据 | `04-EVIDENCE.md` | T2 变更包：verify/baseline/browser 证据索引 |
 | 变更记录 | `05-RECORD.md` | T2 变更包：改了什么/为什么/文档更新/决策/遗留 |
 
 ## 与 Steward 产物的关系
 
+- **T2 受理**：`01-REQUIREMENT.md` 是 Stage 0 的落盘模板；M/L/二义需求先过第一性原理四问与最多 3 个 P0 提问预算（技能 Stage 0.1），S 级不追问、直接按默认推进。
 - **PRD/FRD 的验收条目**最终收敛到 `02-spec.md` 的 AC，由 `validate-plan.mjs` 机检；模板里的 AC 只做来源追溯，不另立第二套验收口径。
 - **PAGE-LAYOUT 的验收脚本**交给 browser-tester，判定证据写 `browser-evidence.json`；四项证据（入口/观察/截图/对照基准 + 工具）是该文件的补充检查清单。
 - **TEST-PLAN 的门禁**用 `verify.mjs`（`--repeat` 查 flaky）；不要另写 门禁配置。
