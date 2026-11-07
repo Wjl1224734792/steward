@@ -214,6 +214,32 @@ if (zm && mm) {
   }
 }
 
+// --- 3.2 MiniMax 包路径契约（宿主要求包内路径全 ASCII，违反则整包被拒载入） ---
+{
+  const SEGMENT = /^[A-Za-z0-9._-]+$/;
+  const bad = [];
+  const walkPkg = (dir, rel = '') => {
+    if (!existsSync(dir)) return;
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      const r = rel ? rel + '/' + e.name : e.name;
+      if (e.isDirectory()) walkPkg(p, r);
+      else {
+        if (!/^[\x00-\x7f]*$/.test(r)) { bad.push('非 ASCII 路径: ' + r); continue; }
+        for (const seg of r.split('/')) if (!SEGMENT.test(seg)) { bad.push('路径段不合规: ' + r); break; }
+      }
+    }
+  };
+  walkPkg(join(mx, 'skills'));
+  walkPkg(join(mx, 'agents'));
+  walkPkg(join(mx, 'scripts'));
+  walkPkg(join(mx, 'hooks'));
+  for (const e of readdirSync(mx, { withFileTypes: true })) {
+    if (e.isFile() && !/^[\x00-\x7f]*$/.test(e.name)) bad.push('非 ASCII 文件名: ' + e.name);
+  }
+  for (const b2 of bad) errors.push('[package] minimax 包路径不合规（宿主会拒绝整个包）: ' + b2);
+}
+
 // --- 3.5 hooks.json 校验（事件名白名单 + JSON 合法） ---
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'PostToolUseFailure', 'Stop'];
 for (const p of [join(zc, 'hooks', 'hooks.json'), join(mx, 'hooks', 'hooks.json')]) {

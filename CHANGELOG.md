@@ -12,6 +12,12 @@
 - **build.mjs 支持轻量技能槽位渲染**：轻量技能正文现在也走 `renderSlots`，可引用宿主片段；渲染时自动创建技能目录（`mkdirSync`），新增技能不再因目录不存在而 ENOENT。
 - `minimax/.minimax-plugin/plugin.json` 1.6.0 → **1.6.2**，技能清单加 `skills/using-steward/SKILL.md`；技能 frontmatter 补 ⑥技能路由；banner 同步版本与能力。
 
+### Fixed
+
+- **MiniMax 包路径契约——插件在列表里看不见的根因**：MiniMax Plugin V1 要求**包内路径全为 ASCII**（`validatePluginPortablePath` → `NON_PORTABLE_PATH`；路径段须匹配 `^[A-Za-z0-9._-]+$`）。v1.6.0 同步文档流水线时带入的 `assets/通用编程规范与指南.md` 触发该规则 → **整个包被宿主拒绝载入**，表现为插件列表里没有 Steward、hook 不触发、子会话看不到 `steward:*` 技能。修复：文件改名为 `assets/coding-guidelines-baseline.md`（正文标题保持中文），同步更新 6 处路径引用。
+- **build.mjs 新增 MiniMax 包路径契约校验**：包内出现非 ASCII 路径或不合规路径段即 build 失败（exit 1），防止再次踩同一个坑。
+- **部署改为镜像语义**：单纯拷贝不会删除安装目录里的旧文件——仓库里删掉的文件会残留（本次残留的中文名文件正是让包继续被拒的原因之一）。部署时先删源已不存在的文件再拷贝。
+
 ### Changed
 
 - 共享正文的「入口」片段（`host/<host>/skills/steward/entry-points.md`）在 MiniMax 侧改为指向「主技能 `steward:steward`」并补 docTier=3 自然语言入口——该片段现在被主技能与路由技能两处复用，措辞需无歧义。

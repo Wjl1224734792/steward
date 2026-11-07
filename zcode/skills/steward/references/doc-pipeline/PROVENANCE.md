@@ -5,7 +5,7 @@
 - 源路径：`C:\Users\12247\Desktop\skills\eng-doc-pipeline`
 - 变体：Desktop canonical（与 `E:\CodeStore\有灵\.agents\skills\eng-doc-pipeline`、AIOS、demo、明德AIERP 的副本逐字节相同）
 - 快照日期：2026-11-06；源文件 mtime 2026-10-28 17:53
-- 源规模：`SKILL.md` 37,796 B / 336 行；`references/` 7 个文件 + `templates.md` 691 行 / 37,507 B；`assets/通用编程规范与指南.md` 42,468 B / 677 行；`locales/` 2 个文件
+- 源规模：`SKILL.md` 37,796 B / 336 行；`references/` 7 个文件 + `templates.md` 691 行 / 37,507 B；`assets/coding-guidelines-baseline.md` 42,468 B / 677 行；`locales/` 2 个文件
 - 吸收范围：8 个 references（`templates.md` 拆为 `templates/`）、assets 基线、naming guard 规则与脚本
 
 ## 目标
@@ -18,7 +18,7 @@
 
 1. **Hub**：原 `SKILL.md` → 本目录 `README.md`；删 frontmatter / locales；新增「与 Steward T0–T3 映射」、双宿主说明、模板索引。
 2. **路径**：`references/xxx.md` → 同级 `xxx.md`；`templates.md` → `templates/`（19 个模板 + `templates/README.md` + T2 `templates/01-REQUIREMENT.md` / `templates/04-EVIDENCE.md` / `templates/05-RECORD.md`）。
-3. **CI/CD → 本地门禁**：不生成 `.github/workflows`；原文「CI 拦截 / CI 薄壳 / 落 CI」改为本地脚本 + 可选 git hook。`assets/通用编程规范与指南.md` 保留通用提法，但文件头加 Steward 口径覆盖。
+3. **CI/CD → 本地门禁**：不生成 `.github/workflows`；原文「CI 拦截 / CI 薄壳 / 落 CI」改为本地脚本 + 可选 git hook。`assets/coding-guidelines-baseline.md` 保留通用提法，但文件头加 Steward 口径覆盖。
 4. **commit → 同一批变更**：Steward 默认不提交；用户明确要求时才同 commit。`commit message` 保留（历史坐标）。
 5. **浏览器优先级**：原「内置浏览器优先」改为 Steward 口径（Playwright MCP / Chrome DevTools MCP → 内置浏览器兜底）；证据格式统一 `browser-evidence.json`，原文四项证据作为补充检查清单；视觉问题标 `visual: "unverified"`。
 6. **可靠性排序**：原 `agents-files.md` §1 与 SKILL §6.3 不一致；统一为「本地门禁 > 可选 pre-commit hook > lint/tsc > 根 AGENTS 红线 > 子目录 AGENTS > `.agents/rules` > 本库 > docs 散文」。
@@ -27,6 +27,7 @@
 9. **去重**：TDD 指向 `steward:tdd`；T1 扫描指向 `take-over.mjs`；AC 收敛到 `02-spec.md` + `validate-plan.mjs`；测试门禁指向 `verify.mjs`。
 10. **命名守卫**：规则与基线语义保留；脚本提取为插件 `scripts/doc/guard-naming.mjs`（CLI `<root>`、`--init`、`--json`、误伤保护）；`naming-guard.md` 保留项目内参考实现并注明以插件脚本为准。
 11. **需求澄清内核（双宿主）**：Stage 0.1 吸收「第一性原理四问 + 最多 3 个 P0 提问预算」；新增 `templates/01-REQUIREMENT.md`。**不引入** AFC 分支的「强制先问后写」硬门槛，S 级不追问。
+12. **包内文件名 ASCII 化**：MiniMax Plugin V1 的包路径契约要求**包内路径全为 ASCII**（`validatePluginPortablePath` → `NON_PORTABLE_PATH`，路径段须匹配 `^[A-Za-z0-9._-]+$`），中文文件名会让**整个包被拒绝载入**（表现为插件列表里看不到它）。故 `assets/通用编程规范与指南.md` → `assets/coding-guidelines-baseline.md`；正文标题保持中文，内容不变。ZCode 侧同源改名。
 
 ## 有意省略
 

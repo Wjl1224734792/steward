@@ -134,7 +134,7 @@
 
 ## 4. 样式与 token（引用基线，不复制）
 
-- **三层颜色键**（primitive → semantic → component）与「配 UI 框架时映射框架 token、不另起炉灶」：全文见本技能 `assets/通用编程规范与指南.md` §2.9，**这里只写项目落地口径，不复制色值与示例**。
+- **三层颜色键**（primitive → semantic → component）与「配 UI 框架时映射框架 token、不另起炉灶」：全文见本技能 `assets/coding-guidelines-baseline.md` §2.9，**这里只写项目落地口径，不复制色值与示例**。
 - **主权**：主题收敛到 Provider（如 antd `ConfigProvider` token）；禁全局组件类覆盖、禁第二套色板、禁组件里散落魔法数。
 - **token 变更路径**：提案 → 用户拍板 → `DESIGN.md` + 主题稿 + 代码**同一批变更** → 受影响页面实看（§2）→ 同步 `rules/frontend.md` 若有新增使用约定。
 - **代码里的色值必须能反查到 `DESIGN.md`**；反查不到 = 新 token，先补文档再改代码。
