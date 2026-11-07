@@ -2,9 +2,9 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
-## [ZCode 0.8.2 / MiniMax 1.6.2] - 2026-11-07
+## [ZCode 0.8.2 / MiniMax 0.8.2] - 2026-11-07
 
-> MiniMax 侧对齐：v0.8.1 的 `steward:using-steward` 技能路由同步到 MiniMax（路由表按宿主适配）；v0.8.2 的斜杠命令注册修复为 ZCode-only（MiniMax 无斜杠命令能力，不适用）。版本节奏 warning 消失。
+> MiniMax 侧对齐：v0.8.1 的 `steward:using-steward` 技能路由同步到 MiniMax（路由表按宿主适配）；v0.8.2 的斜杠命令注册修复为 ZCode-only（MiniMax 无斜杠命令能力，不适用）。**两宿主版本号统一为 0.8.2**——原「ZCode 0.x ↔ MiniMax 1.(x-2)」的错位节奏在同仓同发后不再需要。
 
 ### Added（MiniMax 1.6.2 对齐）
 
@@ -15,10 +15,12 @@
 ### Changed
 
 - 共享正文的「入口」片段（`host/<host>/skills/steward/entry-points.md`）在 MiniMax 侧改为指向「主技能 `steward:steward`」并补 docTier=3 自然语言入口——该片段现在被主技能与路由技能两处复用，措辞需无歧义。
+- **两宿主版本号统一为 0.8.2**：`minimax/.minimax-plugin/plugin.json` 1.6.2 → **0.8.2**（与 ZCode 侧同号）；`host/minimax/skills/steward/banner.md`、`minimax/README.md`（中英）、根 README（中英）、ROADMAP / ROADMAP-STATUS 同步。
+- **build.mjs 版本校验改为「两宿主版本必须一致」**：原规则 ZCode 0.x.y ↔ MiniMax 1.(x-2).y 依赖版本号本身可推导；统一版本号后该正则会失配、校验静默失效。改为直接比较两个清单的 `version` 字段，更简单也更严格。
 
 ### 验证
 
-- `node zcode/scripts/build.mjs --check` exit 0，**零 warning**（版本节奏 ZCode 0.8.2 ↔ MiniMax 1.6.2 已匹配）。
+- `node zcode/scripts/build.mjs --check` exit 0，**零 warning**（两宿主版本一致，均为 0.8.2）。
 - 两版 `skills/using-steward/SKILL.md` 渲染完成，`@@SLOT` 残留 0；ZCode 出斜杠命令路由表，MiniMax 出自然语言路由表。
 - MiniMax 清单技能数 5 → 6，build.mjs 的「磁盘有技能但未列出」warning 为 0。
 - YAML frontmatter 真解析器校验两版全部通过。

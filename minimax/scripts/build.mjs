@@ -208,11 +208,9 @@ function checkManifest(manifestPath, base, { hasSkillsArray, hasAgentsArray, has
 const zm = checkManifest(join(zc, '.zcode-plugin', 'plugin.json'), zc, { hasSkillsArray: false, hasAgentsArray: false, hasCommands: true });
 const mm = checkManifest(join(mx, '.minimax-plugin', 'plugin.json'), mx, { hasSkillsArray: true, hasAgentsArray: true, hasCommands: false });
 if (zm && mm) {
-  // 版本节奏：ZCode 0.x.y ↔ MiniMax 1.(x-2).y（0.7.0↔1.5.0、0.7.1↔1.5.1）
-  const zv = /^0\.(\d+)\.(\d+)/.exec(zm.version);
-  const mv = /^1\.(\d+)\.(\d+)/.exec(mm.version);
-  if (zv && mv && (Number(mv[1]) !== Number(zv[1]) - 2 || Number(mv[2]) !== Number(zv[2]))) {
-    warnings.push(`[manifest] 两宿主版本为 ZCode ${zm.version} / MiniMax ${mm.version}，不符合版本节奏（期望 1.${Number(zv[1]) - 2}.${zv[2]}）`);
+  // 版本：两宿主同号发布，直接比较清单 version 字段
+  if (zm.version !== mm.version) {
+    warnings.push(`[manifest] 两宿主版本不一致：ZCode ${zm.version} / MiniMax ${mm.version}（期望一致）`);
   }
 }
 

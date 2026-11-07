@@ -1,6 +1,6 @@
 # Steward 路线图 2026：从「功能交付」到「长期维护」
 
-> 状态：P0–P3 已实施（v0.5→v0.8.2；双宿主；MiniMax 1.6.2 与 ZCode 0.8.2 对齐），2026-11-07，含 M/L、浏览器证据、codemod、hooks 四项真实演练、GenUI 维护健康看板、文档流水线完整吸收、需求澄清内核、技能路由与 worktree 演练，见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md) · 原始草案 v1
+> 状态：P0–P3 已实施（v0.5→v0.8.2；双宿主；两宿主同版本 0.8.2），2026-11-07，含 M/L、浏览器证据、codemod、hooks 四项真实演练、GenUI 维护健康看板、文档流水线完整吸收、需求澄清内核、技能路由与 worktree 演练，见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md) · 原始草案 v1
 > 适用：`zcode/` 与 `minimax/` 两个宿主版本
 > 依据：2025–2026 多智能体开发、规范驱动、AI 编码代理与软件演化研究（见文末参考）
 
@@ -484,7 +484,7 @@ tmp/steward/<run-id>/
 
 ### P3（v0.8，双宿主）— 文档流水线 + 需求澄清 + 技能路由
 
-> **状态（2026-11-07）：双宿主已实现（ZCode 0.8.2 / MiniMax 1.6.2）**——见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md)。
+> **状态（2026-11-07）：双宿主已实现（两宿主同为 0.8.2）**——见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md)。
 
 | # | 交付 | 验收 |
 |---|---|---|
