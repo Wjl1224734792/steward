@@ -106,8 +106,10 @@ steward/
 把 `minimax/` 复制到 `%USERPROFILE%\.minimax\plugins\steward\`：
 
 ```powershell
-Copy-Item -LiteralPath "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minimax\plugins\steward\" -Recurse -Force
+Copy-Item -Path "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minimax\plugins\steward\" -Recurse -Force
 ```
+
+> 更新前先跑 `node "<repo>\zcode\scripts\build.mjs"` 重建 `minimax/`（它是生成物）；用 `-Path` 而非 `-LiteralPath`（后者不展开 `*`，会静默复制 0 个文件）。拷贝不删旧文件，需要镜像用 `robocopy "<repo>\minimax" "$env:USERPROFILE\.minimax\plugins\steward" /MIR`。改动**从下一个新会话起生效**（本地插件在会话启动时载入，不热加载）。
 
 输入包含「开发团队 / 开发小组 / Steward」时，`UserPromptSubmit` Hook 自动加载技能；也可以直接描述需求。
 

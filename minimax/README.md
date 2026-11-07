@@ -99,12 +99,27 @@ minimax/
 └── agents/*.md                   # 7 个角色子代理
 ```
 
-## 安装
+## 安装 / 更新
 
-把本仓库的 `minimax/` 复制到 `%USERPROFILE%\.minimax\plugins\steward\`：
+**① 先重建**（`minimax/` 是 `build.mjs` 的生成物，**不要直接改**；改了 `shared/` 或 `host/` 后先跑）：
 
 ```powershell
-Copy-Item -LiteralPath "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minimax\plugins\steward\" -Recurse -Force
+node "<repo>\zcode\scripts\build.mjs"
+node "<repo>\zcode\scripts\build.mjs --check   # 期望 exit 0 且零 warning
+```
+
+**② 再拷贝**到 `%USERPROFILE%\.minimax\plugins\steward\`：
+
+```powershell
+Copy-Item -Path "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minimax\plugins\steward\" -Recurse -Force
+```
+
+> 用 `-Path` 而不是 `-LiteralPath`：后者不展开 `*`，会**静默复制 0 个文件**（报错被吞掉，看着像成功了）。
+
+> **拷贝不会删除安装目录里的旧文件**——仓库里删掉的文件会残留。要真正镜像用 `robocopy`（退出码 0–7 为成功）：
+
+```powershell
+robocopy "<repo>\minimax" "$env:USERPROFILE\.minimax\plugins\steward" /MIR /NFL /NDL /NJH /NJS /NP
 ```
 
 本地插件在**会话启动时**被扫描并载入，运行中的会话不会热加载：改动后重新拷贝，**新插件从下一个新会话起生效**（当前会话里仍是旧清单）。要立刻拿到新清单，重启 MiniMax Code 最稳。
