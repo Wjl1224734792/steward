@@ -3,7 +3,9 @@
  * guard.mjs — Steward 宿主 hook 守卫（P2）：所有权 / 危险命令 / 密钥扫描。
  *
  * 由宿主 hook（PreToolUse 类事件）挂载：hook 把事件 JSON 写到本脚本 stdin，
- * 本脚本判定是否放行——允许 exit 0；阻止 exit 2 并输出 JSON {decision:"block", reason}。
+ * 本脚本判定是否放行——允许 exit 0；阻止 exit 2，**stdout 保持空**，阻断原因写 stderr。
+ * 两个宿主都是「exit 2 + stderr」语义（MiniMax PreToolUse：exit 2 即 deny，stderr 是给 Agent 看的理由），
+ * 所以这里不写 stdout JSON：宿主对 stdout 走严格 JSON 校验，多余键会判失败。
  *
  * 用法（hooks.json 里按事件配三种模式）：
  *   node guard.mjs ownership   # Edit/Write 的文件必须在 .steward/ownership.json 的白名单内（该文件由 Tech Lead 派发时生成）

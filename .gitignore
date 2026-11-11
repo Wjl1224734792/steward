@@ -5,5 +5,8 @@ dev-team-minimax-*.zip
 # Steward 本地工作区与验收 fixture（不进版本库）
 tmp/
 
+# ZCode 会话级 plan 工件（临时产物；.zcode/config.json 是有意跟踪的，不在此列）
+.zcode/plans/
+
 # 写盘备份（agent-config / 校验脚本的回滚锚点，不进版本库）
 *.bak

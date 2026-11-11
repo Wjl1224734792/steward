@@ -2,6 +2,12 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
+## P5（v0.11，ZCode 0.11.0 / MiniMax 0.11.0）— 2026-11-11
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| 25 | MiniMax 侧宿主守卫对齐（PreToolUse 三道守卫） | 已实现 | ① 缺口定位：审计发现 `minimax/scripts/hooks/guard.mjs` 已随包同步，但 `minimax/hooks/hooks.json` 只注册了 UserPromptSubmit——守卫脚本从未被宿主调用（带病上线）；② 注册：`minimax/hooks/hooks.json` 增加 `PreToolUse` 段（`write|edit` → secret + ownership；`bash` → dangerous），按 MiniMax 契约用 `${PLUGIN_ROOT}` + `commandWindows` + 小写原生工具名（契约见 plugin-creator `local-plugin-hooks.md`）；③ 技能正文：新增 `host/minimax/skills/steward/hooks-row.md`，门禁脚本表列出守卫入口；④ 说明：新增 `minimax/hooks/README.md`；⑤ 跨宿主自检：`selftest.mjs` 补 5 例 MiniMax 原生载荷（write 用 path+content、edit 用 file_path+new_string），**16 例全 PASS**（exit 0 放行 / exit 2 阻断 / stdout 为空）；⑥ 构建：`node zcode/scripts/build.mjs` exit 0、`--check` exit 0 零 warning；⑦ 单测：`node --test zcode/scripts/tests/` 全绿；⑧ 安装：`install --apply` 镜像到本机插件目录，逐字节比对一致 | 与 ZCode 侧同源同款守卫，差异仅在宿主契约（ZCode 用 `${CLAUDE_PLUGIN_ROOT}` + `Write|Edit`/`Bash`，MiniMax 用 `${PLUGIN_ROOT}` + `write|edit`/`bash`）；ownership 守卫需 Tech Lead 生成 `.steward/ownership.json` 才启用（有意设计，避免全局误拦）；dangerous/secret 守卫按插件级默认生效，删除 `hooks/hooks.json` 即关闭 |
+
 ## P4（v0.9，ZCode 0.9.0 / MiniMax 0.9.0）— 2026-11-11
 
 | # | 交付 | 状态 | 证据 | 备注 |

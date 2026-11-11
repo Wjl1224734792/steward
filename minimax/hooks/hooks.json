@@ -11,6 +11,36 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "write|edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/scripts/hooks/guard.mjs\" secret",
+            "commandWindows": "node \"${PLUGIN_ROOT}\\scripts\\hooks\\guard.mjs\" secret",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/scripts/hooks/guard.mjs\" ownership",
+            "commandWindows": "node \"${PLUGIN_ROOT}\\scripts\\hooks\\guard.mjs\" ownership",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/scripts/hooks/guard.mjs\" dangerous",
+            "commandWindows": "node \"${PLUGIN_ROOT}\\scripts\\hooks\\guard.mjs\" dangerous",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }

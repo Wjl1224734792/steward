@@ -287,15 +287,36 @@ if (zm && mm) {
   for (const b2 of bad) errors.push('[package] minimax 包路径不合规（宿主会拒绝整个包）: ' + b2);
 }
 
-// --- 3.5 hooks.json 校验（事件名白名单 + JSON 合法） ---
+// --- 3.5 hooks.json 校验（事件名白名单 + JSON 合法 + matcher 取值） ---
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PermissionRequest', 'PostToolUse', 'PostToolUseFailure', 'Stop'];
-for (const p of [join(zc, 'hooks', 'hooks.json'), join(mx, 'hooks', 'hooks.json')]) {
+// 各宿主 PreToolUse/PermissionRequest 的 matcher 只能匹配**精确的原生工具名**（大小写敏感）：
+// MiniMax 用小写原生名（bash / read / write / edit / task），ZCode 用其宿主原生名（Bash / Read / Write / Edit）。
+// matcher 写错不会报错、只会永不触发——属于静默失效，必须在构建期拦住。
+const HOOK_TOOL_NAMES = {
+  zcode: new Set(['Bash', 'Read', 'Write', 'Edit', 'Agent', 'Glob', 'Grep', 'Task']),
+  minimax: new Set(['bash', 'read', 'write', 'edit', 'task', 'glob', 'grep']),
+};
+for (const [label, pkgDir] of [['zcode', zc], ['minimax', mx]]) {
+  const p = join(pkgDir, 'hooks', 'hooks.json');
   if (!existsSync(p)) continue;
+  let j;
   try {
-    const j = JSON.parse(readFileSync(p, 'utf8'));
-    for (const e of Object.keys(j.hooks ?? {})) if (!HOOK_EVENTS.includes(e)) errors.push(`[hooks] ${p} 含不支持的事件名：${e}`);
+    j = JSON.parse(readFileSync(p, 'utf8'));
   } catch (e) {
     errors.push(`[hooks] ${p} JSON 解析失败：${e.message}`);
+    continue;
+  }
+  for (const e of Object.keys(j.hooks ?? {})) if (!HOOK_EVENTS.includes(e)) errors.push(`[hooks] ${p} 含不支持的事件名：${e}`);
+  const allowed = HOOK_TOOL_NAMES[label];
+  for (const group of j.hooks?.PreToolUse ?? []) {
+    if (!group.matcher) continue;
+    for (const raw of String(group.matcher).split('|')) {
+      const name = raw.trim();
+      if (!name) continue;
+      if (!allowed.has(name)) {
+        errors.push(`[hooks] ${p} 的 matcher 含无效工具名「${name}」（${label} 宿主只接受：${[...allowed].join(' / ')}）；写错不会报错、只会永不触发`);
+      }
+    }
   }
 }
 

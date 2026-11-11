@@ -27,6 +27,14 @@ const fakePem = ['-----BEGIN', 'RSA PRIVATE KEY-----'].join(' ');
 add('PEM 私钥 → 阻断', 'secret', { tool_name: 'Edit', tool_input: { file_path: 'k.pem', new_string: fakePem } }, 2);
 add('env 引用 → 放行', 'secret', { tool_name: 'Write', tool_input: { file_path: 'a.ts', content: 'const k = process.env.KEY;' } }, 0);
 
+// MiniMax 宿主原生事件载荷：工具名小写（write/edit/bash），write 用 path+content、edit 用 file_path+new_string。
+// 守卫必须在这两种载荷下都给出同样判定，否则 MiniMax 侧注册了守卫也不生效。
+add('MiniMax write 密钥 → 阻断', 'secret', { tool_name: 'write', tool_input: { path: 'a.ts', content: `const k = "${fakeKey}";` } }, 2);
+add('MiniMax edit PEM 私钥 → 阻断', 'secret', { tool_name: 'edit', tool_input: { file_path: 'k.pem', new_string: fakePem } }, 2);
+add('MiniMax write env 引用 → 放行', 'secret', { tool_name: 'write', tool_input: { path: 'a.ts', content: 'const k = process.env.KEY;' } }, 0);
+add('MiniMax bash 危险命令 → 阻断', 'dangerous', { tool_name: 'bash', tool_input: { command: 'rm -rf /tmp/x' } }, 2);
+add('MiniMax bash 普通命令 → 放行', 'dangerous', { tool_name: 'bash', tool_input: { command: 'npm test' } }, 0);
+
 // ownership：临时仓库 + 白名单
 const dir = mkdtempSync(join(tmpdir(), 'steward-guard-'));
 mkdirSync(join(dir, '.steward'), { recursive: true });

@@ -2,6 +2,32 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.11.0 / MiniMax 0.11.0] - 2026-11-11
+
+> MiniMax 侧对齐 ZCode 已有的能力：补齐三道 PreToolUse 宿主守卫（密钥 / 所有权 / 危险命令）。此前 MiniMax 包虽已同步 `scripts/hooks/guard.mjs`，但 `hooks.json` 只注册了 UserPromptSubmit 触发器——守卫脚本从未被宿主调用，属于带病上线。本次补齐注册、技能正文挂载与说明文档，两宿主版本号同步升至 0.11.0。
+
+### Added
+
+- **MiniMax 宿主守卫注册**：`minimax/hooks/hooks.json` 增加 `PreToolUse` 段，按 MiniMax 契约声明三道守卫——`secret`（write/edit 内容疑似密钥）、`ownership`（write/edit 目标文件不在 `.steward/ownership.json` 白名单）、`dangerous`（bash 命中 `rm -rf` / `git push --force` / `git reset --hard` / `git clean -f` / 破坏性 SQL / `mkfs`·`dd` / fork bomb）。
+- **宿主差异适配**：MiniMax 用 `${PLUGIN_ROOT}`（Windows 走 `commandWindows`），matcher 用小写原生工具名 `write|edit` / `bash`（非 ZCode 的 `Write|Edit` / `Bash`）——契约见 plugin-creator 的 `local-plugin-hooks.md`。
+- **技能正文挂载**：新增 `host/minimax/skills/steward/hooks-row.md`，使 MiniMax 主技能的门禁脚本表列出守卫入口，与 ZCode 侧对齐。
+- **`minimax/hooks/README.md`**：守卫说明（触发工具、stdin/exit code 契约、激活与关闭方式、ownership.json 格式）。
+
+### Changed
+
+- **守卫自检跨宿主化**：`scripts/hooks/selftest.mjs` 新增 5 例 MiniMax 原生事件载荷（工具名小写、write 用 `path`+`content`、edit 用 `file_path`+`new_string`），确保证卫在 MiniMax 字段名下判定一致；自检从 11 例扩到 16 例。
+- 两宿主版本号统一升至 **0.11.0**（build.mjs 要求两宿主同号），README / 清单 / 路线图同步。
+- **build.mjs 新增 matcher 机检**：hooks.json 的 `PreToolUse.matcher` 只允许各宿主精确的原生工具名（MiniMax 小写 `bash`/`write`/`edit`…，ZCode `Bash`/`Write`/`Edit`…）。matcher 写错不会报错、只会永不触发，属静默失效——构建期直接拦下。
+- **出厂 banner 版本同步**：两宿主 `host/*/skills/steward/banner.md` 的「当前版本（x.y.z）」随发布号更新；MiniMax banner 补「+ 可选宿主守卫 hooks（secret / ownership / dangerous）」能力句。
+- **guard.mjs 头部注释订正**：原注释写「阻止 exit 2 并输出 JSON `{decision:block, reason}`」，与实现（stdout 保持空 + stderr + exit 2）不符；两个宿主都是「exit 2 + stderr」语义，注释按实际口径改写。
+
+### 验证
+
+- `node zcode/scripts/build.mjs` → exit 0；`node zcode/scripts/build.mjs --check` → exit 0、零 warning。
+- `node zcode/scripts/hooks/selftest.mjs` → **16 例全 PASS**（exit 0 放行 / exit 2 阻断 / stdout 为空）。
+- `node --test zcode/scripts/tests/` → 全绿。
+- 安装镜像后逐字节比对仓库 `minimax/` 与 `%USERPROFILE%\\.minimax\\plugins\\steward\\` 一致。
+
 ## [ZCode 0.10.0 / MiniMax 0.10.0] - 2026-11-11
 
 > 新增「执行模式」：在默认的 subagent（派子代理）之外，允许主代理按计划自己执行低风险任务（inline）。这不是流程降级——计划、baseline、TDD、verify 与报告全部保留，只换执行者；S / B3 / 维护小修默认允许，M 需显式开启，L 与 B0/B1/B2 禁止。

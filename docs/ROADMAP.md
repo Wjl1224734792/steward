@@ -577,3 +577,4 @@ tmp/steward/<run-id>/
 | 2026-11-07 | v1.8 | v0.8.1 技能路由 `steward:using-steward` + v0.8.2 斜杠命令注册修复（ZCode-only）；MiniMax 1.6.2 同步技能路由（路由表按宿主适配），版本节奏 warning 消失 |
 | 2026-11-06 | v1.8 | MiniMax 1.6.0 对齐 ZCode 0.8.0：文档流水线参考库（33 个 md）与本地脚本（4 个文件）由 build.mjs 同步到 minimax/；澄清内核上提为共享正文；斜杠命令口径宿主中立；版本节奏 warning 消失 |
 | 2026-11-07 | v1.9 | v0.8.1（ZCode 侧）：新增 `steward:using-steward` 技能路由（7 类入口 + 3 个轻量技能加载信号 + 3 条纪律）；MiniMax 1.6.0 未同步，1.6.1 待补 |
+| 2026-11-11 | v2.0 | v0.11.0：MiniMax 侧对齐 ZCode 的三道 PreToolUse 宿主守卫（secret / ownership / dangerous）——此前 guard.mjs 已同步但 hooks.json 从未注册，守卫从未生效；补注册 + 技能正文挂载 + hooks 说明 + 跨宿主自检（11→16 例）；两宿主同号 0.11.0 |

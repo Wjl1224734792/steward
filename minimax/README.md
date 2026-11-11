@@ -1,6 +1,6 @@
 # Steward · MiniMax 插件版
 
-角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（0.10.0）覆盖功能交付（subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，并自带可信变更门禁、演进循环（T3 按需升级）、需求澄清内核、docTier=3 完整文档流水线与 `steward:using-steward` 技能路由；演进细节见 [路线图](../docs/ROADMAP.md)。
+角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（0.11.0）覆盖功能交付（subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，并自带可信变更门禁、演进循环（T3 按需升级）、需求澄清内核、docTier=3 完整文档流水线与 `steward:using-steward` 技能路由；演进细节见 [路线图](../docs/ROADMAP.md)。
 
 本包是 Steward 的 **MiniMax Plugin V1 移植版**，与 ZCode 版**同版本同源**（团队名册、六阶段流程、调度规则与铁律一致），差异只在宿主适配。v1.2.0 起使用 Steward 名称，并继续附带可选的 GenUI 可视化技能。
 
@@ -25,6 +25,7 @@
 - **Bug 通道**：输入描述 Bug（「修这个 Bug」「这个功能坏了」）即按 B0–B3 分流：B2/B3 走复现 → 失败测试 → 根因 → 最小修复 → 回归 → 记录；B0/B1 先止损并写 postmortem。
 - **需求澄清内核（Stage 0.1）**：M/L 级、需求二义或新领域时先做第一性原理四问（问题 / 约束 / 备选 / 非目标+成功指标），最多问 3 个 P0 问题（S 级不追问）；P1/P2 按默认值写进 `01-requirement.md` 的假设并一句话告知。
 - **文档流水线（docTier=3）**：完整参考库在 `skills/steward/references/doc-pipeline/`（七阶段文档树 + 19 类模板 + 规范正文），本地门禁脚本在 `scripts/doc/`（`doc-init` 建树 / `doc-check` 索引死链 / `guard-naming` 命名守卫）——与 ZCode 侧逐字节同源，由 build.mjs 同步，勿手工改副本。
+- **宿主守卫 hooks**：`scripts/hooks/guard.mjs` 三道 PreToolUse 守卫（`secret` 密钥扫描 / `ownership` 文件所有权 / `dangerous` 危险命令），已在 `hooks/hooks.json` 注册并随插件生效；fail-open，解析失败不阻塞。
 - **检索工具栈**：全员继承宿主 `tavily-remote`（搜索/深度研究）与 `context7`（库文档查证），缺省退回 `web_search` / `web_fetch`。
 - **工件交接**：`tmp/steward/<run-id>/` 下 00-context / 01-requirement / 02-spec / 02-impact / 03-plan(.md/.json) / run.json / baseline.json / reports / final-report。
 - **修复回派**：QA / 浏览器 / 评审发现的缺陷按归属回派原开发，循环上限 2 轮。
@@ -71,6 +72,7 @@
 | 并行批次 | 同消息多 Agent 调用 | 同消息多 `task` 调用，省略 `run_in_background` |
 | 并发上限错误 | `concurrency limit exceeded` | `SUBAGENT_CONCURRENCY_LIMIT` |
 | 斜杠命令 | `commands/steward.md` + `$ARGUMENTS` | 无该能力 → 改由 `UserPromptSubmit` Hook 注入 |
+| 守卫 hooks | `hooks/hooks.json` 用 `${CLAUDE_PLUGIN_ROOT}`，matcher 匹配 `Write\|Edit` / `Bash` | `hooks/hooks.json` 用 `${PLUGIN_ROOT}`（Windows 走 `commandWindows`），matcher 匹配小写原生名 `write\|edit` / `bash` |
 | 浏览器验收 | 宿主浏览器技能 + nodeRepl | `browser-use:control-in-app-browser` + `mcp_browser` |
 | 外部检索 | tavily / context7 MCP | `tavily-remote` / `context7` MCP，缺省退 `web_search` / `web_fetch` |
 
@@ -80,8 +82,11 @@
 minimax/
 ├── .minimax-plugin/plugin.json   # 插件清单
 ├── icon.png / icon-dark.png      # Code 类图标（明/暗）
-├── hooks/hooks.json              # UserPromptSubmit 触发器
+├── hooks/hooks.json              # UserPromptSubmit 触发器 + 三道 PreToolUse 守卫
+├── hooks/README.md                # 守卫说明（触发工具 / 契约 / 关闭方式）
 ├── scripts/trigger.mjs           # 触发脚本（Node，fail open）
+├── scripts/hooks/guard.mjs        # 三道守卫实现（secret / ownership / dangerous）
+├── scripts/hooks/selftest.mjs     # 守卫契约自检（16 例）
 ├── scripts/*.mjs                 # 可信变更门禁脚本（validate-config / take-over / validate-plan / run-state / verify）与 templates/ 模板
 ├── scripts/doc/                  # 文档流水线本地脚本（doc-init / doc-check / guard-naming）
 ├── skills/
@@ -126,10 +131,10 @@ robocopy "<repo>\minimax" "$env:USERPROFILE\.minimax\plugins\steward" /MIR /NFL 
 
 ## English
 
-Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 0.10.0 covers feature delivery with subagent / inline execution modes, the B0-B3 bug track, plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), the evolution loop (architecture drift / duplication / refactor-ratio checks, codemod planning), on-demand T3 docs, the first-principles clarification kernel, the full docTier=3 documentation pipeline (seven-phase tree + 19 template types + naming guard / doc checks), the using-steward skill router, browser evidence contract, learning loop, trusted-change gates with a retry budget, and the maintenance health dashboard.
+Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 0.11.0 covers feature delivery with subagent / inline execution modes, the B0-B3 bug track, plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), the evolution loop (architecture drift / duplication / refactor-ratio checks, codemod planning), on-demand T3 docs, the first-principles clarification kernel, the full docTier=3 documentation pipeline (seven-phase tree + 19 template types + naming guard / doc checks), the using-steward skill router, browser evidence contract, learning loop, trusted-change gates with a retry budget, and the maintenance health dashboard.
 
 Skills: `steward:steward` (Tech Lead workflow) and `steward:steward-visualizer` (optional GenUI views: task DAG, defect triage, maintenance health).
 
 Trigger: the `UserPromptSubmit` hook loads the skill when the input contains "开发团队", "开发小组", or "Steward". Install by copying `minimax/` into `%USERPROFILE%\.minimax\plugins\steward\`. Local plugins are scanned when a session starts and are not hot-reloaded into a running session — a newly installed plugin becomes available from the next new session (restart MiniMax Code to pick it up immediately).
 
-Version: 0.10.0 · License: MIT · Copyright (c) 2026 Lin
+Version: 0.11.0 · License: MIT · Copyright (c) 2026 Lin
