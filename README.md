@@ -78,6 +78,8 @@ steward/
 ```
 
 > 维护者注意：技能与 agent 正文只改 `shared/`（共享部分）或 `host/<宿主>/`（宿主差异），然后运行 `node zcode/scripts/build.mjs` 生成两版；`--check` 会拦住手改与漂移。插件安装目录不需要也不应运行该脚本。
+>
+> **宿主侧隔离**：ZCode 侧只改 `zcode/` + `host/zcode/`，MiniMax 侧只改 `minimax/` + `host/minimax/`；`shared/` 与 `zcode/scripts/` 是跨宿主共享层，改动必须双侧验证并明确说明。安装/更新也各走各的：ZCode 用 `zcode plugins update`，MiniMax 用 `agent-config.mjs install --apply`。详见根目录 `AGENTS.md`。
 
 ### 安装
 
@@ -218,6 +220,8 @@ steward/
 ```
 
 > Maintainer note: edit only `shared/` (common prose) or `host/<host>/` (host deltas), then run `node zcode/scripts/build.mjs` to regenerate both hosts; `--check` catches hand edits and drift. Installed plugin copies do not need and should not run the build script.
+>
+> **Host isolation**: ZCode-side work touches only `zcode/` + `host/zcode/`; MiniMax-side work touches only `minimax/` + `host/minimax/`. `shared/` and `zcode/scripts/` are cross-host layers — any change there must be verified on both hosts and labeled as cross-host. Install/update separately: `zcode plugins update` for ZCode, `agent-config.mjs install --apply` for MiniMax. See `AGENTS.md`.
 
 ### Installation
 
