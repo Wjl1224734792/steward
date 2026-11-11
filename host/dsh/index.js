@@ -1,16 +1,25 @@
 /**
- * dsh-steward — Host half.
+ * dsh-steward — Host half, built on DSH-native extension points.
  *
- * Responsibilities:
- *  1. Register the Steward skills shipped in ./skills (generated from shared/ + host/dsh/).
- *  2. Own the per-role subagent model / reasoning-effort configuration
- *     (~/.dsh/steward/subagent-config.json) and expose it to the agent through
- *     `steward_config` / `steward_dispatch`.
- *  3. Serve the Settings → Steward page through /api/dsh-steward/*.
+ *  - Roles are declared as **Agent Presets** (`ctx.agentPresets`), each a real
+ *    Cordis composition: persona + native tool plugins. A dispatched child is
+ *    started with `agentPreset`, so its system prompt and tool set come from
+ *    the preset rather than injected prose.
+ *  - Per-role model routes live in this plugin's **Config** (`export const
+ *    Config`), whose editable fields are `.volatile()`: they are served by the
+ *    native Settings service (`settings` namespace `steward`), persist through
+ *    the profile's config editor, and update in place without a restart.
+ *  - `steward_dispatch` is a thin delegation tool over `ctx.subagents`: it
+ *    resolves the role's preset + route and calls `startActivation`.
+ *  - `steward_config` reads and writes the same native settings section.
+ *  - `/steward` is registered on the native human-command registry.
+ *  - Skills are registered on the native `ctx.skills` registry.
  *
- * Only Node builtins are imported: the bundle is installed as a local link, so
- * external packages would not resolve from the linked package path.
+ * The package is installed as a local link, so `@deepseek-ai/schemastery` is
+ * resolved from the active profile's hoisted node_modules (see
+ * `resolveSchemastery`); nothing else outside Node builtins is imported.
  */
+import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,9 +28,12 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROLES_DIR = path.join(HERE, 'roles');
 const SKILLS_DIR = path.join(HERE, 'skills');
-const CONFIG_VERSION = 1;
-const BRIDGE_PREFIX = '/api/dsh-steward';
-const MAX_BODY_BYTES = 256 * 1024;
+/** Native settings namespace — must equal the Loader row id in cordis.patch.yml. */
+const CONFIG_NS = 'steward';
+/** Agent preset ids are `<prefix><role id>`. */
+const PRESET_PREFIX = 'steward-';
+/** DSH in-process subagent backend that supports independent preset selection. */
+const SUBAGENT_PROVIDER = 'spawn';
 
 function readJson(file, fallback) {
   try {
@@ -31,149 +43,272 @@ function readJson(file, fallback) {
   }
 }
 
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+const BANNER = /^\s*<!--[\s\S]*?-->\s*/;
+
+function stripFrontmatter(text) {
+  return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+}
+
+/**
+ * Resolve schemastery from the installed package (npm install) or, for a
+ * linked checkout, from the active profile's hoisted node_modules.
+ */
+function resolveSchemastery() {
+  const load = (from) => createRequire(from)('@deepseek-ai/schemastery');
+  try {
+    return load(import.meta.url);
+  } catch {
+    // linked checkout: fall through to the active profile
+  }
+  const candidates = [];
+  const profileDir = process.env.DSH_PROFILE_DIR;
+  if (typeof profileDir === 'string' && profileDir !== '') candidates.push(path.join(profileDir, 'package.json'));
+  const home = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+  try {
+    for (const name of fs.readdirSync(path.join(home, 'profiles'))) {
+      candidates.push(path.join(home, 'profiles', name, 'package.json'));
+    }
+  } catch {
+    // no profiles directory
+  }
+  for (const manifest of candidates) {
+    if (!fs.existsSync(manifest)) continue;
+    try {
+      return load(manifest);
+    } catch {
+      // try the next profile
+    }
+  }
+  throw new Error(
+    '[dsh-steward] cannot resolve @deepseek-ai/schemastery. Install the plugin as a package (declared peer dependency) '
+    + 'or keep the linked checkout inside a dsh profile whose node_modules contains @deepseek-ai/schemastery.',
+  );
+}
+
+const z = resolveSchemastery();
+
 const ROLE_MANIFEST = readJson(path.join(ROLES_DIR, 'manifest.json'), { roles: [] });
 const SKILL_MANIFEST = readJson(path.join(SKILLS_DIR, 'manifest.json'), { skills: [] });
 const ROLES = Array.isArray(ROLE_MANIFEST.roles) ? ROLE_MANIFEST.roles : [];
 const ROLE_IDS = ROLES.map((role) => role.id);
 const ROLE_BY_ID = new Map(ROLES.map((role) => [role.id, role]));
 
-function dshHome() {
-  const fromEnv = process.env.DSH_HOME;
-  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return path.resolve(fromEnv);
-  return path.join(os.homedir(), '.dsh');
+// --- Config: native DSH settings -------------------------------------------------
+
+function routeSchema(label) {
+  return z.object({
+    provider: z.string().default('').description(`${label}：LLM 提供方 id；留空表示继承主代理`).volatile(),
+    model: z.string().default('').description(`${label}：模型 id（与 provider 成对）；留空表示继承主代理`).volatile(),
+    effort: z.string().default('').description(`${label}：模型支持的思考强度 id；留空使用模型默认`).volatile(),
+  });
 }
 
-function configPath() {
-  return path.join(dshHome(), 'steward', 'subagent-config.json');
+export const Config = z.object({
+  defaults: routeSchema('默认配置'),
+  roles: z.object(Object.fromEntries(ROLES.map((role) => [role.id, routeSchema(role.name ?? role.id)]))),
+}).description('Steward 子代理的模型与思考强度（DSH 原生设置：设置 → Steward，保存后下一次派发立即生效）');
+
+function unwrap(value) {
+  if (value !== null && typeof value === 'object' && typeof value.get === 'function') return value.get();
+  return value;
 }
 
 function emptySelection() {
   return { provider: '', model: '', effort: '' };
 }
 
-function emptyConfig() {
-  return { version: CONFIG_VERSION, updatedAt: null, defaults: emptySelection(), roles: {} };
-}
-
-function normalizeSelection(raw) {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return emptySelection();
-  const provider = typeof raw.provider === 'string' ? raw.provider.trim() : '';
-  const model = typeof raw.model === 'string' ? raw.model.trim() : '';
-  const effort = typeof raw.effort === 'string' ? raw.effort.trim() : '';
+function readSelection(route) {
+  if (route === null || typeof route !== 'object') return emptySelection();
+  const provider = String(unwrap(route.provider) ?? '').trim();
+  const model = String(unwrap(route.model) ?? '').trim();
+  const effort = String(unwrap(route.effort) ?? '').trim();
   // A route is provider+model together; a partial route is dropped instead of
   // being half-applied later.
   if (provider === '' || model === '') return emptySelection();
   return { provider, model, effort };
 }
 
+function normalizeSelection(raw) {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return emptySelection();
+  return readSelection(raw);
+}
+
+function readConfig(config) {
+  const roles = {};
+  for (const id of ROLE_IDS) roles[id] = readSelection(config?.roles?.[id]);
+  return { defaults: readSelection(config?.defaults), roles };
+}
+
 function normalizeConfig(raw) {
-  const base = emptyConfig();
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return base;
-  base.updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : null;
-  base.defaults = normalizeSelection(raw.defaults);
-  const roles = raw.roles !== null && typeof raw.roles === 'object' && !Array.isArray(raw.roles) ? raw.roles : {};
-  for (const id of ROLE_IDS) {
-    const selection = normalizeSelection(roles[id]);
-    if (selection.provider !== '') base.roles[id] = selection;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { defaults: emptySelection(), roles: Object.fromEntries(ROLE_IDS.map((id) => [id, emptySelection()])) };
   }
-  return base;
+  const roles = {};
+  for (const id of ROLE_IDS) roles[id] = normalizeSelection(raw.roles?.[id]);
+  return { defaults: normalizeSelection(raw.defaults), roles };
 }
 
-function loadConfig() {
-  return normalizeConfig(readJson(configPath(), null));
+/** Live config as served by the native settings document, falling back to the config refs. */
+function currentConfig(ctx, config) {
+  try {
+    const settings = ctx.get('settings');
+    if (settings !== undefined && typeof settings.describe === 'function') {
+      const entry = settings.describe().find((row) => row.ns === CONFIG_NS);
+      if (entry !== undefined && entry.value !== undefined) return normalizeConfig(entry.value);
+    }
+  } catch {
+    // settings service not mounted yet: use the config references
+  }
+  return readConfig(config);
 }
 
-function saveConfig(config) {
-  const file = configPath();
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const payload = JSON.stringify(
-    { version: CONFIG_VERSION, updatedAt: new Date().toISOString(), defaults: config.defaults, roles: config.roles },
-    null,
-    2,
-  );
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, payload, 'utf8');
-  fs.renameSync(tmp, file);
-  return normalizeConfig(JSON.parse(payload));
+function settingsDocumentPath(ctx) {
+  try {
+    const settings = ctx.get('settings');
+    const documentPath = settings?.documentPath;
+    return typeof documentPath === 'string' ? documentPath : '';
+  } catch {
+    return '';
+  }
 }
 
 function effectiveFor(config, roleId) {
   const own = config.roles[roleId];
-  if (own !== undefined && own.provider !== '' && own.model !== '') {
-    return { provider: own.provider, model: own.model, effort: own.effort, source: 'role' };
-  }
-  if (config.defaults.provider !== '' && config.defaults.model !== '') {
-    return { provider: config.defaults.provider, model: config.defaults.model, effort: config.defaults.effort, source: 'defaults' };
-  }
-  return { provider: '', model: '', effort: '', source: 'inherit' };
+  if (own !== undefined && own.provider !== '' && own.model !== '') return { ...own, source: 'role' };
+  if (config.defaults.provider !== '' && config.defaults.model !== '') return { ...config.defaults, source: 'defaults' };
+  return { ...emptySelection(), source: 'inherit' };
 }
 
-function stripFrontmatter(text) {
-  return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').replace(/^\n+/, '');
-}
-
-/**
- * Project-level override: `<root>/steward.config.json` modelRouting.<role>.
- * Mirrors the ZCode/MiniMax precedence (project routing above plugin defaults,
- * below an explicit instruction from the user). Malformed entries are ignored:
- * validate-config.mjs owns reporting them.
- */
-function findProjectRoot(startDir) {
-  let current = path.resolve(startDir);
-  for (let depth = 0; depth < 6; depth += 1) {
-    if (fs.existsSync(path.join(current, 'steward.config.json'))) return current;
-    if (fs.existsSync(path.join(current, '.git'))) return current;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
+async function saveConfig(ctx, patch) {
+  const settings = ctx.get('settings');
+  if (settings === undefined || typeof settings.update !== 'function') {
+    throw new Error('the native settings service is unavailable in this profile; cannot persist the Steward configuration');
   }
-  return path.resolve(startDir);
+  await settings.update(CONFIG_NS, patch);
 }
 
-function projectRouteFor(roleId, startDir) {
-  try {
-    const root = findProjectRoot(startDir);
-    const raw = readJson(path.join(root, 'steward.config.json'), null);
-    const route = raw?.modelRouting?.[roleId];
-    if (route === null || typeof route !== 'object' || Array.isArray(route)) return null;
-    const model = typeof route.model === 'string' ? route.model.trim() : '';
-    const slash = model.indexOf('/');
-    if (slash <= 0 || slash === model.length - 1) return null;
-    const effort = typeof route.effort === 'string' ? route.effort.trim() : '';
-    return { provider: model.slice(0, slash), model: model.slice(slash + 1), effort, source: 'project' };
-  } catch {
-    return null;
-  }
-}
+// --- Roles → Agent Presets -------------------------------------------------------
 
-async function resolveBaseDirectory(ctx, parent, args) {
-  if (typeof args?.cwd === 'string' && args.cwd !== '') return path.resolve(args.cwd);
-  try {
-    const workingDirectory = ctx.get('workingDirectory');
-    if (workingDirectory !== undefined && typeof workingDirectory.ensure === 'function') {
-      return await workingDirectory.ensure(parent, undefined);
-    }
-  } catch {
-    // fall through to the process directory
-  }
-  return process.cwd();
-}
+const rolePersonas = new Map();
 
-const rolePrompts = new Map();
-function rolePrompt(roleId) {
-  if (rolePrompts.has(roleId)) return rolePrompts.get(roleId);
+function rolePersona(roleId) {
+  if (rolePersonas.has(roleId)) return rolePersonas.get(roleId);
   const role = ROLE_BY_ID.get(roleId);
   let text = '';
   if (role !== undefined) {
     try {
-      text = stripFrontmatter(fs.readFileSync(path.join(HERE, role.path), 'utf8')).trim();
+      text = stripFrontmatter(fs.readFileSync(path.join(HERE, role.path), 'utf8')).replace(BANNER, '').trim();
     } catch {
       text = '';
     }
   }
-  rolePrompts.set(roleId, text);
+  rolePersonas.set(roleId, text);
   return text;
 }
+
+function presetIdFor(roleId) {
+  return `${PRESET_PREFIX}${roleId}`;
+}
+
+function shellToolEntry() {
+  return process.platform === 'win32'
+    ? { id: 'tool-pwsh', name: '@deepseek-ai/dsh-tool-pwsh' }
+    : { id: 'tool-bash', name: '@deepseek-ai/dsh-tool-bash' };
+}
+
+/** The native plugin list every Steward specialist preset composes. */
+function presetPlugins(persona) {
+  return [
+    { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: persona } },
+    { id: 'agent-instructions', name: '@deepseek-ai/dsh-agent-instructions', config: { maxBytes: 65536 } },
+    { id: 'time-context', name: '@deepseek-ai/dsh-time-context' },
+    shellToolEntry(),
+    { id: 'tool-fs', name: '@deepseek-ai/dsh-tool-fs', config: { applyPatch: false } },
+    { id: 'tool-fs-search', name: '@deepseek-ai/dsh-tool-fs-search', config: { sampleOverCapGlobResults: false } },
+    { id: 'tool-todo', name: '@deepseek-ai/dsh-tool-todo', config: { allowParallelInProgress: true } },
+    { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web', config: { fetch: true, searchTimeoutMs: 60000 } },
+    { id: 'skill-filesystem', name: '@deepseek-ai/dsh-skill-filesystem' },
+    { id: 'tool-skill', name: '@deepseek-ai/dsh-tool-skill' },
+    { id: 'present', name: '@deepseek-ai/dsh-tool-present' },
+    {
+      id: 'compaction',
+      name: 'cordis:group',
+      group: true,
+      isolate: { compaction: true, toolResultPruner: true },
+      config: [
+        { id: 'compaction-basic', name: '@deepseek-ai/dsh-compaction-basic' },
+        { id: 'command-compact', name: '@deepseek-ai/dsh-command-compact' },
+        { id: 'tool-result-pruner', name: '@deepseek-ai/dsh-compaction-tool-result-pruner', config: { thresholdChars: 8192, headChars: 4096, tailChars: 1024 } },
+      ],
+    },
+  ];
+}
+
+function buildPreset(role, index) {
+  return {
+    id: presetIdFor(role.id),
+    name: `Steward · ${role.name ?? role.id}`,
+    description: `Steward ${role.name ?? role.id}（${role.id}）：${role.description ?? ''}`.trim(),
+    order: 100 + index,
+    plugins: presetPlugins(rolePersona(role.id)),
+  };
+}
+
+function registerPresets(ctx) {
+  ctx.inject(['agentPresets'], (sctx) => {
+    for (const [index, role] of ROLES.entries()) {
+      const definition = buildPreset(role, index);
+      let cancelled = false;
+      let dispose = null;
+      sctx.effect(() => {
+        Promise.resolve(sctx.agentPresets.register(definition)).then((disposer) => {
+          if (cancelled) {
+            Promise.resolve(disposer()).catch(() => {});
+            return;
+          }
+          dispose = disposer;
+        }).catch((error) => {
+          sctx.logger?.warn?.(`steward: could not register agent preset ${definition.id}: ${errorMessage(error)}`);
+        });
+        return async () => {
+          cancelled = true;
+          const disposer = dispose;
+          dispose = null;
+          if (typeof disposer === 'function') {
+            try {
+              await disposer();
+            } catch {
+              // preset disposal is best effort
+            }
+          }
+        };
+      }, `steward: preset ${definition.id}`);
+    }
+  });
+}
+
+async function assertPresetReady(ctx, presetId) {
+  const presets = ctx.get('agentPresets');
+  if (presets === undefined || typeof presets.resolve !== 'function') return;
+  let preset;
+  try {
+    preset = await presets.resolve(presetId);
+  } catch (error) {
+    throw new Error(`Steward role preset ${presetId} is not available: ${errorMessage(error)}`);
+  }
+  if (preset === undefined || preset === null) {
+    throw new Error(`Steward role preset ${presetId} is not registered (the plugin may still be loading)`);
+  }
+  if (typeof preset.broken === 'string' && preset.broken !== '') {
+    throw new Error(`Steward role preset ${presetId} failed to activate: ${preset.broken}`);
+  }
+}
+
+// --- Subagent model catalog ------------------------------------------------------
 
 function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
@@ -194,7 +329,7 @@ async function buildCatalog(llm) {
   try {
     listed = llm.listProviders();
   } catch (error) {
-    throw new Error(`cannot list model providers: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`cannot list model providers: ${errorMessage(error)}`);
   }
   await Promise.all(listed.map(async (provider) => {
     let models = [];
@@ -242,7 +377,7 @@ function findModel(providers, providerId, modelId) {
   return provider.models.find((entry) => entry.id === modelId) ?? null;
 }
 
-/** Validate a full configuration against the live catalog; returns an error string or null. */
+/** Validate every configured route against the live catalog; returns an error string or null. */
 function validateConfig(config, providers) {
   const check = (label, selection) => {
     if (selection.provider === '' && selection.model === '') {
@@ -259,21 +394,33 @@ function validateConfig(config, providers) {
   const defaultsError = check('默认配置', config.defaults);
   if (defaultsError !== null) return defaultsError;
   for (const id of ROLE_IDS) {
-    const selection = config.roles[id];
-    if (selection === undefined) continue;
-    const error = check(`角色 ${id}`, selection);
+    const error = check(`角色 ${id}`, config.roles[id] ?? emptySelection());
     if (error !== null) return error;
   }
   return null;
 }
 
-function roleState(config, providers) {
+function publicProviders(providers) {
+  return providers.map((provider) => ({
+    id: provider.id,
+    name: provider.name,
+    models: provider.models.map((model) => ({
+      id: model.id,
+      name: model.name,
+      efforts: model.efforts.map((effort) => effort.id),
+      defaultEffort: model.defaultEffort,
+    })),
+  }));
+}
+
+function roleState(config) {
   return ROLES.map((role) => {
     const effective = effectiveFor(config, role.id);
     return {
       id: role.id,
       name: role.name ?? role.id,
       description: role.description ?? '',
+      preset: presetIdFor(role.id),
       provider: effective.provider,
       model: effective.model,
       effort: effective.effort,
@@ -282,45 +429,60 @@ function roleState(config, providers) {
   });
 }
 
-function publicState(config, providers, childProvider) {
-  return {
-    version: CONFIG_VERSION,
-    configPath: configPath(),
-    updatedAt: config.updatedAt,
-    config: {
-      defaults: { ...config.defaults },
-      roles: Object.fromEntries(Object.entries(config.roles).map(([id, selection]) => [id, { ...selection }])),
-    },
-    defaults: { ...config.defaults },
-    roles: roleState(config, providers),
-    providers,
-    childProvider,
-  };
+function routeText(role) {
+  return role.provider === '' ? '继承主代理' : `${role.provider}/${role.model}${role.effort === '' ? '' : ` @ ${role.effort}`}`;
 }
 
-async function resolveChildProvider(ctx) {
-  const subagents = ctx.get('subagents');
-  if (subagents === undefined) return { name: 'spawn', available: false, agentOptions: false };
-  const provider = subagents.getProvider('spawn');
-  if (provider === undefined) {
-    const names = typeof subagents.list === 'function' ? subagents.list() : [];
-    return { name: 'spawn', available: false, agentOptions: false, providers: names };
+function sourceText(source) {
+  if (source === 'role') return '角色配置';
+  if (source === 'defaults') return '默认配置';
+  return '继承主代理';
+}
+
+// --- Project-level routing override ---------------------------------------------
+
+function findProjectRoot(startDir) {
+  let current = path.resolve(startDir);
+  for (let depth = 0; depth < 6; depth += 1) {
+    if (fs.existsSync(path.join(current, 'steward.config.json'))) return current;
+    if (fs.existsSync(path.join(current, '.git'))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
   }
-  return {
-    name: provider.name,
-    available: true,
-    agentOptions: Boolean(provider.capabilities?.agentOptions),
-    continuable: typeof provider.prepareContinuable === 'function',
-  };
+  return path.resolve(startDir);
 }
 
-function jsonSchemaString(description) {
-  return { type: 'string', description };
+function projectRouteFor(roleId, startDir) {
+  try {
+    const root = findProjectRoot(startDir);
+    const raw = readJson(path.join(root, 'steward.config.json'), null);
+    const route = raw?.modelRouting?.[roleId];
+    if (route === null || typeof route !== 'object' || Array.isArray(route)) return null;
+    const model = typeof route.model === 'string' ? route.model.trim() : '';
+    const slash = model.indexOf('/');
+    if (slash <= 0 || slash === model.length - 1) return null;
+    const effort = typeof route.effort === 'string' ? route.effort.trim() : '';
+    return { provider: model.slice(0, slash), model: model.slice(slash + 1), effort, source: 'project' };
+  } catch {
+    return null;
+  }
 }
 
-function roleEnum() {
-  return ROLE_IDS.slice();
+async function resolveBaseDirectory(ctx, parent, args) {
+  if (typeof args?.cwd === 'string' && args.cwd !== '') return path.resolve(args.cwd);
+  try {
+    const workingDirectory = ctx.get('workingDirectory');
+    if (workingDirectory !== undefined && typeof workingDirectory.ensure === 'function') {
+      return await workingDirectory.ensure(parent, undefined);
+    }
+  } catch {
+    // fall through to the process directory
+  }
+  return process.cwd();
 }
+
+// --- Tools -----------------------------------------------------------------------
 
 function toolError(message) {
   return new Error(message);
@@ -330,29 +492,26 @@ function textBlocks(text) {
   return [{ type: 'text', text }];
 }
 
-function summarizeRoles(config, providers) {
-  return roleState(config, providers).map((role) => {
-    const route = role.source === 'inherit' ? '继承主代理' : `${role.provider}/${role.model}${role.effort === '' ? '' : ` @ ${role.effort}`}`;
-    return `- ${role.id}（${role.name}）：${route}（来源：${role.source === 'role' ? '角色配置' : role.source === 'defaults' ? '默认配置' : '继承主代理'}）`;
-  }).join('\n');
+function identifierSchema(description) {
+  return { type: 'string', description };
 }
 
-function defineStewardTools(ctx) {
+function defineStewardTools(ctx, config) {
   const tools = ctx.get('tools');
   if (tools === undefined) return;
 
   const configTool = {
     name: 'steward_config',
-    description: 'Read or change the Steward subagent model configuration (per-role provider/model/reasoning effort). Use action="list" to show the current roster and the live model catalog, action="set" to change one role or the defaults, action="reset" to clear one role or everything. The same state is edited by the Settings → Steward page; changes apply to the next steward_dispatch call.',
+    description: 'Read or change the Steward subagent model routes (per-role provider/model/reasoning effort) and inspect the live model catalog. This is the same DSH-native settings section (`steward`) edited on the Settings → Steward page; changes apply to the next steward_dispatch call. Use action="list" to show the roster, action="set" to change one role or the defaults, action="reset" to clear one role or everything.',
     parameters: {
       type: 'object',
       additionalProperties: false,
       properties: {
         action: { type: 'string', enum: ['list', 'set', 'reset'], description: 'Operation to perform.' },
-        role: { type: 'string', enum: roleEnum(), description: 'Role id for set/reset. Omit to edit the defaults (set) or reset everything (reset).' },
-        provider: jsonSchemaString('LLM provider id (with model). Empty string clears the selection.'),
-        model: jsonSchemaString('Model id within the provider (with provider).'),
-        effort: jsonSchemaString('Reasoning effort id supported by the model; empty string uses the model default.'),
+        role: { type: 'string', enum: ROLE_IDS.slice(), description: 'Role id for set/reset. Omit to edit the defaults (set) or reset everything (reset).' },
+        provider: identifierSchema('LLM provider id (with model). Empty string clears the selection.'),
+        model: identifierSchema('Model id within the provider (with provider).'),
+        effort: identifierSchema('Reasoning effort id supported by the model; empty string uses the model default.'),
       },
       required: ['action'],
     },
@@ -362,7 +521,8 @@ function defineStewardTools(ctx) {
         additionalProperties: false,
         properties: {
           action: { type: 'string' },
-          configPath: { type: 'string' },
+          namespace: { type: 'string' },
+          documentPath: { type: 'string' },
           defaults: {
             type: 'object',
             additionalProperties: false,
@@ -377,12 +537,14 @@ function defineStewardTools(ctx) {
               properties: {
                 id: { type: 'string' },
                 name: { type: 'string' },
+                description: { type: 'string' },
+                preset: { type: 'string' },
                 provider: { type: 'string' },
                 model: { type: 'string' },
                 effort: { type: 'string' },
                 source: { type: 'string' },
               },
-              required: ['id', 'name', 'provider', 'model', 'effort', 'source'],
+              required: ['id', 'name', 'description', 'preset', 'provider', 'model', 'effort', 'source'],
             },
           },
           providers: {
@@ -412,34 +574,23 @@ function defineStewardTools(ctx) {
             },
           },
         },
-        required: ['action', 'configPath', 'defaults', 'roles', 'providers'],
+        required: ['action', 'namespace', 'documentPath', 'defaults', 'roles', 'providers'],
       },
       render: (_args, value) => textBlocks(
-        `${value.action === 'list' ? '当前 Steward 子代理配置' : value.action === 'set' ? '已更新 Steward 子代理配置' : '已重置 Steward 子代理配置'}（${value.configPath}）\n` +
-        value.roles.map((role) => `- ${role.id}：${role.provider === '' ? '继承主代理' : `${role.provider}/${role.model}${role.effort === '' ? '' : ` @ ${role.effort}`}`}（${role.source}）`).join('\n'),
+        `${value.action === 'list' ? '当前 Steward 子代理路由' : value.action === 'set' ? '已更新 Steward 子代理路由' : '已重置 Steward 子代理路由'}（DSH 设置命名空间：${value.namespace}${value.documentPath === '' ? '' : `，${value.documentPath}`}）\n`
+        + value.roles.map((role) => `- ${role.id}（${role.name}）：${role.provider === '' ? '继承主代理' : `${role.provider}/${role.model}${role.effort === '' ? '' : ` @ ${role.effort}`}`}（${role.source === 'inherit' ? '' : `${sourceText(role.source)}；`}preset ${role.preset}）`).join('\n'),
       ),
     },
     isConcurrencySafe: () => false,
-    async execute(args, exec) {
+    async execute(args) {
       const action = String(args?.action ?? '');
       const llm = ctx.get('llm');
       if (llm === undefined) throw toolError('cannot read or validate the model catalog: the llm service is unavailable');
       const providers = await getCatalog(llm, args?.refresh === true);
-      let config = loadConfig();
+      let snapshot = normalizeConfig(currentConfig(ctx, config));
       if (action === 'list') {
-        return {
-          action: 'list',
-          configPath: configPath(),
-          defaults: config.defaults,
-          roles: roleState(config, providers).map(({ id, name, provider, model, effort, source }) => ({ id, name, provider, model, effort, source })),
-          providers: providers.map((provider) => ({
-            id: provider.id,
-            name: provider.name,
-            models: provider.models.map((model) => ({ id: model.id, name: model.name, efforts: model.efforts.map((effort) => effort.id), defaultEffort: model.defaultEffort })),
-          })),
-        };
-      }
-      if (action === 'set') {
+        // read-only
+      } else if (action === 'set') {
         const rawProvider = String(args?.provider ?? '').trim();
         const rawModel = String(args?.model ?? '').trim();
         const rawEffort = String(args?.effort ?? '').trim();
@@ -452,35 +603,35 @@ function defineStewardTools(ctx) {
         }
         if (args?.role !== undefined) {
           if (!ROLE_IDS.includes(args.role)) throw toolError(`unknown role "${args.role}"`);
-          if (selection.provider === '') delete config.roles[args.role];
-          else config.roles[args.role] = selection;
+          snapshot.roles[args.role] = selection;
         } else {
-          config.defaults = selection;
+          snapshot.defaults = selection;
         }
-        const invalid = validateConfig(config, providers);
+        const invalid = validateConfig(snapshot, providers);
         if (invalid !== null) throw toolError(invalid);
-        config = saveConfig(config);
+        await saveConfig(ctx, args?.role === undefined ? { defaults: selection } : { roles: { [args.role]: selection } });
+        snapshot = normalizeConfig(currentConfig(ctx, config));
       } else if (action === 'reset') {
+        if (args?.role !== undefined && !ROLE_IDS.includes(args.role)) throw toolError(`unknown role "${args.role}"`);
+        const empty = emptySelection();
         if (args?.role !== undefined) {
-          if (!ROLE_IDS.includes(args.role)) throw toolError(`unknown role "${args.role}"`);
-          delete config.roles[args.role];
+          snapshot.roles[args.role] = empty;
+          await saveConfig(ctx, { roles: { [args.role]: empty } });
         } else {
-          config = emptyConfig();
+          snapshot = normalizeConfig({ defaults: empty, roles: Object.fromEntries(ROLE_IDS.map((id) => [id, empty])) });
+          await saveConfig(ctx, { defaults: empty, roles: snapshot.roles });
         }
-        config = saveConfig(config);
+        snapshot = normalizeConfig(currentConfig(ctx, config));
       } else {
         throw toolError(`unknown action "${action}" (expected list/set/reset)`);
       }
       return {
-        action: action === 'reset' ? 'reset' : 'set',
-        configPath: configPath(),
-        defaults: config.defaults,
-        roles: roleState(config, providers).map(({ id, name, provider, model, effort, source }) => ({ id, name, provider, model, effort, source })),
-        providers: providers.map((provider) => ({
-          id: provider.id,
-          name: provider.name,
-          models: provider.models.map((model) => ({ id: model.id, name: model.name, efforts: model.efforts.map((effort) => effort.id), defaultEffort: model.defaultEffort })),
-        })),
+        action: action === 'reset' ? 'reset' : action === 'set' ? 'set' : 'list',
+        namespace: CONFIG_NS,
+        documentPath: settingsDocumentPath(ctx),
+        defaults: snapshot.defaults,
+        roles: roleState(snapshot),
+        providers: publicProviders(providers),
       };
     },
   };
@@ -489,12 +640,12 @@ function defineStewardTools(ctx) {
 
   const dispatchTool = {
     name: 'steward_dispatch',
-    description: 'Dispatch one Steward specialist subagent by role (pm, architect, backend-dev, frontend-dev, qa-engineer, browser-tester, reviewer). The child uses the model and reasoning effort configured for that role (Settings → Steward), falling back to the Steward defaults and then to the parent route; a project `steward.config.json` modelRouting entry for the role overrides the settings page. Returns the child session id immediately; the child sends its final result back as a completion notice. The prompt must be self-contained — the child does not see this conversation. Use one call per task, and start independent tasks in the same message.',
+    description: 'Dispatch one Steward specialist subagent by role (pm, architect, backend-dev, frontend-dev, qa-engineer, browser-tester, reviewer). The child runs the DSH agent preset `steward-<role>` (its persona and tool composition), with the model and reasoning effort configured for that role on Settings → Steward, falling back to the Steward defaults and then to the parent route; a project `steward.config.json` modelRouting entry overrides the settings page. Returns the child session id immediately; the child sends its final result back as a completion notice. The prompt must be self-contained because the child does not see this conversation. Use one call per task.',
     parameters: {
       type: 'object',
       additionalProperties: false,
       properties: {
-        role: { type: 'string', enum: roleEnum(), description: 'Steward role to dispatch.' },
+        role: { type: 'string', enum: ROLE_IDS.slice(), description: 'Steward role to dispatch.' },
         description: { type: 'string', description: 'A short (3-5 word) description of the delegated task, for display.' },
         prompt: { type: 'string', description: 'The complete, self-contained task: goal, repository root, artifact paths, file ownership, acceptance criteria and report destination.' },
         cwd: { type: 'string', description: 'Initial child working directory; relative paths resolve against the current directory. Omit to inherit.' },
@@ -509,15 +660,16 @@ function defineStewardTools(ctx) {
           kind: { type: 'string', const: 'activation' },
           childId: { type: 'string' },
           role: { type: 'string' },
+          preset: { type: 'string' },
           provider: { type: 'string' },
           model: { type: 'string' },
           effort: { type: 'string' },
           source: { type: 'string' },
         },
-        required: ['kind', 'childId', 'role', 'provider', 'model', 'effort', 'source'],
+        required: ['kind', 'childId', 'role', 'preset', 'provider', 'model', 'effort', 'source'],
       },
       render: (_args, value) => textBlocks(
-        `started steward subagent ${value.childId} (role ${value.role}; ${value.provider === '' ? 'inherited parent model' : `${value.provider}/${value.model}${value.effort === '' ? '' : ` @ ${value.effort}`}`})`,
+        `started steward subagent ${value.childId} (role ${value.role}, preset ${value.preset}; ${value.provider === '' ? 'inherited parent model' : `${value.provider}/${value.model}${value.effort === '' ? '' : ` @ ${value.effort}`}`})`,
       ),
     },
     isConcurrencySafe: () => true,
@@ -528,14 +680,18 @@ function defineStewardTools(ctx) {
       if (!ROLE_IDS.includes(roleId)) throw toolError(`unknown steward role "${roleId}"`);
       const subagents = ctx.get('subagents');
       if (subagents === undefined) throw toolError('the subagents service is unavailable in this profile');
-      const providerName = 'spawn';
-      const provider = subagents.getProvider(providerName);
-      if (provider === undefined) throw toolError(`the "${providerName}" subagent provider is not registered`);
+      const provider = subagents.getProvider(SUBAGENT_PROVIDER);
+      if (provider === undefined) throw toolError(`the "${SUBAGENT_PROVIDER}" subagent provider is not registered`);
+      if (provider.capabilities?.agentPreset !== true) {
+        throw toolError(`the "${SUBAGENT_PROVIDER}" subagent provider does not support independent agent preset selection`);
+      }
+      const presetId = presetIdFor(roleId);
+      await assertPresetReady(ctx, presetId);
 
-      const config = loadConfig();
+      const snapshot = normalizeConfig(currentConfig(ctx, config));
       const baseDir = await resolveBaseDirectory(ctx, parent, args);
       const projectRoute = projectRouteFor(roleId, baseDir);
-      const effective = projectRoute === null ? effectiveFor(config, roleId) : projectRoute;
+      const effective = projectRoute === null ? effectiveFor(snapshot, roleId) : projectRoute;
       let agentOptions;
       if (effective.provider !== '' && effective.model !== '') {
         const llm = ctx.get('llm');
@@ -551,24 +707,20 @@ function defineStewardTools(ctx) {
           agentOptions = { provider: effective.provider, model: effective.model };
         }
         if (provider.capabilities?.agentOptions !== true) {
-          throw toolError(`subagent provider "${providerName}" does not support child agentOptions; clear the role model configuration or switch providers`);
+          throw toolError(`subagent provider "${SUBAGENT_PROVIDER}" does not support child agentOptions; clear the role model configuration or switch providers`);
         }
       }
 
-      const roleText = rolePrompt(roleId);
-      const promptText = roleText === ''
-        ? `## 任务（来自 Tech Lead）\n\n${String(args.prompt)}`
-        : `${roleText}\n\n---\n\n## 任务（来自 Tech Lead）\n\n${String(args.prompt)}`;
-      const request = {
-        prompt: [{ type: 'text', text: promptText }],
-        parent,
-        ...(typeof args?.cwd === 'string' && args.cwd !== '' ? { cwd: args.cwd } : {}),
-        ...(agentOptions === undefined ? {} : { agentOptions }),
-      };
       const activation = await subagents.startActivation({
-        provider: providerName,
+        provider: SUBAGENT_PROVIDER,
         label: String(args?.description ?? roleId),
-        request,
+        request: {
+          prompt: [{ type: 'text', text: String(args?.prompt) }],
+          parent,
+          agentPreset: presetId,
+          ...(typeof args?.cwd === 'string' && args.cwd !== '' ? { cwd: args.cwd } : {}),
+          ...(agentOptions === undefined ? {} : { agentOptions }),
+        },
         signal: exec.signal,
         delivery: 'parent',
       });
@@ -576,6 +728,7 @@ function defineStewardTools(ctx) {
         kind: 'activation',
         childId: String(activation.childId),
         role: roleId,
+        preset: presetId,
         provider: effective.provider,
         model: effective.model,
         effort: effective.effort,
@@ -586,6 +739,45 @@ function defineStewardTools(ctx) {
 
   ctx.effect(() => tools.register(dispatchTool), 'steward: steward_dispatch tool');
 }
+
+// --- Human command ---------------------------------------------------------------
+
+function renderRoster(ctx, config, topic) {
+  const snapshot = normalizeConfig(currentConfig(ctx, config));
+  const routes = roleState(snapshot);
+  const header = 'Steward 团队（DSH 原生 Agent Presets + 原生 Settings）';
+  const lines = [header, ''];
+  if (topic === 'models' || topic === 'roles' || topic === '') {
+    for (const role of routes) {
+      const source = role.source === 'inherit' ? '' : ` · ${sourceText(role.source)}`;
+      lines.push(`- ${role.id}（${role.name}）→ preset \`${role.preset}\` · ${routeText(role)}${source}`);
+    }
+    lines.push('');
+  }
+  lines.push(`模型路由：设置 → Steward（命名空间 \`${CONFIG_NS}\`${settingsDocumentPath(ctx) === '' ? '' : `，${settingsDocumentPath(ctx)}`}）或 \`steward_config\` 工具`);
+  lines.push('派发：主代理调用 `steward_dispatch(role=..., description=..., prompt=...)`；子代理以对应 preset 启动，prompt 必须自包含。');
+  return lines.join('\n');
+}
+
+function registerCommands(ctx, config) {
+  ctx.inject(['commands'], (sctx) => {
+    const definition = {
+      name: 'steward',
+      description: '显示 Steward 团队名册、角色预设与子代理模型路由（DSH 原生 Settings / Agent Presets）',
+      input: { hint: '[roles|models|help]' },
+      handler: (invocation) => {
+        try {
+          return { kind: 'success', text: renderRoster(ctx, config, String(invocation?.rawInput ?? '').trim().toLowerCase()) };
+        } catch (error) {
+          return { kind: 'error', text: `无法读取 Steward 配置：${errorMessage(error)}` };
+        }
+      },
+    };
+    sctx.effect(() => sctx.commands.register(definition), 'steward: /steward command');
+  });
+}
+
+// --- Skills ----------------------------------------------------------------------
 
 function registerSkills(ctx) {
   ctx.inject(['skills'], (sctx) => {
@@ -607,138 +799,24 @@ function registerSkills(ctx) {
         sctx.effect(() => sctx.skills.register(registration), `steward: skill ${skill.name}`);
       } catch (error) {
         // A user skill with the same name must not stop the plugin from loading.
-        sctx.logger?.warn?.(`steward: could not register skill "${skill.name}": ${error instanceof Error ? error.message : String(error)}`);
+        sctx.logger?.warn?.(`steward: could not register skill "${skill.name}": ${errorMessage(error)}`);
       }
     }
   });
 }
 
-function isSameOrigin(request) {
-  if (request.headers['sec-fetch-site'] === 'cross-site') return false;
-  const host = request.headers.host;
-  if (typeof host !== 'string' || host === '') return false;
-  const origin = request.headers.origin;
-  if (typeof origin === 'string' && origin !== '') {
-    try {
-      return new URL(origin).host === host;
-    } catch {
-      return false;
-    }
-  }
-  return true;
-}
-
-function readJsonBody(request) {
-  return new Promise((resolve) => {
-    const chunks = [];
-    let size = 0;
-    request.on('data', (chunk) => {
-      size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
-        resolve({ ok: false, message: 'request body too large' });
-        request.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-    request.on('end', () => {
-      try {
-        resolve({ ok: true, value: JSON.parse(Buffer.concat(chunks).toString('utf8')) });
-      } catch {
-        resolve({ ok: false, message: 'malformed JSON body' });
-      }
-    });
-    request.on('error', (error) => resolve({ ok: false, message: error instanceof Error ? error.message : String(error) }));
-  });
-}
-
-function writeJson(response, status, body) {
-  if (response.writableEnded) return;
-  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
-  response.end(JSON.stringify(body));
-}
-
-function registerBridge(ctx) {
-  ctx.inject(['webServer', 'llm'], (sctx) => {
-    const llm = sctx.llm;
-    const state = async (request, response) => {
-      if (!isSameOrigin(request)) return writeJson(response, 403, { ok: false, code: 'forbidden', message: 'same-origin requests only' });
-      if (request.method !== 'GET') return writeJson(response, 405, { ok: false, code: 'method-not-allowed', message: 'GET only' });
-      try {
-        const url = new URL(request.url ?? '/', 'http://localhost');
-        const refresh = url.searchParams.get('refresh') === '1';
-        const providers = await getCatalog(llm, refresh);
-        const config = loadConfig();
-        const childProvider = await resolveChildProvider(sctx);
-        return writeJson(response, 200, { ok: true, value: publicState(config, providers, childProvider) });
-      } catch (error) {
-        return writeJson(response, 500, { ok: false, code: 'state-failed', message: error instanceof Error ? error.message : String(error) });
-      }
-    };
-    const save = async (request, response) => {
-      if (!isSameOrigin(request)) return writeJson(response, 403, { ok: false, code: 'forbidden', message: 'same-origin requests only' });
-      if (request.method !== 'POST') return writeJson(response, 405, { ok: false, code: 'method-not-allowed', message: 'POST only' });
-      const body = await readJsonBody(request);
-      if (!body.ok) return writeJson(response, 400, { ok: false, code: 'bad-request', message: body.message });
-      try {
-        const providers = await getCatalog(llm, false);
-        const incoming = body.value?.config ?? body.value;
-        const candidate = normalizeConfig(incoming);
-        const invalid = validateConfig(candidate, providers);
-        if (invalid !== null) return writeJson(response, 200, { ok: false, code: 'invalid-config', message: invalid });
-        const config = saveConfig(candidate);
-        const childProvider = await resolveChildProvider(sctx);
-        return writeJson(response, 200, { ok: true, value: publicState(config, providers, childProvider) });
-      } catch (error) {
-        return writeJson(response, 500, { ok: false, code: 'save-failed', message: error instanceof Error ? error.message : String(error) });
-      }
-    };
-    const reset = async (request, response) => {
-      if (!isSameOrigin(request)) return writeJson(response, 403, { ok: false, code: 'forbidden', message: 'same-origin requests only' });
-      if (request.method !== 'POST') return writeJson(response, 405, { ok: false, code: 'method-not-allowed', message: 'POST only' });
-      const body = await readJsonBody(request);
-      if (!body.ok) return writeJson(response, 400, { ok: false, code: 'bad-request', message: body.message });
-      try {
-        const role = body.value?.role;
-        let config = loadConfig();
-        if (typeof role === 'string' && role !== '') {
-          if (!ROLE_IDS.includes(role)) return writeJson(response, 400, { ok: false, code: 'unknown-role', message: `unknown role "${role}"` });
-          delete config.roles[role];
-        } else {
-          config = emptyConfig();
-        }
-        config = saveConfig(config);
-        const providers = await getCatalog(llm, false);
-        const childProvider = await resolveChildProvider(sctx);
-        return writeJson(response, 200, { ok: true, value: publicState(config, providers, childProvider) });
-      } catch (error) {
-        return writeJson(response, 500, { ok: false, code: 'reset-failed', message: error instanceof Error ? error.message : String(error) });
-      }
-    };
-    const routes = [
-      [`${BRIDGE_PREFIX}/state`, state],
-      [`${BRIDGE_PREFIX}/config`, save],
-      [`${BRIDGE_PREFIX}/reset`, reset],
-    ];
-    for (const [routePath, handler] of routes) {
-      try {
-        sctx.effect(() => sctx.webServer.register({ kind: 'exact', path: routePath, handler }), `steward: route ${routePath}`);
-      } catch (error) {
-        sctx.logger?.warn?.(`steward: could not register ${routePath}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-  });
-}
+// --- Plugin ----------------------------------------------------------------------
 
 export const name = 'dsh-steward';
 export const inject = ['tools'];
 
-export function apply(ctx) {
+export function apply(ctx, config) {
   registerSkills(ctx);
-  defineStewardTools(ctx);
-  registerBridge(ctx);
+  registerPresets(ctx);
+  defineStewardTools(ctx, config);
+  registerCommands(ctx, config);
   try {
-    ctx.logger?.info?.(`steward: ${SKILL_MANIFEST.skills?.length ?? 0} skills, ${ROLES.length} roles, config at ${configPath()}`);
+    ctx.logger?.info?.(`steward: ${SKILL_MANIFEST.skills?.length ?? 0} skills, ${ROLES.length} role presets, settings namespace ${CONFIG_NS}`);
   } catch {
     // logging is best effort
   }

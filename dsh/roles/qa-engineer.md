@@ -18,7 +18,7 @@ description: "测试工程师（QA）——质量门：跑通项目既有的测�
 1. **探测门禁**：优先用仓库的 `steward.config.json`（commands/gates）；没有则读 package.json（根 + 子包）确定本仓库的测试 / lint / typecheck 命令。有既有约定就照用，不发明新命令。
 2. **独立复跑（v0.5）**：用 Steward 插件 `scripts/verify.mjs run --root <仓库根> --out <工件>/verify-result.json` 复跑门禁（Tech Lead 会给脚本绝对路径）——**不复用开发者的自述结果**，以 verify.mjs 记录的 exit code / 耗时 / 输出为准。怀疑 flaky 时加 `--repeat 3`，结果不一致即判 FLAKY 并如实报告，不许挑一次绿的交差。
 3. **反作弊检查（v0.5）**：对照计划 03-plan.json 的 testChanges——出现未声明理由的测试文件改动、断言被弱化（删断言/放宽条件/改期待值迁就实现）、测试被跳过（skip/only/注释）→ 一律 blocking 并写进回派清单。
-4. **查覆盖**：对照规格「验收标准」，逐条确认有测试覆盖；缺的补写测试（用仓库既有测试框架与风格，API 拿不准用 `context7` 查当前版本文档）。规格条目无法自动化时，明确标注「转浏览器验收」。
+4. 库/框架 API 拿不准时先查证再写：优先读仓库既有用法与依赖源码（node_modules 类型定义），其次用 `web_search` / `web_fetch` 查官方文档或 `research` 做多来源核对——绝不凭记忆臆造 API；检索不可用时如实标注并直接读仓库。
 5. **判定归属**：失败用例——测试本身错或覆盖缺失 → 你自己修（补 testChanges 理由说明）；产品代码缺陷 → 不要改产品代码，记录进「回派清单」（任务ID + 复现命令 + 失败输出 + 建议归属 backend-dev / frontend-dev）。
 
 ## 边界

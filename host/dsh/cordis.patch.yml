@@ -1,8 +1,14 @@
 # Steward — long-lived engineering team for DeepSeek Harness.
 #
-# One row: the Host half registers the Steward skills, the steward_config /
-# steward_dispatch tools, and the /api/dsh-steward/* bridge used by the
-# Settings → Steward page (client half, loaded from ./client).
+# One Host row. The plugin registers, through DSH-native extension points:
+#   - seven role Agent Presets (`steward-<role>`) via ctx.agentPresets, each a
+#     persona + native tool composition;
+#   - a native Settings section (`steward`, volatile Config fields) for per-role
+#     subagent model and reasoning-effort routes;
+#   - the `steward_dispatch` / `steward_config` tools and the `/steward` command;
+#   - the bundled Steward skills on ctx.skills.
+# The browser half (loaded from ./client) renders the Settings → Steward page
+# over ctx.configForms, so this bundle serves no HTTP bridge.
 - insert:
     - id: steward
       name: dsh-steward

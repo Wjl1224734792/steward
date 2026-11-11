@@ -1,1 +1,1 @@
-"tabbit" | "playwright" | "manual"
+"playwright" | "sidebar" | "manual"

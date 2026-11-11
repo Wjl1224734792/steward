@@ -2,14 +2,17 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
-## DSH 0.1.0（新宿主首版）— 2026-11-11
+## DSH 0.2.0（DSH 原生机制重写）— 2026-11-11
+
+> 上一版（DSH 0.1.0）是在 DSH 里重做 ZCode/MiniMax 的一套形状：角色提示词拼进 prompt、私有 `~/.dsh/steward/subagent-config.json`、自建 `/api/dsh-steward/*` 桥 + 自绘配置页、斜杠命令缺失。0.2.0 按「功能对齐、机制原生」重写：用 DSH 自己的 Agent Presets / Config+Settings / configForms / commands / skills 实现同样能力。
 
 | # | 交付 | 状态 | 证据 | 备注 |
 |---|---|---|---|---|
-| D1 | DSH 插件包（Host + Client） | 已实现 | `node host/dsh/build.mjs` exit 0、`--check` exit 0；`plugin_manager(install_bundle, target=dsh/)` → `application: applied`；`settings.section` 槽位 occupant `steward`（order 50）active | Host：6 技能 + 2 工具 + 3 条 `/api/dsh-steward/*` 桥路由；Client：设置页 + 插件页复用同一组件（未做浏览器认证页截图） |
-| D2 | 子代理模型与思考强度可视化配置 | 已实现 | `steward_config(list)` 返回 7 角色 + 实时模型目录；`set` 后 `roles.reviewer = ctaigw/glm-5.3 @ high`；`steward_dispatch` 子会话 `request/header` 实测 `{"provider":"ctaigw","model":"glm-5.3","reasoningEffort":"high"}` 且子代理回传 `STEWARD_OK`；项目级 `modelRouting` 亦实测命中 | 档位集合来自 `llm.resolveModelInfo`；配置原子写 `~/.dsh/steward/subagent-config.json`；未知模型/档位保存与派发双重拒绝；项目级优先于设置页 |
-| D3 | DSH 侧独立构建、其他宿主零改动 | 已实现 | `node host/dsh/build.mjs --check` exit 0；`node --test host/dsh/tests/` **7 pass / 0 fail**；`node --test zcode/scripts/tests/` **54 pass / 0 fail**；`node zcode/scripts/build.mjs --check` exit 0；`git status` 仅显示 `dsh/`、`host/dsh/` 与四份文档，`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff | 构建器只读 `shared/`、`zcode/scripts/`，只写 `dsh/`；共享正文里 ZCode/MiniMax 专属行在 DSH 输出中按行替换，不改共享源 |
-| D4 | 浏览器实机验收 | 部分实现 | Slot 注册、Client 模块加载、JS 语法均验证；Tabbit 访问 `http://127.0.0.1:53701` 返回 401（需要 dsh web 认证 URL） | 未取得认证页面，明暗主题与可读性核对待补；不宣称视觉通过 |
+| D1 | DSH 插件包（Host + Client），原生机制 | 已实现 | `node host/dsh/build.mjs` exit 0、`--check` exit 0；`node --test host/dsh/tests/` **8 pass / 0 fail**；`node --check dsh/index.js`、`node --check dsh/client.js` exit 0；`Config.listConfigs(include:steward)` → `status: schema`，7 角色 × provider/model/effort 全部 `x-cordis.volatile: true`；`plugin_manager set_plugin(include:steward, false/true)` → `application: applied`，技能目录随启停出现/消失 | Host：7 个角色 **Agent Presets**（`ctx.agentPresets.register`，每个 = `dsh-persona` + fs/fs-search/pwsh/web/skill/todo/present/compaction 原生工具组合）、原生 **Config**（命名空间 `steward`，volatile 原地生效）、`steward_config`/`steward_dispatch` 工具、`/steward` 命令、6 技能；Client：`settings.section` occupant `steward`（order 50）active，页面走 `ctx.configForms` + `remote.session.modelCatalog()`；无 HTTP 桥、无私有配置文件 |
+| D2 | 原生 Settings 子代理模型/档位配置 | 已实现 | `steward_config(list)` 返回 `namespace=steward` + `documentPath=<profile>/cordis.patch.yml`；`set(role=reviewer, ctaigw/glm-5.3@high)` → profile `cordis.patch.yml` 新增 `- id: steward` 覆盖行（`config.roles.reviewer = {provider, model, effort}`）；`reset(role=reviewer)` → 写回空值；未知模型/档位/半截 route 在写前拒绝（单测 3 例） | 设置写入走原生 `settings.update` → `configEditor.edit`；`describe()` 的 `value/base/user/revision` 由宿主生成，插件不手改 patch；volatile 更新不重启插件 |
+| D3 | 预设派发（Agent Preset + agentOptions） | 已实现 | 实派 `steward_dispatch(role=reviewer)` → `started steward subagent 46afd244-…`；子会话 JSONL 头部 `{"origin":"subagent","delegationDepth":1,"agentPreset":"steward-reviewer"}`，紧接 `agent-preset/selected {"agentPreset":"steward-reviewer"}` 与 `subagent/descriptor {"provider":"spawn","agentProvider":"ctaigw","agentModel":"glm-5.3","agentReasoningEffort":"high"}`；`request/header.config = {provider:ctaigw, model:glm-5.3, reasoningEffort:high, maxTokens:128000}`；子会话 system message 以「你是软件开发团队的代码评审员（终审门）…」开头（persona 来自 preset），task prompt 只含派单正文；子代理回传 `STEWARD_PRESET_OK` | 角色提示词不再拼进 prompt；项目级 `steward.config.json` modelRouting 优先（单测覆盖）；preset 未激活/后端不支持 agentPreset 时派发前拒绝 |
+| D4 | DSH 侧独立构建、其他宿主零改动 | 已实现 | `node host/dsh/build.mjs --check` exit 0；`node --test host/dsh/tests/` 8/8；`node --test zcode/scripts/tests/` 54/54；`node zcode/scripts/build.mjs --check` exit 0；`git status` 仅 `dsh/` 与 `host/dsh/`（以及 README/CHANGELOG/ROADMAP-STATUS 文档），`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff | 构建器只读 `shared/`、`zcode/scripts/`，只写 `dsh/`；新增角色正文转写：把 ZCode/MiniMax 的宿主 MCP / `context7` 口径替换为 DSH 原生 `web_search`/`web_fetch`/`research` 与读依赖源码；包契约新增「原生机制」机检（禁止 `webServer`/`/api/dsh-steward`，要求 `configForms`） |
+| D5 | 浏览器实机验收 | 部分实现 | Client Slots `settings.section` 查询：occupant `steward`（order 50）`active: true`，证明 Client 半加载、`configForms` 注入成功、页面已注册 | 未做真实浏览器截图/明暗主题/交互核对；不宣称视觉通过。Tabbit 认证 URL 仍不可得 |
 
 ## P5（v0.11，ZCode 0.11.0 / MiniMax 0.11.0）— 2026-11-11
 

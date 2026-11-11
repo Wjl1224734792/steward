@@ -2,6 +2,31 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [DSH 0.2.0] - 2026-11-11
+
+> DSH 侧按「功能对齐、机制原生」重写：不再把 ZCode/MiniMax 的角色与配置形状搬进 DSH，而是用 DSH 自己的扩展点实现同样能力。**只改 DSH 侧**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff。
+
+### Changed
+
+- **角色 → Agent Presets**：7 个角色注册为 `ctx.agentPresets` 预设（`steward-pm` … `steward-reviewer`，order 100+）；每个预设 = `@deepseek-ai/dsh-persona`（角色正文）+ 原生工具组合（agent-instructions / time-context / fs / fs-search / pwsh|bash / todo / web / skill / present / compaction 组）。子代理的系统提示与工具集由 preset 提供，角色提示词不再拼进派发 prompt。
+- **模型路由 → 原生 Config/Settings**：新增 `export const Config`（`defaults` + 7 角色 × `provider/model/effort`，字段 `.volatile()`），由原生 Settings 服务提供命名空间 `steward`，经 profile 的 `configEditor` 持久化；保存原地生效，不需要重启。删除 `~/.dsh/steward/subagent-config.json` 与自建 `/api/dsh-steward/*` HTTP 桥。
+- **设置页 → configForms**：Client 半改注入 `slots` / `locale` / `remote` / `remote.session` / `configForms`，注册 `settings.section`（id `steward`，order 50），通过 `ctx.configForms.get('steward')` 读写、`remote.session.modelCatalog()` 取实时模型与档位；保留来源徽标、刷新/撤销/保存与冲突提示。
+- **派发 → 预设 + agentOptions**：`steward_dispatch` 调 `ctx.subagents.startActivation` 时传 `agentPreset: steward-<role>`，角色 persona 由 preset 注入；派发前校验 preset 可解析、spawn 后端 `capabilities.agentPreset` 为真、模型/档位可用。项目级 `steward.config.json` `modelRouting` 仍优先。
+- **新增 `/steward` 命令**：注册到原生 `ctx.commands`，输出名册、预设 id、当前生效路由与设置命名空间。
+- **`steward_config`**：`list/set/reset` 读写同一原生设置（不再写私有 JSON），输出增加 `namespace` / `documentPath` / 每角色 `preset`；写前仍用 `llm.resolveModelInfo` 校验未知模型与档位。
+- **构建器**：`host/dsh/build.mjs` 生成角色正文时新增宿主转写（ZCode/MiniMax 的宿主 MCP / `context7` → DSH 原生 `web_search` / `web_fetch` / `research` 与读依赖源码）；包契约新增原生机制机检（host 必须含 `agentPresets` / `export const Config` / `commands.register` / `skills.register` / `agentPreset`，禁止 `webServer` 与 `/api/dsh-steward`；client 必须用 `configForms`）；`package.json` 声明 `@deepseek-ai/schemastery` peer 依赖、`dsh.client.inject` 含 `@deepseek-ai/dsh-client-ui-settings`，版本 0.2.0。
+- **技能正文同步原生口径**：主技能 banner 升级到 DSH 0.2.0（角色 = Agent Presets、`/steward` 只回显名册）、`agent-settings` 不再引用 `~/.dsh/steward/subagent-config.json` 而指向原生 Settings 命名空间 `steward`、`using-steward` / `entry-points` 更新斜杠命令说法。
+- **浏览器验收角色**：`host/dsh/agents/browser-tester.operation-methods.md` 去掉 ZCode 专属 Tabbit，改为「仓库自带 Playwright → DSH 侧栏人工驱动 → 人工兜底」，provider 枚举同步为 `playwright | sidebar | manual`。
+
+### 验证
+
+- `node host/dsh/build.mjs` / `--check` → exit 0；`node --check dsh/index.js`、`node --check dsh/client.js` → exit 0。
+- `node --test host/dsh/tests/` → **8 pass / 0 fail**；`node --test zcode/scripts/tests/` → 54 pass / 0 fail；`node zcode/scripts/build.mjs --check` → exit 0。
+- `Config.listConfigs(include:steward)` → `status: schema`，7 角色 × 3 字段均 `x-cordis.volatile: true`。
+- 实派证据：`steward_config set(role=reviewer, ctaigw/glm-5.3@high)` → profile `cordis.patch.yml` 出现 `- id: steward` 覆盖行；`steward_dispatch(role=reviewer)` → 子会话头 `agentPreset: steward-reviewer`、`subagent/descriptor` 记录 `ctaigw/glm-5.3@high`、system message 以评审员 persona 开头、task prompt 只含派单正文；子代理回传 `STEWARD_PRESET_OK`。
+- Client Slots `settings.section` → occupant `steward`（order 50）`active: true`（Client 半加载 + `configForms` 注入成功）。浏览器视觉/交互截图仍未做，不宣称视觉通过。
+- `git status`：仅 `dsh/`、`host/dsh/` 与 README/CHANGELOG/ROADMAP-STATUS；其他宿主与共享源无改动。
+
 ## [DSH 0.1.0] - 2026-11-11
 
 > 新增第三个宿主：**DeepSeek Harness（DSH）**。`dsh/` 是标准 DSH bundle（Host + Client 双层插件），由 **DSH 专属构建器** `node host/dsh/build.mjs` 从 `shared/` + `host/dsh/` + `zcode/scripts/`（只读引用）生成，只写 `dsh/`。核心诉求是「可视化配置子代理的模型与思考强度」：设置页实时读宿主 `llm` 模型目录，7 个角色逐行选 provider / model / effort，保存后下一次派单即生效。本次**只改 DSH 侧**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 均无改动（`git status` 可证），共享正文里少数 ZCode/MiniMax 事实由 DSH 构建器按行替换。

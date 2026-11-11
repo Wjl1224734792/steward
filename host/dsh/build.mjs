@@ -115,7 +115,7 @@ function withBanner(fullText) {
 function dshRewrite(text, label) {
   const lines = [];
   for (const line of text.split('\n')) {
-    if (line.startsWith('| `agent-config.mjs')) continue; // DSH 用设置页 / steward_config，没有该脚本
+    if (line.startsWith('| `agent-config.mjs')) continue; // DSH 用原生设置页 / steward_config，没有该脚本
     if (line.startsWith('| `build.mjs')) continue; // DSH 构建器是 host/dsh/build.mjs，不随包提供
     if (line.startsWith('**检索工具栈（宿主 MCP')) {
       lines.push('**检索工具栈（DSH 宿主工具，团队全员继承可用）**：`web_search`（网页搜索）、`web_fetch`（抓取正文）、`research`（多来源证据包）、`platform_search`（GitHub / V2EX / B站 / Reddit 等站点内搜索）、`domain_search`（包 / 论文 / 漏洞 / 金融等垂直源）。各角色的查证纪律已写进自身提示词；这些工具不可用时如实标注「检索不可用」，不阻塞流程，不得凭记忆臆造 API。');
@@ -128,6 +128,23 @@ function dshRewrite(text, label) {
     lines.push(line);
   }
   if (lines.join('\n') === text) warnings.push(`[render] ${label}：DSH 行替换没有命中任何目标行（共享正文可能已改，检查 build.mjs 的 dshRewrite）`);
+  return lines.join('\n');
+}
+
+/**
+ * 角色正文里属于 ZCode/MiniMax 事实的检索纪律行（优先宿主 MCP / context7），
+ * DSH 没有这些 MCP，按行替换成 DSH 原生检索与「读依赖源码」口径，保留原编号。
+ */
+function dshAgentRewrite(text) {
+  const lines = [];
+  for (const line of text.split('\n')) {
+    if (line.includes('context7') || line.includes('宿主 MCP') || line.includes('MCP 不可用')) {
+      const prefix = line.match(/^\s*\d+\.\s*/);
+      lines.push(`${prefix === null ? '- ' : prefix[0]}库/框架 API 拿不准时先查证再写：优先读仓库既有用法与依赖源码（node_modules 类型定义），其次用 \`web_search\` / \`web_fetch\` 查官方文档或 \`research\` 做多来源核对——绝不凭记忆臆造 API；检索不可用时如实标注并直接读仓库。`);
+      continue;
+    }
+    lines.push(line);
+  }
   return lines.join('\n');
 }
 
@@ -155,7 +172,7 @@ function dshRewrite(text, label) {
     const abody = readText(join(shared, 'agents', `${a}.body.md`));
     if (afm === null) { errors.push(`[render] 缺 host/dsh/agents/${a}.frontmatter.md`); continue; }
     if (abody === null) { errors.push(`[render] 缺 shared/agents/${a}.body.md`); continue; }
-    targets.push({ out: join(outDir, 'roles', `${a}.md`), text: assemble(afm, renderSlots(abody, `agents/${a}`)) });
+    targets.push({ out: join(outDir, 'roles', `${a}.md`), text: assemble(afm, dshAgentRewrite(renderSlots(abody, `agents/${a}`))) });
   }
 }
 
@@ -302,7 +319,34 @@ for (const f of existsSync(join(outDir, 'roles')) ? readdirSync(join(outDir, 'ro
     const patch = readText(join(outDir, 'cordis.patch.yml')) ?? '';
     if (!patch.includes(`name: ${pkg.name}`)) errors.push(`[dsh] cordis.patch.yml 未插入 name: ${pkg.name} 的 row`);
     if (typeof pkg.version !== 'string' || pkg.version === '') errors.push('[dsh] package.json 缺 version');
+    if (typeof pkg.peerDependencies?.['@deepseek-ai/schemastery'] !== 'string') {
+      errors.push('[dsh] package.json 必须声明 @deepseek-ai/schemastery peerDependency（原生 Config 需要）');
+    }
+    if (!Array.isArray(pkg.dsh?.client?.inject) || !pkg.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-settings')) {
+      errors.push('[dsh] package.json dsh.client.inject 必须包含 @deepseek-ai/dsh-client-ui-settings（configForms）');
+    }
   }
+}
+
+// DSH 原生机制契约：宿主半用 Agent Presets / Config / 原生命令，客户端半用 configForms。
+{
+  const host = readText(join(outDir, 'index.js')) ?? '';
+  const client = readText(join(outDir, 'client.js')) ?? '';
+  for (const [needle, label] of [
+    ['agentPresets', 'ctx.agentPresets（角色 Agent Presets）'],
+    ['export const Config', '原生 Config（设置命名空间 steward）'],
+    ['settings.update', '原生设置持久化'],
+    ['commands.register', '原生人类命令注册'],
+    ['skills.register', '原生技能注册'],
+    ['agentPreset', '派发时选择 agent preset'],
+  ]) {
+    if (!host.includes(needle)) errors.push(`[dsh] index.js 缺少 ${label}`);
+  }
+  if (host.includes('webServer') || host.includes('/api/dsh-steward')) {
+    errors.push('[dsh] index.js 仍含自定义 HTTP 桥（webServer / /api/dsh-steward）；DSH 侧应使用原生 settings/configForms');
+  }
+  if (!client.includes('configForms')) errors.push('[dsh] client.js 必须通过 configForms 读写原生设置');
+  if (client.includes('/api/dsh-steward')) errors.push('[dsh] client.js 仍含自定义 HTTP 桥；应改用 configForms');
 }
 
 // --- 5. 输出 ---
