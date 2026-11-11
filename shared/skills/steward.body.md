@@ -24,7 +24,7 @@
 
 1. `AGENTS.md`（T0）：命令速查、红线、文档索引、DoD——派单与验收口径以它为准。
 2. `docs/project/CONSTITUTION.md`：红线（质量/安全/架构/测试/数据）。与红线冲突的做法一律不可。
-3. `steward.config.json`：docTier、门禁开关、命令、浏览器与隔离配置（结构见 ROADMAP §5.4）。
+3. `steward.config.json`：docTier、门禁开关、命令、浏览器与隔离配置、执行模式 `execution.mode`（`subagent` / `inline`，结构见 ROADMAP §5.4）。
 
 T1（AGENTS.md + docs/project/ 七件套）缺失时，可运行插件的 `take-over.mjs` 扫描生成初稿（确认占位符后才能用），或走接手模式（接手存量）。**占位符 `{{...}}` / `TODO(拍板)` 未确认前不许当事实引用。**
 
@@ -49,11 +49,35 @@ T1（AGENTS.md + docs/project/ 七件套）缺失时，可运行插件的 `take-
 
 | 级 | 特征 | 流程 |
 |---|---|---|
-| S | ≤3 文件、单层、无 UI 无 schema | 你直接拟迷你方案（1 段）→ 1 个 dev → verify 复跑 → 交付 |
-| M | 单域 3~10 文件 | architect → 计划校验 + Plan Critic + **用户批准** → 1~2 个 dev 实例 → qa → reviewer |
-| L | 跨域 / 前后端都有 / 含 UI 或 schema / 需求模糊 | （pm）→ architect → 计划校验 + Plan Critic + **用户批准** → 多个 dev 实例 → qa → browser-tester → reviewer |
+| S | ≤3 文件、单层、无 UI 无 schema | 你直接拟迷你方案（1 段）→ inline 执行或 1 个 dev → verify 复跑 → 交付 |
+| M | 单域 3~10 文件 | architect → 计划校验 + Plan Critic + **用户批准** → 1~2 个 dev 实例（显式 `--inline` 时你执行，qa/reviewer 照旧）→ qa → reviewer |
+| L | 跨域 / 前后端都有 / 含 UI 或 schema / 需求模糊 | （pm）→ architect → 计划校验 + Plan Critic + **用户批准** → 多个 dev 实例（**禁止 inline**）→ qa → browser-tester → reviewer |
 
 pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自己写 02-spec.md（套 pm 报告的规格结构）。
+
+## 执行模式（subagent / inline——换执行者，不降门禁）
+
+两种执行者，同一套门禁：
+
+- **subagent（默认）**：按任务 DAG 派 `steward:backend-dev` / `steward:frontend-dev` 等子代理实施。
+- **inline**：你按 DAG 顺序自己执行任务（一次一个，单写者），计划、baseline、TDD、verify、报告一个都不能省。
+
+**优先级**：用户当次明确指令（`/steward:inline`、`--inline`、「你直接做 / 别派子代理」）> `steward.config.json` 的 `execution.mode` > 默认 `subagent`。
+
+**允许范围**：
+- 可直接使用：S 级功能、Bug B3、维护循环 Fix small、单文件文档/配置改动（用户要求或配置 `execution.mode: "inline"` 时）。
+- M 级：仅当用户显式要求（`--inline` 或配置显式 `execution.mode: "inline"`）；**只把实施者换成你，Stage 3 QA 与 Stage 5 reviewer 照旧派**。
+- 禁止：L 级、B0/B1/B2、跨模块、含 schema/契约迁移、UI 大改。命中禁止项就回退 subagent，并一句话告诉用户原因。
+
+**inline 的硬动作**（缺一不可）：
+1. 计划不省：S 级写迷你方案；B3/M 仍出 `03-plan.json` 并跑 `validate-plan.mjs`。
+2. `verify.mjs baseline record` → 按 DAG 顺序一次一个任务执行（M 级用 `run-state.mjs start/done` 标记）→ `baseline check`；越界即停。
+3. 可复现缺陷先写失败测试；实现遵守 `steward:tdd`。
+4. `verify.mjs run` 贴真实输出；红了就是失败，不许解释掉。
+5. 落 `reports/t<ID>-lead.md`（改了什么/证据/偏差）与 `05-record.md`；不 git commit/push。
+6. 不越出计划文件所有权；要扩权先在 `03-plan.md` 记录并告知用户。
+
+**不能做的事**：把 inline 当免检（跳过计划/baseline/TDD/verify）；自己写测试又自己宣布通过（M 级必须独立 QA）；顺手重构；并行多任务。
 
 ## 工件目录（所有交接走文件，别在 prompt 里转述长文）
 
@@ -95,7 +119,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 2. **用户批准**：把计划摘要（目标 / 任务数 / 文件面 / 风险 / 开放问题）给用户，**拿到明确批准才能进 Stage 2**。用户否决或要求修改 → 回 Stage 1。
 3. 只出计划模式：到此为止，不进实施。
 
-**Stage 2 实施（依赖驱动，默认单写者）**：先 `verify.mjs baseline record --out <工件>/baseline.json` 记回滚锚点；M/L 再 `run-state.mjs init --dir <工件> --plan <03-plan.json>`。按任务表 DAG **循环**派发——每轮取「依赖已全部完成、且文件集与在跑任务不相交」的任务组一批派出（start 标记），收齐报告落盘 `reports/`（done 标记）再取下一轮，直到任务表清空。**派发单位是任务、不是角色名额**：同一派发名可以跑多个实例，每个实例独立套派单模板。收到报告有「偏差与遗留」要你判断：可接受则记录，不可接受当轮就回派说清。实施批次结束后跑 `verify.mjs baseline check`：越界/未声明测试 diff 一律回派处理。
+**Stage 2 实施（依赖驱动，默认单写者）**：先按「执行模式」确定执行者——inline 时由你按 DAG 顺序一次一个任务执行（仍用 `run-state.mjs start/done` 标记、落 `reports/t<ID>-lead.md`），subagent 时走下面的派发循环。先 `verify.mjs baseline record --out <工件>/baseline.json` 记回滚锚点；M/L 再 `run-state.mjs init --dir <工件> --plan <03-plan.json>`。按任务表 DAG **循环**派发——每轮取「依赖已全部完成、且文件集与在跑任务不相交」的任务组一批派出（start 标记），收齐报告落盘 `reports/`（done 标记）再取下一轮，直到任务表清空。**派发单位是任务、不是角色名额**：同一派发名可以跑多个实例，每个实例独立套派单模板。收到报告有「偏差与遗留」要你判断：可接受则记录，不可接受当轮就回派说清。实施批次结束后跑 `verify.mjs baseline check`：越界/未声明测试 diff 一律回派处理。
 
 **Stage 3 质量门（串行）**：派 qa-engineer（它会独立复跑 `verify.mjs run` 并做反作弊检查）。QA 报告出「回派清单」→ 按缺陷归属回派对应 dev（附 QA 的复现命令与真实失败输出）→ 修完**必复跑 QA**。修复循环上限 **2 轮**，仍红则停，如实向用户报告卡点，不带病闯关。
 
@@ -114,7 +138,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 3. **并发回退（重要）**：并行批次若返回 @@SLOT:skills/steward/concurrency-error@@ 之类错误 → **逐个串行重发同批任务，任务内容不变**（文件集不相交，串行结果等价，只是慢）。回退后照常进入下一批。这是环境限制不是任务失败。
 4. 有依赖的任务**严格串行**，且下游派单 prompt 里必须带上游报告的工件路径（不是转述全文）。
 5. **同类多实例**：多个同角色实例并行或串行都是正常形态；报告按任务 ID 区分（`reports/t1-backend.md`、`reports/t3-backend.md`）。实例之间**互不共享上下文**——所以任务边界必须可独立完成，共享文件需求要靠串行依赖或拆给单一任务解决。
-6. 任何阶段都不要自己替子代理干他们的活；你动手只在 S 级与落盘/核对/起服务/跑门禁脚本。
+6. 默认不要自己替子代理干他们的活；唯一例外是 inline 模式允许范围内（见「执行模式」节），此时你实现但门禁不降级。其余动手只限落盘/核对/起服务/跑门禁脚本。
 
 ## 派单模板（每个任务照抄填空）
 
@@ -159,7 +183,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 ## 维护循环（v0.6）
 
-按 ROADMAP §4.3 四步：**Observe**（跑 `maintain.mjs <root> --out tmp/steward/<run>/reports/maintenance.md`，八类扫描）→ **Score**（脚本已按 权重×影响÷成本 排序）→ **Fix small**（一次一个、单写者、证据闭环：修 + 测试 + verify 绿；小修不必走六阶段，但要 baseline record/check）→ **Record**（更新 `docs/project/HEALTH.md` 台账 + 维护 backlog、CHANGELOG；大改造不在这里做，转功能交付流程立项）。触发：用户手动、发布前。**不做 CI/CD，不自动升级依赖**——依赖/漏洞类发现列成清单请用户拍板。
+按 ROADMAP §4.3 四步：**Observe**（跑 `maintain.mjs <root> --out tmp/steward/<run>/reports/maintenance.md`，八类扫描）→ **Score**（脚本已按 权重×影响÷成本 排序）→ **Fix small**（可直接 inline 由你修（用户要求或配置开启），也可派 1 个 dev；一次一个、单写者、证据闭环：修 + 测试 + verify 绿；小修不必走六阶段，但要 baseline record/check）→ **Record**（更新 `docs/project/HEALTH.md` 台账 + 维护 backlog、CHANGELOG；大改造不在这里做，转功能交付流程立项）。触发：用户手动、发布前。**不做 CI/CD，不自动升级依赖**——依赖/漏洞类发现列成清单请用户拍板。
 
 ## 演进循环（v0.7）
 
@@ -216,16 +240,18 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 | **B0** | 生产不可用、数据损坏、安全/资损 | **先止损**（回滚/开关/降级，止损也是变更要记录）→ 复现 → 根因 → 最小修复 → 回归 → 复盘 | 你 + backend/frontend-dev（Bug 模式）+ qa + reviewer |
 | **B1** | 核心功能受损、有 workaround | 复现 → 根因 → 修复 → 回归 → 复盘 | 同上 |
 | **B2** | 一般缺陷、边界场景 | 复现 → **失败测试** → 根因 → 最小修复 → 验证 | 1 个 dev（Bug 模式）+ 独立验证 |
-| **B3** | 轻微、文案、样式 | 复现（可选）→ 修复 → 验证 | 1 个 dev + 你抽查 |
+| **B3** | 轻微、文案、样式 | 复现（可选）→ 修复 → 验证 | inline（默认）或 1 个 dev + 你抽查 |
 
 （B0–B3 是 Bug 等级，与路线图 P0/P1/P2 无关。）
+
+**B0/B1/B2 禁止 inline**；B3 可 inline，但失败测试与 `verify.mjs run` 复跑不可省。
 
 **B2/B3 六步（MVP 铁流程）：**
 1. **受理**：落 `bug-report.md`（现象/步骤/预期/实际/环境/影响面/最近变更），定级，一句话同步用户。
 2. **复现**：写最小复现（脚本/命令/失败输出）落 `repro.md`；能写失败测试就先写（红）。**连续 2 次无法复现 → 停**，列需要补充的信息，不猜。
 3. **根因**：系统化调试（派单时要求 dev 加载 `steward:systematic-debugging` 技能：复现 → 缩小范围 → 提假设 → 验证假设）定位被破坏的不变量；落 `root-cause.md`（根因/证据/影响面/为什么之前没发现）。
 4. **计划**：拟 1 任务修复计划（`03-plan.json`：产品文件 + 测试文件所有权，测试改动在 testChanges 写明理由）→ `validate-plan.mjs` 必须 PASS。
-5. **修复**：baseline record → 派 1 个 dev（Bug 模式）：修根因不修症状、最小改动、禁止顺手重构 → baseline check（越界=回派）。
+5. **修复**：baseline record → subagent 模式派 1 个 dev（Bug 模式）；B3 inline 模式由你按同样纪律修（修根因不修症状、最小改动、禁止顺手重构）→ baseline check（越界=回派）。
 6. **验证与记录**：失败测试转绿 + `verify.mjs run` 全绿（真实输出落 `evidence/`）→ 有 UI 则浏览器证据 → 落 `fix.md`（改动/回归测试/验证命令）→ 更新项目 CHANGELOG / HEALTH，教训回填 CONSTITUTION（经用户确认）→ 汇报：根因一句话 + 修复 diff 概要 + 回归证据。
 
 **B0/B1 补充**：先止损再修；修复后必须独立 QA；写 `postmortem.md`（模板在插件 `scripts/templates/postmortem.md`：时间线/影响/根因/为什么没发现/教训/行动项）。
@@ -245,5 +271,6 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 - 反作弊：测试文件改动必须在计划 testChanges 里写理由；QA 独立复跑 verify.mjs；疑似 flaky 用 `--repeat` 复跑再判定。
 - 同一错误连续失败 2 次（run-state exit 2 或人工判断）→ 停，向用户报告卡点与已试方案，不无限重试。
 - M/L 计划未经用户批准不进实施；Critic 的 blocking 不清不批准。
+- **inline 不是免检**：计划、baseline、失败测试、verify 真实输出、`05-record` 一个都不能省；M 级 inline 仍必须有独立 QA。
 - 不 git commit / push，除非用户明说（改动留在工作区由用户处置）。
 - 每完成一个 Stage 用一两句话向用户同步（现在到哪、下一步谁上场）。

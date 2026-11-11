@@ -12,13 +12,14 @@
 
 ### Steward 是什么
 
-Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.8.2 / MiniMax 0.8.2）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；v0.8 起双宿主共享 docTier=3 完整文档流水线（七阶段文档树 + PRD/FRD/契约/页面/测试/部署全量模板 + 命名守卫与文档检查）与 M/L 需求的第一性原理澄清/提问预算，v0.8.1 起双宿主共享 `steward:using-steward` 技能路由，技能/agent 正文单一源生成，MiniMax 另附带维护健康看板等可选 GenUI 视图。
+Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」调度子智能体。当前版本（ZCode 0.10.0 / MiniMax 0.10.0）覆盖功能交付（含 subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；v0.8 起双宿主共享 docTier=3 完整文档流水线（七阶段文档树 + PRD/FRD/契约/页面/测试/部署全量模板 + 命名守卫与文档检查）与 M/L 需求的第一性原理澄清/提问预算，v0.8.1 起双宿主共享 `steward:using-steward` 技能路由，技能/agent 正文单一源生成，MiniMax 另附带维护健康看板等可选 GenUI 视图。
 
 ### 工作模式
 
 | 模式 | 命令 | 状态 |
 |---|---|---|
 | 功能交付 | `/steward <需求>` | 0.6.0 可用 |
+| 直接执行（inline） | `/steward:inline <需求>` | 0.10.0 可用（仅 S / B3 / 维护小修；M 需显式要求；L 与 B0/B1/B2 禁止） |
 | 需求澄清 | 随 `/steward`（M/L/二义） | 0.8.0 起双宿主可用（第一性原理四问 + 最多 3 个 P0；S 级不追问） |
 | Bug 修复 | `/steward:fix <Bug>` | 0.5.0 可用（ZCode 命令；MiniMax 用自然语言触发） |
 | 只出计划 | `/steward:plan <需求>` | 0.5.0 可用（ZCode 命令；MiniMax 用自然语言触发） |
@@ -47,6 +48,7 @@ Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代�
 
 - **任务 DAG + 文件所有权**：并行条件 = 无依赖 且 文件所有权不相交。
 - **S/M/L 分档**：小需求不走全员大会；M/L 过计划批准门（干净上下文 Plan Critic + 用户批准）。
+- **执行模式（v0.10.0）**：`execution.mode` 可选 `subagent`（默认，派子代理）或 `inline`（主代理自己按 DAG 执行）；inline 仍保留计划、baseline、TDD、verify 与报告，只换执行者，不降门禁。S / B3 / 维护小修可直接使用，M 需显式开启，L 与 B0/B1/B2 禁止。
 - **可信变更门禁（v0.5）**：`validate-plan.mjs` 机检计划（路径存在 / DAG 无环 / 所有权不相交 / AC 覆盖 / 测试改动须声明理由）；`verify.mjs` 独立复跑测试/lint/typecheck（支持 `--repeat` 查 flaky）；`baseline record/check` 记回滚锚点并拦截越界 diff；`run-state.mjs` 断点恢复 + 同一错误连续 2 次即停 + 失败重试预算。全部为本地 Node 脚本，不做 CI。
 - **Bug 通道（v0.5）**：B0–B3 分级；可复现 Bug 无失败测试不修；反作弊（测试 diff 须声明理由、弱化断言判 blocking）。
 - **维护循环（v0.6）**：`maintain.mjs` 八类扫描（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO）→ 评分排序 backlog → 小修闭环 → 更新 HEALTH.md。
@@ -91,7 +93,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.8.2",
+      "version": "0.10.0",
       "displayName": "Steward · 长期维护型研发团队",
       "category": "developer-tools"
     }
@@ -150,13 +152,14 @@ Steward 是原 `dev-team` 插件的更名版本。插件 ID、命令、agent 前
 
 ### What is Steward
 
-Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.8.2 / MiniMax 0.8.2) covers feature delivery, bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), and the evolution loop; both hosts share the full docTier=3 documentation pipeline (seven-phase docs tree + full PRD/FRD/contract/page/test/deployment templates + naming guard and doc checks) plus a first-principles clarification step with a 3-question P0 budget for M/L requests, plus a using-steward router skill on both hosts, with optional MiniMax GenUI views for the task DAG, defect triage, and maintenance health.
+Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead agent acts as **Tech Lead**, decomposes work into a task DAG with file ownership, and dispatches specialist subagents. The current release (ZCode 0.10.0 / MiniMax 0.10.0) covers feature delivery with two execution modes (subagent / inline), bug fixing (B0-B3 triage), plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), and the evolution loop; both hosts share the full docTier=3 documentation pipeline (seven-phase docs tree + full PRD/FRD/contract/page/test/deployment templates + naming guard and doc checks) plus a first-principles clarification step with a 3-question P0 budget for M/L requests, plus a using-steward router skill on both hosts, with optional MiniMax GenUI views for the task DAG, defect triage, and maintenance health.
 
 ### Modes
 
 | Mode | Command | Status |
 |---|---|---|
 | Feature delivery | `/steward <request>` | Available in 0.6.0 |
+| Inline execution | `/steward:inline <request>` | Available in 0.10.0 (S / B3 / maintenance small fixes only; M requires explicit opt-in; L and B0/B1/B2 are not allowed) |
 | Clarification | with `/steward` (M/L/ambiguous) | Available in 0.8.0+ on both hosts (first-principles four questions + max 3 P0 questions; S-level skips) |
 | Bug fix | `/steward:fix <bug>` | Available in 0.5.0 (ZCode command; on MiniMax trigger by natural language) |
 | Plan only | `/steward:plan <request>` | Available in 0.5.0 (ZCode command; on MiniMax trigger by natural language) |
@@ -185,6 +188,7 @@ Feature delivery: intake & sizing (S/M/L) → plan → approval gate → impleme
 
 - **Task DAG + file ownership**: parallel only when there is no dependency and file sets are disjoint.
 - **S/M/L sizing**: small changes do not trigger the full team; M/L go through the plan approval gate (clean-context Plan Critic + user approval).
+- **Execution modes (v0.10.0)**: `execution.mode` is either `subagent` (default: dispatch specialist subagents) or `inline` (the lead executes the plan itself, one task at a time). Inline keeps the plan, baseline, TDD, verify, and report gates — only the executor changes. S / B3 / maintenance small fixes are inline-eligible; M requires an explicit opt-in; L and B0/B1/B2 are forbidden.
 - **Trusted-change gates (v0.5)**: `validate-plan.mjs` machine-checks the plan (paths exist / DAG acyclic / ownership disjoint / AC coverage / test changes must declare a reason); `verify.mjs` independently reruns test/lint/typecheck (`--repeat` detects flaky); `baseline record/check` records a rollback anchor and blocks out-of-bounds diffs; `run-state.mjs` resumes interrupted runs, stops after the same error twice, and enforces a retry budget. Local Node scripts only — no CI.
 - **Bug track (v0.5)**: B0–B3 severity; a reproducible bug is not fixed without a failing test; anti-cheating (undeclared test diffs and weakened assertions are blocking).
 - **Maintenance loop (v0.6)**: `maintain.mjs` scans eight categories (deps / security / duplication / churn / doc drift / cycles / flaky / TODO) → scored backlog → small fixes with evidence → HEALTH.md updates.
@@ -229,7 +233,7 @@ steward/
     {
       "name": "steward",
       "source": "./steward/zcode",
-      "version": "0.8.2",
+      "version": "0.10.0",
       "displayName": "Steward — long-lived engineering team",
       "category": "developer-tools"
     }

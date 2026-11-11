@@ -9,7 +9,7 @@ argument-hint: <项目根目录，缺省为当前仓库>
 
 1. Observe：跑插件 `scripts/maintain.mjs <项目根> --out <工件>/reports/maintenance.md`，做八类扫描（依赖 / 安全 / 重复 / churn / 文档漂移 / 循环依赖 / flaky / TODO）。
 2. Score：按脚本评分（风险 × 影响 ÷ 成本）排序，产出维护 backlog。
-3. Fix small：一次一个、单写者、证据闭环（修 + 测试 + `verify.mjs run` 绿；小修也要 `baseline record/check`）。大改造不在这里做，转 `/steward` 立项。
+3. Fix small：可直接 inline 由主代理修（用户要求或配置开启），也可派 1 个 dev；一次一个、单写者、证据闭环（修 + 测试 + `verify.mjs run` 绿；小修也要 `baseline record/check`）。大改造不在这里做，转 `/steward` 立项。
 4. Record：更新 `docs/project/HEALTH.md` 台账与维护 backlog、CHANGELOG；依赖/漏洞类只列清单请用户拍板，不自动升级。
 
 不做 CI/CD，不自动改依赖。

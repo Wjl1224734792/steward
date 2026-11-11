@@ -1,6 +1,6 @@
 # Steward · MiniMax 插件版
 
-角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（0.8.2）覆盖功能交付、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，并自带可信变更门禁、演进循环（T3 按需升级）、需求澄清内核、docTier=3 完整文档流水线与 `steward:using-steward` 技能路由；演进细节见 [路线图](../docs/ROADMAP.md)。
+角色化研发团队：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体。当前版本（0.10.0）覆盖功能交付（subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，并自带可信变更门禁、演进循环（T3 按需升级）、需求澄清内核、docTier=3 完整文档流水线与 `steward:using-steward` 技能路由；演进细节见 [路线图](../docs/ROADMAP.md)。
 
 本包是 Steward 的 **MiniMax Plugin V1 移植版**，与 ZCode 版**同版本同源**（团队名册、六阶段流程、调度规则与铁律一致），差异只在宿主适配。v1.2.0 起使用 Steward 名称，并继续附带可选的 GenUI 可视化技能。
 
@@ -126,10 +126,10 @@ robocopy "<repo>\minimax" "$env:USERPROFILE\.minimax\plugins\steward" /MIR /NFL 
 
 ## English
 
-Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 0.8.2 covers feature delivery, the B0-B3 bug track, plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), the evolution loop (architecture drift / duplication / refactor-ratio checks, codemod planning), on-demand T3 docs, the first-principles clarification kernel, the full docTier=3 documentation pipeline (seven-phase tree + 19 template types + naming guard / doc checks), the using-steward skill router, browser evidence contract, learning loop, trusted-change gates with a retry budget, and the maintenance health dashboard.
+Steward is a role-based engineering team plugin for MiniMax. The lead agent acts as Tech Lead, decomposes work into a task DAG with file ownership, and dispatches PM / architect / backend & frontend devs / QA / browser tester / reviewer subagents. Release 0.10.0 covers feature delivery with subagent / inline execution modes, the B0-B3 bug track, plan-only mode, the maintenance loop, takeover (T1 generation + first health scan), the evolution loop (architecture drift / duplication / refactor-ratio checks, codemod planning), on-demand T3 docs, the first-principles clarification kernel, the full docTier=3 documentation pipeline (seven-phase tree + 19 template types + naming guard / doc checks), the using-steward skill router, browser evidence contract, learning loop, trusted-change gates with a retry budget, and the maintenance health dashboard.
 
 Skills: `steward:steward` (Tech Lead workflow) and `steward:steward-visualizer` (optional GenUI views: task DAG, defect triage, maintenance health).
 
 Trigger: the `UserPromptSubmit` hook loads the skill when the input contains "开发团队", "开发小组", or "Steward". Install by copying `minimax/` into `%USERPROFILE%\.minimax\plugins\steward\`. Local plugins are scanned when a session starts and are not hot-reloaded into a running session — a newly installed plugin becomes available from the next new session (restart MiniMax Code to pick it up immediately).
 
-Version: 0.8.2 · License: MIT · Copyright (c) 2026 Lin
+Version: 0.10.0 · License: MIT · Copyright (c) 2026 Lin

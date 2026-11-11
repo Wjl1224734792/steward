@@ -2,6 +2,33 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.10.0 / MiniMax 0.10.0] - 2026-11-11
+
+> 新增「执行模式」：在默认的 subagent（派子代理）之外，允许主代理按计划自己执行低风险任务（inline）。这不是流程降级——计划、baseline、TDD、verify 与报告全部保留，只换执行者；S / B3 / 维护小修默认允许，M 需显式开启，L 与 B0/B1/B2 禁止。
+
+### Added
+
+- **`execution.mode` 配置**：`steward.config.json` 新增 `execution.mode: "subagent" | "inline"`，默认 `subagent`；`validate-config.mjs` 增加枚举校验与未知子键警告。
+- **`/steward:inline` 命令（ZCode）**：主代理按 DAG 顺序直接执行；MiniMax 侧用自然语言「你直接做 / 别派子代理」触发。
+- **主技能「执行模式」节**：优先级（用户当次指令 > 配置 > 默认）、允许范围（S / B3 / 维护小修；M 显式；L 与 B0/B1/B2 禁止）、inline 硬动作（计划、baseline、TDD、verify、`reports/t<ID>-lead.md`、05-record）与反例。
+- **路由与入口同步**：`using-steward` 路由表、两宿主 entry-points、`trigger.mjs` 上下文均识别 inline 意图。
+- **测试**：新增 `validate-config-execution.test.mjs`，覆盖合法枚举、非法枚举、非对象、未知子键四类。
+
+### Changed
+
+- 调度规则第 6 条由「任何阶段都不要自己替子代理干活」改为「默认不替；inline 允许范围内例外，门禁不降级」，消除与 S 级流程的矛盾。
+- S 级、B3、维护 Fix small 允许走 inline；M 级仅在显式要求时 inline，且 Stage 3 QA 与 Stage 5 reviewer 照旧派；L 与 B0/B1/B2 禁止 inline。
+- 架构师任务表的 `role` 明确为「任务类型」，不代表执行者。
+- 两宿主版本号统一为 0.10.0；README / 插件清单同步。
+
+### 验证
+
+- `node zcode/scripts/build.mjs` → exit 0
+- `node zcode/scripts/build.mjs --check` → exit 0、零 warning
+- `node --test zcode/scripts/tests/agent-config.test.mjs` → 49 pass / 0 fail
+- `node --test zcode/scripts/tests/validate-config-execution.test.mjs` → **5 tests / 1 suite / 5 pass / 0 fail**
+- `validate-config.mjs` 正例 exit 0（PASS）/ 负例 exit 1，报错点名 `execution.mode 必须是 subagent | inline`
+
 ## [ZCode 0.9.0 / MiniMax 0.9.0] - 2026-11-11
 
 > 新增「子代理模型与思考强度可视化配置」：7 个子代理的模型与档位可视化改，不再手改三处文件（frontmatter / 名册表 / 项目配置）。同时修掉一个现存偏差——插件子代理的 frontmatter 只声明了 `model` 没声明 `effort`，直接调用子代理时思考强度会落到运行时默认（实测 low），而不是名册写的 high。两宿主版本号统一为 0.9.0。

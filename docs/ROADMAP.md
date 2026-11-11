@@ -348,6 +348,9 @@ tmp/steward/<run-id>/
     "mode": "baseline-hash",
     "worktree": false
   },
+  "execution": {
+    "mode": "subagent"
+  },
   "maintenance": {
     "dependencies": true,
     "security": true,
@@ -361,6 +364,7 @@ tmp/steward/<run-id>/
 
 > `provider` 优先 `playwright-mcp` / `chrome-devtools-mcp`；不可用退回内置浏览器。
 > `worktree: false` 是默认；只有独立模块/高风险/长任务才临时开启。
+> `execution.mode`: `subagent`（默认，派子代理）或 `inline`（主代理自己执行）。inline 仅限 S / B3 / 维护小修；M 需显式开启；L 与 B0/B1/B2 禁止；两种模式的门禁相同。
 
 ### 5.5 角色与技能
 

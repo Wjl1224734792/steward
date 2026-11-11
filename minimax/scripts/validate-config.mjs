@@ -11,6 +11,8 @@
  *   - effort 必须属于该模型的 effortOptions。
  * 读不到本机模型配置时（catalog.ok === false）以上检查降级为警告；`--skip-catalog` 可完全跳过
  * （用于跨机器共享的配置）。
+ * 执行模式（v0.10.0）：execution.mode = subagent | inline（默认 subagent；inline 仅限 S / B3 /
+ * 维护小修，M 需显式开启；L 与 B0/B1/B2 禁止）。
  */
 import { readFileSync } from 'node:fs';
 // 同目录模块：build.mjs 会把 zcode/scripts/*.mjs 整体同步到 minimax/scripts/，两处路径都成立。
@@ -25,6 +27,7 @@ const BROWSER_PROVIDERS = ['playwright-mcp', 'chrome-devtools-mcp', 'built-in'];
 const BROWSER_FALLBACKS = ['built-in', 'none'];
 const BROWSER_VISUAL = ['unverified', 'verified'];
 const ISOLATION_MODES = ['baseline-hash', 'worktree'];
+const EXECUTION_MODES = ['subagent', 'inline'];
 
 // 模型目录状态：main 里在解析配置前加载一次，validate() 只用结果。
 const catalogState = { checked: false, ok: false, reason: '', catalog: null };
@@ -32,7 +35,7 @@ const catalogState = { checked: false, ok: false, reason: '', catalog: null };
 const errors = [];
 const warnings = [];
 const ROLES = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'browser-tester', 'reviewer'];
-const known = new Set(['schemaVersion', 'docTier', 'commands', 'services', 'gates', 'browser', 'isolation', 'maintenance', 'modelRouting', 'budget']);
+const known = new Set(['schemaVersion', 'docTier', 'commands', 'services', 'gates', 'browser', 'isolation', 'execution', 'maintenance', 'modelRouting', 'budget']);
 
 function err(msg) { errors.push(msg); }
 function warn(msg) { warnings.push(msg); }
@@ -134,6 +137,15 @@ function validate(cfg) {
       if (iso.worktree !== undefined && typeof iso.worktree !== 'boolean') err(`isolation.worktree 必须是 boolean，实际：${JSON.stringify(iso.worktree)}`);
       if (iso.mode === 'worktree' && iso.worktree === false) err('isolation.mode=worktree 与 isolation.worktree=false 矛盾');
       for (const k of Object.keys(iso)) if (!['mode', 'worktree'].includes(k)) warn(`isolation.${k} 是未知字段`);
+    }
+  }
+
+  if (cfg.execution !== undefined) {
+    const ex = cfg.execution;
+    if (typeof ex !== 'object' || ex === null || Array.isArray(ex)) err('execution 必须是对象 { mode: "subagent" | "inline" }');
+    else {
+      if (ex.mode !== undefined && !EXECUTION_MODES.includes(ex.mode)) err(`execution.mode 必须是 ${EXECUTION_MODES.join(' | ')}，实际：${JSON.stringify(ex.mode)}`);
+      for (const k of Object.keys(ex)) if (k !== 'mode') warn(`execution.${k} 是未知字段`);
     }
   }
 
