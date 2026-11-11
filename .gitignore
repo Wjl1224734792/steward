@@ -8,5 +8,8 @@ tmp/
 # ZCode 会话级 plan 工件（临时产物；.zcode/config.json 是有意跟踪的，不在此列）
 .zcode/plans/
 
+# 本地 Agent Skills 发现入口（junction 到技能母本，不入库）
+/.agents/
+
 # 写盘备份（agent-config / 校验脚本的回滚锚点，不进版本库）
 *.bak
