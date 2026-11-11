@@ -2,6 +2,25 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [Unreleased]
+
+> 文档与打包修复：仓库 README 拆成中英两个单语版本，DSH 插件页补上插件介绍与用法。不新增功能，不改运行时逻辑；按要求未更新本机 DSH 插件（留给用户手动更新）。
+
+### Changed
+
+- **根 README 拆为两个版本**：`README.md` 只保留中文（默认入口），新增 `README.en.md` 只保留 English；两文件顶部互相链接，不再把中英写在同一文件。`docs/README.md` 的仓库根索引同步。
+- **DSH 插件页补介绍**：此前 DSH 插件管理页点开 Steward 没有任何介绍（bundle 无 README，locale 也没有 `meta.detail`）。新增 `host/dsh/README.zh.md` / `host/dsh/README.en.md`（定位、安装后得到什么、快速开始、入口与模式、角色名册、模型路由优先级、边界），由构建器复制为 `dsh/README.zh.md` / `dsh/README.en.md`；`locale/en.json`、`locale/zh.json` 的 `meta.detail` 分别指向对应文件，DSH 插件管理器据此在插件页渲染长介绍。
+- **插件卡片文案**：`locale` 的 `meta.title` / `meta.description` 从「Steward · 子代理模型」改为插件整体定位与用法摘要（7 个 Agent Presets、派发、计划批准门、Bug 通道、维护循环、门禁脚本、设置页），不再只描述设置页。
+- **包清单与构建校验**：`host/dsh/package.json` 的 `files` 增加 `README*.md`；`host/dsh/build.mjs` 同步 README，并把「`meta.detail` 必须指向存在的包根 `README*.md`、非空、≤ 1 MiB」纳入包契约机检。
+- **README 口径订正**：模式表中 Bug / 只出计划 / 维护 / 接手在 DSH 与 MiniMax 一样按自然语言触发；使用示例补充「DSH 用自然语言，`/steward` 只回显名册 / 预设 / 路由」；DSH 安装段补「插件管理页可见介绍」。
+
+### 验证
+
+- `node host/dsh/build.mjs` → exit 0；`node host/dsh/build.mjs --check` → exit 0（幂等，README 与 `meta.detail` 契约通过）。
+- `node --test host/dsh/tests/` → **8 pass / 0 fail**（运行时逻辑未改）。
+- `dsh/README.zh.md`、`dsh/README.en.md` 与 `host/dsh/` 源逐字节一致；`locale/{zh,en}.json` 的 `meta.detail` 目标文件均存在。
+- 未执行 `plugin_manager install_bundle` / 插件更新：本机 DSH 由用户手动更新。
+
 ## [DSH 0.2.0] - 2026-11-11
 
 > DSH 侧按「功能对齐、机制原生」重写：不再把 ZCode/MiniMax 的角色与配置形状搬进 DSH，而是用 DSH 自己的扩展点实现同样能力。**只改 DSH 侧**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff。

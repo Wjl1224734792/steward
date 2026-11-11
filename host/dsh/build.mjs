@@ -203,6 +203,10 @@ function syncDir(src, dst, label) {
 for (const f of ['package.json', 'cordis.patch.yml', 'index.js', 'client.js', 'icon.svg']) {
   syncFile(join(hostDir, f), join(outDir, f), f);
 }
+// 插件页介绍文档（DSH 插件管理器读取 locale 的 meta.detail 或包根 README）
+for (const f of readdirSync(hostDir).filter((name) => /^README(?:\.[a-z]{2})?\.md$/.test(name))) {
+  syncFile(join(hostDir, f), join(outDir, f), f);
+}
 for (const name of existsSync(join(hostDir, 'locale')) ? readdirSync(join(hostDir, 'locale')) : []) {
   if (!name.endsWith('.json')) continue;
   syncFile(join(hostDir, 'locale', name), join(outDir, 'locale', name), `locale/${name}`);
@@ -312,9 +316,24 @@ for (const f of existsSync(join(outDir, 'roles')) ? readdirSync(join(outDir, 'ro
       } catch (e) {
         errors.push(`[dsh] locale/${loc}.json 解析失败：${e.message}`);
       }
-      if (json !== null && (typeof json.meta?.title !== 'string' || json.meta.title === '' || typeof json.meta?.description !== 'string' || json.meta.description === '')) {
+      if (json === null) continue;
+      if (typeof json.meta?.title !== 'string' || json.meta.title === '' || typeof json.meta?.description !== 'string' || json.meta.description === '') {
         errors.push(`[dsh] locale/${loc}.json 必须含 meta.title 与 meta.description`);
       }
+      // 插件管理页的长介绍：locale 的 meta.detail 指向包内 Markdown（DSH 读不到就没有介绍）
+      const detail = json.meta?.detail;
+      if (typeof detail !== 'string' || !/^README(?:\.[a-z]{2})?\.md$/.test(detail)) {
+        errors.push(`[dsh] locale/${loc}.json 的 meta.detail 必须是包根 README*.md 文件名（当前：${String(detail)}）`);
+        continue;
+      }
+      const detailPath = join(outDir, detail);
+      if (!existsSync(detailPath)) {
+        errors.push(`[dsh] locale/${loc}.json 的 meta.detail（${detail}）指向的文件不存在`);
+        continue;
+      }
+      const bytes = statSync(detailPath).size;
+      if (bytes === 0) errors.push(`[dsh] ${detail} 为空，插件页会显示空介绍`);
+      if (bytes > 1024 * 1024) errors.push(`[dsh] ${detail} 超过 1 MiB（DSH 插件页读取上限）`);
     }
     const patch = readText(join(outDir, 'cordis.patch.yml')) ?? '';
     if (!patch.includes(`name: ${pkg.name}`)) errors.push(`[dsh] cordis.patch.yml 未插入 name: ${pkg.name} 的 row`);

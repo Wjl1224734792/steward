@@ -15,6 +15,7 @@
     "client.js",
     "cordis.patch.yml",
     "icon.svg",
+    "README*.md",
     "locale/*.json",
     "skills/**",
     "roles/**",
