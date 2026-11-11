@@ -1,0 +1,35 @@
+{
+  "name": "dsh-steward",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Steward for DeepSeek Harness: the long-lived engineering team (Tech Lead + 7 specialist subagents) with a Settings → Steward page for per-role model and reasoning-effort configuration.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json",
+    "skills/**",
+    "roles/**",
+    "scripts/**"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    },
+    "engines": {
+      "dsh": ">=0.2.1-rc.2 <0.4.0-0"
+    }
+  }
+}

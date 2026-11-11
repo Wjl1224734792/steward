@@ -1,0 +1,11 @@
+{
+  "roles": [
+    { "id": "pm", "title": "需求分析师", "summary": "模糊需求 → 可执行、可验收的规格" },
+    { "id": "architect", "title": "架构师", "summary": "规格 → 影响面 + 技术方案 + 任务 DAG" },
+    { "id": "backend-dev", "title": "后端工程师", "summary": "按任务单做后端实现（TDD，限文件所有权）" },
+    { "id": "frontend-dev", "title": "前端工程师", "summary": "UI 实现 + 可执行的浏览器验收脚本" },
+    { "id": "qa-engineer", "title": "测试工程师", "summary": "独立复跑质量门禁、补测试、反作弊检查" },
+    { "id": "browser-tester", "title": "浏览器验收员", "summary": "真实浏览器黑盒验收 + browser-evidence.json" },
+    { "id": "reviewer", "title": "代码评审员", "summary": "终审 diff（或在干净上下文做 Plan Critic）" }
+  ]
+}

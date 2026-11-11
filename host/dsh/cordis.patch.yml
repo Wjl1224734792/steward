@@ -1,0 +1,8 @@
+# Steward — long-lived engineering team for DeepSeek Harness.
+#
+# One row: the Host half registers the Steward skills, the steward_config /
+# steward_dispatch tools, and the /api/dsh-steward/* bridge used by the
+# Settings → Steward page (client half, loaded from ./client).
+- insert:
+    - id: steward
+      name: dsh-steward

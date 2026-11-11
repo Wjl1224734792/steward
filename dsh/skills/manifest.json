@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "name": "agent-settings",
+      "description": "Steward 子代理模型与思考强度配置（DSH）。读宿主实时模型目录，展示 7 个角色当前使用的模型与思考强度及生效来源，按角色改模型/档位或设默认配置；提供「设置 → Steward」可视化配置页与 steward_config 工具两种入口。Use when the user asks which model or thinking effort a Steward subagent uses, wants to change a role's model/effort, or wants to open the subagent model configuration page.",
+      "path": "skills/agent-settings/SKILL.md",
+      "dir": "skills/agent-settings"
+    },
+    {
+      "name": "steward",
+      "description": "Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当用户提出要开发/修改一个软件功能、修复 Bug、只出实施方案、做维护扫描或接手存量仓库时加载。流程：受理定级（S/M/L）→ 需求澄清（第一性原理，M/L 条件启用）→ 任务 DAG + 文件所有权 → 用 `steward_dispatch` 按角色派子代理（pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer，模型与思考强度在「设置 → Steward」页配置）→ QA → 浏览器验收 → 终审 → 汇报；含 Bug 通道（B0–B3）、可信变更门禁脚本、文档流水线（docTier=3）、学习循环与 inline 执行模式。Use when the user asks the Steward team to develop a feature, fix a bug, produce a plan, run maintenance, or take over an existing repository.",
+      "path": "skills/steward/SKILL.md",
+      "dir": "skills/steward"
+    },
+    {
+      "name": "systematic-debugging",
+      "description": "系统化调试纪律。当任务涉及排查 Bug、定位失败原因、修复说不通的行为时加载：按「复现 → 缩小范围 → 提假设 → 验证假设 → 根因」推进，禁止跳步猜修。Use when debugging a bug, investigating a failure, or fixing behavior you cannot yet explain.",
+      "path": "skills/systematic-debugging/SKILL.md",
+      "dir": "skills/systematic-debugging"
+    },
+    {
+      "name": "tdd",
+      "description": "TDD（测试先行）纪律。当实现新功能、修 Bug 需要回归测试、或任务单要求 TDD 时加载：红 → 绿 → 重构，测试表达行为契约而非实现细节。Use when implementing a feature or fix test-first, or when the task requires TDD.",
+      "path": "skills/tdd/SKILL.md",
+      "dir": "skills/tdd"
+    },
+    {
+      "name": "using-steward",
+      "description": "Steward 技能路由（DSH）。当用户不知道用 Steward 的哪个入口/技能、问「该用哪个模式/从哪开始」、或在功能交付、Bug 修复、只出计划、维护、接手、文档流水线、主代理直接执行（inline）、调试、TDD、完成前验证之间做选择时，先读本技能做路由。Use when the user is unsure which Steward mode or skill to use, or asks where to start.",
+      "path": "skills/using-steward/SKILL.md",
+      "dir": "skills/using-steward"
+    },
+    {
+      "name": "verification-before-completion",
+      "description": "完成前验证纪律。当你准备声称任务完成、交付、或汇报「全绿」之前加载：必须真实复跑门禁并贴输出，禁止用记忆、推断或子代理转述代替复跑。Use before claiming any task is done, green, or ready for delivery.",
+      "path": "skills/verification-before-completion/SKILL.md",
+      "dir": "skills/verification-before-completion"
+    }
+  ]
+}

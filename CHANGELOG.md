@@ -2,6 +2,38 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [DSH 0.1.0] - 2026-11-11
+
+> 新增第三个宿主：**DeepSeek Harness（DSH）**。`dsh/` 是标准 DSH bundle（Host + Client 双层插件），由 **DSH 专属构建器** `node host/dsh/build.mjs` 从 `shared/` + `host/dsh/` + `zcode/scripts/`（只读引用）生成，只写 `dsh/`。核心诉求是「可视化配置子代理的模型与思考强度」：设置页实时读宿主 `llm` 模型目录，7 个角色逐行选 provider / model / effort，保存后下一次派单即生效。本次**只改 DSH 侧**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 均无改动（`git status` 可证），共享正文里少数 ZCode/MiniMax 事实由 DSH 构建器按行替换。
+
+### Added
+
+- **DSH 插件包（`dsh/`，由 `host/dsh/` 生成）**：`index.js` 注册 6 个技能（`steward` / `using-steward` / `agent-settings` / `systematic-debugging` / `tdd` / `verification-before-completion`）、2 个工具与 3 条配置桥路由；`client.js` 在 `settings.section`、`plugins.bundle.config`、`plugins.row.config` 三个槽位注册同一配置页。
+- **DSH 专属构建器 `host/dsh/build.mjs`**：渲染 DSH 技能/角色、同步包文件与门禁脚本、生成 `skills/manifest.json` / `roles/manifest.json`、校验包契约；只读 `shared/` 与 `zcode/scripts/`，只写 `dsh/`。共享正文中的脚本表行（`agent-config.mjs` / `build.mjs`）、MCP 检索栈、可视化配置入口在 DSH 输出里按行替换，不改共享源。
+- **`steward_dispatch` 工具**：按 `role` 派 Steward 子代理；把该角色配置映射为子代理 `agentOptions`（provider/model/reasoningEffort），角色提示词拼进任务 prompt，`delivery: 'parent'`，返回 child id。未配置角色继承默认配置，默认也未配置则继承主代理。项目根 `steward.config.json` 的 `modelRouting.<role>` 优先于设置页（与 ZCode/MiniMax 的「项目级 > 插件默认」口径一致）。
+- **`steward_config` 工具**：`list` / `set` / `reset`；与设置页共用同一份配置与校验逻辑（未知模型、未知档位、半截 provider+model 都会拒绝）。
+- **「设置 → Steward」配置页**：默认配置 + 7 个角色，各自 provider / model / effort 下拉；档位只列所选模型真实支持的集合（`llm.resolveModelInfo`）；来源徽标（自定义 / 默认 / 继承主代理）、保存 / 撤销 / 刷新模型目录、错误与成功回显；主题 token 与宿主设置页一致。
+- **配置存储**：`~/.dsh/steward/subagent-config.json`（原子写：临时文件 + rename），不重写用户的 `cordis.patch.yml`。
+- **DSH 角色提示词**：`host/dsh/agents/*.frontmatter.md` + `shared/agents/*.body.md` 渲染为 `dsh/roles/*.md`；`host/dsh/roles.json` 提供短标题与摘要；两个运行期清单由构建生成、Host 启动时读取。
+- **DSH 宿主片段**：主技能槽位（banner / roster / entry-points / dispatch-call / concurrency-error / model-routing-dispatch / model-default-line / explore-agent / ask-tool）、两个整技能覆盖（`agent-settings` / `using-steward`）、浏览器验收方式（Tabbit 优先 / Playwright / 人工兜底）与宿主检索标签（`web_search` / `web_fetch` / `research` / `platform_search` / `domain_search`）。
+- **DSH 门禁脚本**：`take-over` / `validate-config` / `validate-plan` / `run-state` / `verify` / `maintain` + `templates/` + `doc/` + `skills/steward/references/` 从 `zcode/` 只读复制（跳过 MiniMax 专用 `agent-config*.mjs`、`trigger.mjs`、构建器 `build.mjs`）。
+- **测试**：`host/dsh/tests/dsh-plugin.test.mjs`（7 例）覆盖技能/工具/路由注册、状态路由、配置校验与落盘、跨站写拒绝、`steward_config` 三类动作、`steward_dispatch` 的配置映射 / 默认继承 / 角色提示词 / 错误角色、项目级 `modelRouting` 优先。
+
+### Changed
+
+- **README / AGENTS / CHANGELOG**：改为三宿主口径，新增 DSH 独立构建、安装、配置页与工具说明；宿主隔离约定明确 DSH 只读 `shared/` 与 `zcode/scripts/`、只写 `dsh/`。
+- **未改动**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 与外两宿主清单均保持仓库现状；ZCode/MiniMax 的构建检查与 54 例测试照常通过。
+
+### 验证
+
+- `node host/dsh/build.mjs` → exit 0；`node host/dsh/build.mjs --check` → exit 0（幂等、无 `@@SLOT` 残留、包契约合法）。
+- `node --check dsh/index.js`、`node --check dsh/client.js` → exit 0。
+- `node --test host/dsh/tests/` → **7 pass / 0 fail**；`node --test zcode/scripts/tests/` → **54 pass / 0 fail**（外两宿主未受影响）。
+- `node zcode/scripts/build.mjs --check` → exit 0（未改 ZCode/MiniMax，检查仍绿）。
+- 插件管理器 `install_bundle(target=<repo>/dsh)` → `application: applied`；「设置 → Steward」槽位 occupant 为 `steward`（order 50）且 active；技能目录实际出现 6 个 Steward 技能；`steward_config` / `steward_dispatch` 工具可调用。
+- 实机派发证据：把 `reviewer` 配置为 `ctaigw/glm-5.3 @ high` 后调用 `steward_dispatch`，子会话 `request/header` 记录 `{"provider":"ctaigw","model":"glm-5.3","reasoningEffort":"high"}`，子代理回传 `STEWARD_OK`；另用临时项目 `steward.config.json` 的 `modelRouting.qa-engineer = ctaigw/glm-5.3 @ high` 派发同角色，配置页为空也能命中项目级路由，子会话 header 同样为 `ctaigw/glm-5.3 @ high`。
+- 视觉验收限制：本次环境 Tabbit 浏览器需要 dsh web 的认证 URL，未取得；设置页的渲染外观未做浏览器截图核对，仅验证了槽位注册、Client 模块加载与 JS 语法。待有认证页面补做明暗主题与可读性核对。
+
 ## [ZCode 0.11.0 / MiniMax 0.11.0] - 2026-11-11
 
 > MiniMax 侧对齐 ZCode 已有的能力：补齐三道 PreToolUse 宿主守卫（密钥 / 所有权 / 危险命令）。此前 MiniMax 包虽已同步 `scripts/hooks/guard.mjs`，但 `hooks.json` 只注册了 UserPromptSubmit 触发器——守卫脚本从未被宿主调用，属于带病上线。本次补齐注册、技能正文挂载与说明文档，两宿主版本号同步升至 0.11.0。

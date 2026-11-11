@@ -2,6 +2,15 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
+## DSH 0.1.0（新宿主首版）— 2026-11-11
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| D1 | DSH 插件包（Host + Client） | 已实现 | `node host/dsh/build.mjs` exit 0、`--check` exit 0；`plugin_manager(install_bundle, target=dsh/)` → `application: applied`；`settings.section` 槽位 occupant `steward`（order 50）active | Host：6 技能 + 2 工具 + 3 条 `/api/dsh-steward/*` 桥路由；Client：设置页 + 插件页复用同一组件（未做浏览器认证页截图） |
+| D2 | 子代理模型与思考强度可视化配置 | 已实现 | `steward_config(list)` 返回 7 角色 + 实时模型目录；`set` 后 `roles.reviewer = ctaigw/glm-5.3 @ high`；`steward_dispatch` 子会话 `request/header` 实测 `{"provider":"ctaigw","model":"glm-5.3","reasoningEffort":"high"}` 且子代理回传 `STEWARD_OK`；项目级 `modelRouting` 亦实测命中 | 档位集合来自 `llm.resolveModelInfo`；配置原子写 `~/.dsh/steward/subagent-config.json`；未知模型/档位保存与派发双重拒绝；项目级优先于设置页 |
+| D3 | DSH 侧独立构建、其他宿主零改动 | 已实现 | `node host/dsh/build.mjs --check` exit 0；`node --test host/dsh/tests/` **7 pass / 0 fail**；`node --test zcode/scripts/tests/` **54 pass / 0 fail**；`node zcode/scripts/build.mjs --check` exit 0；`git status` 仅显示 `dsh/`、`host/dsh/` 与四份文档，`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff | 构建器只读 `shared/`、`zcode/scripts/`，只写 `dsh/`；共享正文里 ZCode/MiniMax 专属行在 DSH 输出中按行替换，不改共享源 |
+| D4 | 浏览器实机验收 | 部分实现 | Slot 注册、Client 模块加载、JS 语法均验证；Tabbit 访问 `http://127.0.0.1:53701` 返回 401（需要 dsh web 认证 URL） | 未取得认证页面，明暗主题与可读性核对待补；不宣称视觉通过 |
+
 ## P5（v0.11，ZCode 0.11.0 / MiniMax 0.11.0）— 2026-11-11
 
 | # | 交付 | 状态 | 证据 | 备注 |

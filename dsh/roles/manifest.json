@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "roles": [
+    {
+      "id": "pm",
+      "name": "需求分析师",
+      "description": "模糊需求 → 可执行、可验收的规格",
+      "path": "roles/pm.md"
+    },
+    {
+      "id": "architect",
+      "name": "架构师",
+      "description": "规格 → 影响面 + 技术方案 + 任务 DAG",
+      "path": "roles/architect.md"
+    },
+    {
+      "id": "backend-dev",
+      "name": "后端工程师",
+      "description": "按任务单做后端实现（TDD，限文件所有权）",
+      "path": "roles/backend-dev.md"
+    },
+    {
+      "id": "frontend-dev",
+      "name": "前端工程师",
+      "description": "UI 实现 + 可执行的浏览器验收脚本",
+      "path": "roles/frontend-dev.md"
+    },
+    {
+      "id": "qa-engineer",
+      "name": "测试工程师",
+      "description": "独立复跑质量门禁、补测试、反作弊检查",
+      "path": "roles/qa-engineer.md"
+    },
+    {
+      "id": "browser-tester",
+      "name": "浏览器验收员",
+      "description": "真实浏览器黑盒验收 + browser-evidence.json",
+      "path": "roles/browser-tester.md"
+    },
+    {
+      "id": "reviewer",
+      "name": "代码评审员",
+      "description": "终审 diff（或在干净上下文做 Plan Critic）",
+      "path": "roles/reviewer.md"
+    }
+  ]
+}
