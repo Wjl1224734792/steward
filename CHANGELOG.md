@@ -2,6 +2,51 @@
 
 本仓库所有用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [ZCode 0.9.0 / MiniMax 0.9.0] - 2026-11-11
+
+> 新增「子代理模型与思考强度可视化配置」：7 个子代理的模型与档位可视化改，不再手改三处文件（frontmatter / 名册表 / 项目配置）。同时修掉一个现存偏差——插件子代理的 frontmatter 只声明了 `model` 没声明 `effort`，直接调用子代理时思考强度会落到运行时默认（实测 low），而不是名册写的 high。两宿主版本号统一为 0.9.0。
+
+### Added
+
+- **可视化配置页（Mini App 主壳 + 本地页回落壳，同一套页面资产）**：插件包内新增 `miniapp/`（`miniapp.json` + client 载荷 + node 载荷），MiniMax 宿主在应用面板给出永久入口；宿主未接纳时用 `agent-config.mjs serve` 起本地页（127.0.0.1，默认 7317，占用自动换端口）。两条路共用同一份页面与同一套 API（`GET /api/state` / `POST /api/save`）。
+- **`agent-config.mjs`（catalog / show / set / serve / install）**：读本机模型目录（`~/.minimax/config.yaml`）得到真实可用的模型与每个模型支持的档位集合；展示 7 个角色的当前分配与**生效来源**（项目级覆盖 / 插件默认 / 未配置）；按角色改 model / effort / fallback；写盘走「校验 → 备份 → 写 → 复校 → 失败自动回滚」。
+- **`steward:agent-settings` 技能**：用户说「配置子代理模型 / 思考强度」时路由到它。双宿主共享正文 + 宿主差异槽位（MiniMax 侧给 Mini App / 本地页 / 命令行三条入口；ZCode 侧只做口径说明——ZCode 用宿主默认模型）。
+- **`validate-config.mjs` 目录感知校验**：`modelRouting` 的 model 必须存在于本机模型目录（否则运行时 `MODEL_SELECTION_INVALID`，不回退父模型），effort 必须属于该模型的档位集合；读不到本机配置时降级为警告不阻断，`--skip-catalog` 可显式跳过。
+- **`build.mjs` 新增机检**：agent frontmatter 的 `effort` 必须与 `model` 同时出现、取值须在白名单内；名册表与 frontmatter 逐角色一致性检查（不一致即 build 失败并指出角色）；Mini App 载荷同步 + MiniMax 包 ASCII 路径契约校验扩展到 `miniapp/`。
+
+### Fixed
+
+- **子代理默认思考强度偏差**：7 个 agent 的 frontmatter 补 `effort: high`。此前缺失时，直接调用子代理（非经主技能派单）会按模型默认档位跑（实测 low），与名册表声明的 high 不符。
+- **名册表与 frontmatter 漂移**：名册表改为每角色一行并新增「生效方式」列，由 `build.mjs` 与 frontmatter 机检一致性；不再依赖「换模型时两处一起改」的人记。
+
+### Changed
+
+- `steward.config.json` 的 `modelRouting.<role>.fallback` 允许可选 `effort`（向后兼容：只写 model 仍合法）。
+- `UserPromptSubmit` 触发器新增模型配置意图（「子代理 + 模型/思考强度/档位」），命中时注入 `steward:agent-settings` 上下文，并**优先于**主 Steward 触发；未命中仍静默 fail-open。
+- 主技能「模型路由与预算」节补**生效优先级链**：用户当次指定 > 项目级 `modelRouting`（下次派单即生效）> 插件 frontmatter 默认（build + 安装后新会话生效）。
+
+### 验证
+
+- `node zcode/scripts/build.mjs` → exit 0（单一正文源同步 + 渲染 + 清单/frontmatter 校验 PASS）；`node zcode/scripts/build.mjs --check` → exit 0 零 warning。
+- `node --test zcode/scripts/tests/agent-config.test.mjs` → **49 tests / 10 suites / 49 pass / 0 fail**（YAML 解析正负例、catalog、校验规则、项目级读写与回滚、插件级同步与回滚、状态组装、HTTP 路由、镜像同步）。
+- `node zcode/scripts/agent-config.mjs catalog` → 本机 8 个供应商 / 19 个模型，档位集合逐模型列出，非标准档位（mediem / hign）标「非标准档位」，无推理模型标「不支持档位」。
+- `node zcode/scripts/agent-config.mjs show` → 7 个角色的生效模型 / 档位 / 来源（当前均为「插件默认」）。
+- 本地页实跑（`serve --port 7317`）：`GET /` 200（4126B，含角色表头）、`/app.css` 200、`/app.js` 200、`GET /api/state` 200（roles=7、models=19、catalog.ok=true、repo.detected=true）。
+- 保存失败路径：`POST /api/save` 传目录里不存在的模型 → **400**，错误原文点名「本机模型目录中不存在 … 运行时该模型会直接失败 MODEL_SELECTION_INVALID」并列出前 8 个可用 key（共 19 个），**配置文件未创建**。
+- 保存成功路径：`POST /api/save` → **200**，落盘 `modelRouting.architect = {model, effort: medium, fallback:{model, effort: max}}`，随包返回校验器真实输出（`[validate-config] 结果：PASS`，exit 0）。
+- 路径防护：`/miniapp.json` → 404；`/../scripts/build.mjs` → 404。
+- Mini App 冷启动（构建产物 `minimax/miniapp/node/server.mjs`，start(context) 实跑）：监听宿主分配端口后 `GET /` 200、`/api/state` 200（qa-engineer 显示 model + effort=high + source=plugin）、`/miniapp.json` 404、`dispose()` 正常回收。
+- `node zcode/scripts/agent-config.mjs install --repo … --apply` → 构建 exit 0 + 镜像 98 个文件到 `C:\Users\12247\.minimax\plugins\steward`；安装目录核对：版本 **0.9.0**、`miniapp/` 与 `package.json` 到位、`skills/agent-settings` 已注册、agent frontmatter 含 `effort: high`。
+- 实跑抓到并修复两处真 bug：① `install --apply` 首次执行崩在 `ReferenceError: spawnSync is not defined`（CLI 漏导入 node:child_process）——已补导入并重跑通过；② Mini App 声明的 `surface.path` 是 `/settings`，而服务端只服务 `/`，宿主按声明路径打开会 404——改为启动时读 `miniapp.json` 的真实 `surface.path` 一并服务（复测：`/`、`/settings`、`/index.html` 均 200，未知路径仍 404）。
+- 终审自查（独立评审子代理在产出结论前被上游 provider 网络错误打断，未出报告）：硬编码绝对路径 0 处（新增文件全量扫描）、调试残留 0 处（CLI 的 console.log 是正常输出，测试内那处在 build stub 字符串里）、凭据字段 0 处（catalog JSON 中 apiKey / baseURL 零命中，模型字段只有白名单那 12 个）。
+- **effort 修复的实机证据**：新开会话（`mcode exec`）真实派发 `steward:qa-engineer`，运行时 `local_runtime_session_agent_definitions.definition_json` 记录其模型为 `custom_provider:provider-7970db/step-5-preview` 且 `thinking.effort = high`——证明 frontmatter 的 `effort` 确实被宿主解析（修复前同族定义里没有 effort 字段，档位落到运行时默认）。
+
+
+### 已知偏差
+
+- Mini App 的宿主接纳与实机交互待首次实机验证；独立本地页功能等价，不受此影响。
+- 本机模型配置里存在非标准档位名（`mediem`、`hign`）：以配置原文为准判定合法，页面只做软提示，**不擅自改用户配置**。
+
 ## [ZCode 0.8.2 / MiniMax 0.8.2] - 2026-11-07
 
 > MiniMax 侧对齐：v0.8.1 的 `steward:using-steward` 技能路由同步到 MiniMax（路由表按宿主适配）；v0.8.2 的斜杠命令注册修复为 ZCode-only（MiniMax 无斜杠命令能力，不适用）。**两宿主版本号统一为 0.8.2**——原「ZCode 0.x ↔ MiniMax 1.(x-2)」的错位节奏在同仓同发后不再需要。

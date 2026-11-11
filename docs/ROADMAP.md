@@ -492,6 +492,14 @@ tmp/steward/<run-id>/
 | 21 | 需求澄清内核：第一性原理四问 + 最多 3 个 P0 提问预算（ZCode 侧） | M/L/二义需求先澄清；S 级不追问；假设与拍板落 `01-requirement` / `02-spec`；MiniMax 零改动 |
 | 22 | 技能路由 `steward:using-steward`（ZCode 侧） | 不知道用哪个入口/技能时能路由到功能 / Bug / 计划 / 维护 / 接手 / 文档 / 澄清；提示何时加载 debugging / TDD / 完成前验证；不新增角色 |
 
+### P4（v0.9，MiniMax 侧为主）— 子代理模型与思考强度可视化配置
+
+> **状态（2026-11-11）：1/1 已实现**——逐项证据见 [ROADMAP-STATUS.md](ROADMAP-STATUS.md)。
+
+| # | 交付 | 验收 |
+|---|---|---|
+| 23 | 子代理模型与思考强度可视化配置：模型目录实读 + 配置页（Mini App 主壳 / 本地页回落壳）+ 项目级与插件级双写 + 一致性机检 | 页面上能改 7 个角色的 model/effort 且档位只列该模型真实支持的集合；写盘带校验与回滚；派发时 `model`+`effort` 成对生效 |
+
 ### 明确不做
 
 - ❌ GitHub CI/CD、`.github/workflows`；

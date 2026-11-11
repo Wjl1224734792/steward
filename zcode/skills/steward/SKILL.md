@@ -55,6 +55,7 @@ T1（AGENTS.md + docs/project/ 七件套）缺失时，可运行插件的 `take-
 | `verify.mjs run [--repeat N] [--out <file>]` | 独立复跑门禁（test/lint/typecheck），记录 exit code/耗时/输出；`--repeat` 查 flaky | Stage 3、终审前、修复回归 |
 | `verify.mjs baseline record/check` | 派发前记 HEAD+脏文件 hash；回收时比对：所有权外 diff=越界（exit 1）、测试 diff 未声明理由=反作弊（exit 1） | 每个实施批次前后 |
 | `maintain.mjs <root> [--out <报告>] [--skip-flaky]` | 维护扫描八类（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO/重构比例）→ 评分排序 backlog | 用户手动、发布前 |
+| `agent-config.mjs <catalog\|show\|set\|serve\|install>` | 子代理模型与思考强度：读本机模型目录、查当前分配、按角色改模型/档位（校验→备份→写→复校→失败回滚）、起本地配置页 | 用户要改子代理模型/档位时 |
 | `build.mjs [--check]` | 双宿主构建：scripts/templates 同步 + 技能/agent 正文单一源渲染 + 清单/frontmatter 校验 | 改动插件内容后、发版前 |
 | `hooks/guard.mjs ownership\|dangerous\|secret` | 可选宿主守卫（stdin JSON → exit 2 阻断），配置见 `hooks/hooks.json` | 用户在宿主挂载后自动生效 |
 
@@ -150,6 +151,8 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 ## 模型路由与预算（v0.6）
 
 - `steward.config.json` 可配 `modelRouting`（角色 → 模型/effort + fallback 模型）与 `budget`（`maxTotalAttempts`：整个 run 允许的任务失败重试总次数）。`validate-config.mjs` 会校验结构。
+- **生效优先级（唯一事实链）**：用户当次指定 > 项目级 `modelRouting`（**下次派单即生效**）> 插件 frontmatter 默认（`model` + `effort`，build + 安装后**新会话**生效）。
+- **可视化配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能（配置页或 `agent-config.mjs`）——**不要手改配置或 frontmatter**，也不要凭记忆写模型名（模型不存在会在派发时直接失败 `MODEL_SELECTION_INVALID`）。
 - **派发时**：config 有 `modelRouting` 就按它传模型参数（MiniMax 显式传 model+effort；ZCode 用宿主默认），派发失败若是模型/限流类错误 → 换 `fallback` 模型重试一次；再失败停下报告，不硬刷。
 - **预算**：`run-state.mjs init --budget-attempts N` 写入 run.json；每次 fail 消耗一次，超限 → run 停摆（reason=budget-exhausted），如实向用户报告花费与卡点。
 - 无配置时用本技能名册的默认模型口径（MiniMax 见「模型分配」表）。

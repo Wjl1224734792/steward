@@ -6,6 +6,9 @@
  *   - 脚本 / 模板 / 文档流水线参考库：`zcode/` 侧是唯一正文源，`minimax/` 由本脚本同步。
  *   - 技能 / agent 正文：`shared/` 是唯一正文；宿主差异（frontmatter、派发机制、工具名、
  *     模型表、浏览器操作方式等）放 `host/<host>/` 片段；本脚本渲染出两版并校验一致性。
+ *   - Mini App 载荷（v0.9.0）：`host/minimax/miniapp/` 是唯一正文源，整体同步到 `minimax/miniapp/`；
+ *     `host/minimax/package.json` 同步到包根 `minimax/package.json`。ZCode 宿主没有 Mini App 能力，
+ *     所以 `zcode/` 侧**不同步** miniapp。
  *   - 生成物带「请勿手改」标记；`--check` 会发现手改/未重建并报错。
  *
  * 槽位协议（写在 shared 正文里）：
@@ -13,7 +16,7 @@
  *   @@SLOT?:相对路径@@  可选片段（缺失或为空则删除该行）
  *
  * 用法：
- *   node zcode/scripts/build.mjs            # 同步 scripts/templates/references + 渲染 24 个技能/agent 文件
+ *   node zcode/scripts/build.mjs            # 同步 scripts/templates/references + Mini App 载荷 + 渲染 24 个技能/agent 文件
  *   node zcode/scripts/build.mjs --check    # 只校验不写（不一致即 exit 1）
  *   node zcode/scripts/build.mjs --json     # 机读结果
  *
@@ -102,6 +105,46 @@ syncDir(tplSrc, tplDst, 'minimax/scripts/templates');
 syncDir(join(zc, 'scripts', 'doc'), join(mx, 'scripts', 'doc'), 'minimax/scripts/doc');
 syncDir(join(zc, 'skills', 'steward', 'references'), join(mx, 'skills', 'steward', 'references'), 'minimax/skills/steward/references');
 
+// --- 1.2 Mini App 载荷（v0.9.0）：host/minimax/miniapp/ → minimax/miniapp/，package.json → 包根 ---
+// ZCode 宿主没有 Mini App 能力，zcode/ 侧不做同步。
+{
+  const SYNC_HINT = '跑 node zcode/scripts/build.mjs 同步';
+  const miniSrc = join(hostsRoot, 'minimax', 'miniapp');
+  const miniDst = join(mx, 'miniapp');
+  if (!existsSync(miniSrc)) {
+    errors.push('[miniapp] 缺源目录 host/minimax/miniapp/（Mini App 载荷的唯一正文源）');
+  } else if (!existsSync(miniDst) && checkOnly) {
+    errors.push(`[miniapp] minimax/miniapp 缺失（${SYNC_HINT}）`);
+  }
+  if (existsSync(miniSrc)) {
+    // 递归同步；src 是唯一正文源，dst 里多出来的文件说明有人绕过源直接加文件，一并报错。
+    const walkMini = (src, dst, label) => {
+      if (!existsSync(dst)) {
+        if (checkOnly) { errors.push(`[miniapp] ${label} 缺失（${SYNC_HINT}）`); return; }
+        mkdirSync(dst, { recursive: true });
+      }
+      for (const e of readdirSync(src, { withFileTypes: true })) {
+        const s = join(src, e.name);
+        const d = join(dst, e.name);
+        if (e.isDirectory()) { walkMini(s, d, `${label}/${e.name}`); continue; }
+        if (!existsSync(d) || readFileSync(s, 'utf8') !== readFileSync(d, 'utf8')) {
+          if (checkOnly) errors.push(`[miniapp] ${label}/${e.name} 与 host/minimax 源不一致（${SYNC_HINT}）`);
+          else { copyFileSync(s, d); synced.push(`minimax/${label}/${e.name}`); }
+        }
+      }
+    };
+    walkMini(miniSrc, miniDst, 'miniapp');
+  }
+  const pkgSrc = join(hostsRoot, 'minimax', 'package.json');
+  const pkgDst = join(mx, 'package.json');
+  if (!existsSync(pkgSrc)) {
+    errors.push('[miniapp] 缺源文件 host/minimax/package.json（Mini App 入口声明）');
+  } else if (!existsSync(pkgDst) || readFileSync(pkgSrc, 'utf8') !== readFileSync(pkgDst, 'utf8')) {
+    if (checkOnly) errors.push(`[miniapp] minimax/package.json 与 host/minimax/package.json 不一致（${SYNC_HINT}）`);
+    else { copyFileSync(pkgSrc, pkgDst); synced.push('minimax/package.json'); }
+  }
+}
+
 // --- 2. 渲染引擎：shared/ + host/<host>/ → 技能与 agent 两版 ---
 const bannerOf = (host) => `<!-- 由 zcode/scripts/build.mjs 从 shared/ + host/${host}/ 生成，请勿手改；改源后重跑 build.mjs。 -->`;
 
@@ -144,8 +187,10 @@ function withBanner(fullText, host) {
   return `${head}\n\n${bannerOf(host)}\n\n${rest}\n`;
 }
 
-const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-completion', 'using-steward'];
+const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-completion', 'using-steward', 'agent-settings'];
 const AGENTS = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'browser-tester', 'reviewer'];
+// 官方契约的思考强度白名单（大小写敏感）；effort 只在同时声明 model 时生效。
+const EFFORT_VALUES = ['default', 'off', 'on', 'none', 'low', 'medium', 'high', 'xhigh', 'max'];
 const targets = [];
 
 for (const host of ['zcode', 'minimax']) {
@@ -234,6 +279,8 @@ if (zm && mm) {
   walkPkg(join(mx, 'agents'));
   walkPkg(join(mx, 'scripts'));
   walkPkg(join(mx, 'hooks'));
+  // Mini App 载荷同理：路径里出现中文/全角字符会让整包被宿主拒绝载入。
+  walkPkg(join(mx, 'miniapp'));
   for (const e of readdirSync(mx, { withFileTypes: true })) {
     if (e.isFile() && !/^[\x00-\x7f]*$/.test(e.name)) bad.push('非 ASCII 文件名: ' + e.name);
   }
@@ -260,6 +307,87 @@ for (const [label, base, hostMx] of [['zcode', zc, false], ['minimax', mx, true]
   }
   for (const f of readdirSync(join(base, 'agents')).filter((x) => x.endsWith('.md'))) {
     errors.push(...frontmatterErrors(`${label}/agents/${f}`, readFileSync(join(base, 'agents', f), 'utf8'), { hostMx }));
+  }
+}
+
+// --- 4.2 MiniMax agent 的 model / effort 契约（v0.9.0） ---
+// 官方契约：effort 只在同时声明 model 时生效；模型名必须是 provider/model；
+// effort 只能取白名单值（大小写敏感），未知档位会让派发失败。
+{
+  const agentDir = join(hostsRoot, 'minimax', 'agents');
+  for (const a of AGENTS) {
+    const file = `host/minimax/agents/${a}.frontmatter.md`;
+    const text = readText(join(agentDir, `${a}.frontmatter.md`));
+    if (text === null) continue; // 缺文件已在渲染段报错
+    const fm = fmOf(text);
+    if (!fm) continue; // 缺 frontmatter 已在 4 段报错
+    const modelLine = fm.match(/^model:[ \t]*(.+)$/m);
+    const effortLine = fm.match(/^effort:[ \t]*(.+)$/m);
+    const unquote = (v) => v.trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+    if (modelLine) {
+      const model = unquote(modelLine[1]);
+      if (!model.includes('/') || model.startsWith('/') || model.endsWith('/')) {
+        errors.push(`[${file}] model 必须是 provider/model 形态（含且不含多余 '/'），实际：${JSON.stringify(model)}`);
+      }
+    }
+    if (effortLine) {
+      const effort = unquote(effortLine[1]);
+      if (!modelLine) errors.push(`[${file}] 有 effort 但没有 model：官方契约要求 effort 只随 model 生效`);
+      if (!EFFORT_VALUES.includes(effort)) {
+        errors.push(`[${file}] effort 取值不在白名单（${EFFORT_VALUES.join(', ')}），实际：${JSON.stringify(effort)}`);
+      }
+    }
+  }
+}
+
+// --- 4.3 名册表 ↔ agent frontmatter 一致性（只对 MiniMax 宿主） ---
+// 名册（skills/steward/roster.md 的「模型分配」表）与 frontmatter 是同一事实的两处写法，
+// 手工改一处就会漂移，所以逐角色机检。表格式：| `steward:<role>` | `model` | `effort` | ... |
+{
+  const rosterPath = join(hostsRoot, 'minimax', 'skills', 'steward', 'roster.md');
+  const roster = readText(rosterPath);
+  if (roster === null) {
+    errors.push('[roster] 缺 host/minimax/skills/steward/roster.md');
+  } else {
+    const rows = new Map(); // role -> { model, effort }
+    let inTable = false;
+    for (const line of roster.split('\n')) {
+      const trimmed = line.trim();
+      if (!inTable) {
+        if (/^###\s*模型分配/.test(trimmed)) inTable = true;
+        continue;
+      }
+      if (!trimmed.startsWith('|')) {
+        if (trimmed === '') continue;
+        break; // 表格结束
+      }
+      const cells = trimmed.replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const roleCell = cells[0] ?? '';
+      if (!/^`steward:[A-Za-z0-9._-]+`$/.test(roleCell)) continue; // 表头与分隔行
+      const role = roleCell.slice(1, -1).slice('steward:'.length);
+      const unquote = (v) => (v ?? '').replace(/^`(.*)`$/, '$1').trim();
+      rows.set(role, { model: unquote(cells[1]), effort: unquote(cells[2]) });
+    }
+    if (rows.size === 0) errors.push('[roster] 没在 host/minimax/skills/steward/roster.md 的「模型分配」表里解析到任何角色行');
+    for (const [role, row] of rows) {
+      if (!AGENTS.includes(role)) { errors.push(`[roster] 名册表出现未知角色：「steward:${role}」不在 ${AGENTS.join('/')} 之内`); continue; }
+      const text = readText(join(hostsRoot, 'minimax', 'agents', `${role}.frontmatter.md`));
+      const fm = text === null ? null : fmOf(text);
+      if (!fm) { errors.push(`[roster] 无法读取 host/minimax/agents/${role}.frontmatter.md 的 frontmatter，无法比对名册表`); continue; }
+      const unquote = (v) => v.trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+      const fmModel = fm.match(/^model:[ \t]*(.+)$/m);
+      const fmEffort = fm.match(/^effort:[ \t]*(.+)$/m);
+      const frontModel = fmModel ? unquote(fmModel[1]) : '(未声明)';
+      const frontEffort = fmEffort ? unquote(fmEffort[1]) : '(未声明)';
+      if (frontModel !== row.model || frontEffort !== row.effort) {
+        errors.push(
+          `[roster] steward:${role} 名册表与 frontmatter 不一致：名册 model=${row.model} / effort=${row.effort}；frontmatter model=${frontModel} / effort=${frontEffort}（两处一起改，或改用 agent-config.mjs set）`
+        );
+      }
+    }
+    for (const a of AGENTS) {
+      if (!rows.has(a)) errors.push(`[roster] 名册表缺角色 steward:${a} 的模型分配行`);
+    }
   }
 }
 

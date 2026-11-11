@@ -2,11 +2,19 @@
 /**
  * validate-config.mjs — 校验 steward.config.json（T1 配置）。
  *
- * 用法：node validate-config.mjs [路径]（默认 ./steward.config.json）
+ * 用法：node validate-config.mjs [路径] [--skip-catalog]（默认 ./steward.config.json）
  * 退出码：0 = 有效；1 = 有错误；2 = 文件不存在/不可读。
  * 未知字段只告警（允许项目扩展），已知字段类型/枚举错误会阻断。
+ *
+ * 目录感知校验（v0.9.0）：modelRouting.<role>.model / effort 会对照本机模型目录检查——
+ *   - 模型不存在会在派发时直接失败（MODEL_SELECTION_INVALID）；
+ *   - effort 必须属于该模型的 effortOptions。
+ * 读不到本机模型配置时（catalog.ok === false）以上检查降级为警告；`--skip-catalog` 可完全跳过
+ * （用于跨机器共享的配置）。
  */
 import { readFileSync } from 'node:fs';
+// 同目录模块：build.mjs 会把 zcode/scripts/*.mjs 整体同步到 minimax/scripts/，两处路径都成立。
+import { loadCatalog, findModel } from './agent-config-core.mjs';
 
 const SCHEMA_VERSION = 1;
 
@@ -17,6 +25,9 @@ const BROWSER_PROVIDERS = ['playwright-mcp', 'chrome-devtools-mcp', 'built-in'];
 const BROWSER_FALLBACKS = ['built-in', 'none'];
 const BROWSER_VISUAL = ['unverified', 'verified'];
 const ISOLATION_MODES = ['baseline-hash', 'worktree'];
+
+// 模型目录状态：main 里在解析配置前加载一次，validate() 只用结果。
+const catalogState = { checked: false, ok: false, reason: '', catalog: null };
 
 const errors = [];
 const warnings = [];
@@ -39,6 +50,37 @@ function checkBoolMap(obj, keys, label) {
     const v = obj[k];
     if (v === undefined) { warn(`${label}.${k} 未设置，默认按 false 处理`); continue; }
     if (typeof v !== 'boolean') err(`${label}.${k} 必须是 boolean，实际：${JSON.stringify(v)}`);
+  }
+}
+
+/**
+ * 目录感知校验：模型必须能在本机模型目录里命中（否则派发会 MODEL_SELECTION_INVALID），
+ * effort 必须属于该模型的 effortOptions。读不到目录时整项降级为警告，不阻断。
+ * @param {string} label  报错前缀，如 "modelRouting.architect"
+ * @param {string} model
+ * @param {string | undefined} effort
+ * @param {string} source 引用来源名（用于降级警告措辞）
+ */
+function checkAgainstCatalog(label, model, effort, source) {
+  if (!catalogState.checked) return;
+  if (catalogState.ok === false) {
+    const why = catalogState.reason || '读不到本机模型配置';
+    warn(`${label}.model：跳过目录校验（${why}），无法确认模型「${model}」是否存在`);
+    return;
+  }
+  const hit = findModel(catalogState.catalog, model);
+  if (!hit) {
+    err(`${label}.model：模型「${model}」不在本机模型目录中（运行时派发会失败 MODEL_SELECTION_INVALID；如需跨机器共享配置可加 --skip-catalog）`);
+    return;
+  }
+  if (effort === undefined) return;
+  const options = Array.isArray(hit.effortOptions) ? hit.effortOptions : [];
+  if (options.length === 0) {
+    err(`${label}.effort：模型「${model}」不支持思考强度，请删掉 ${source} 里的 effort`);
+    return;
+  }
+  if (!options.includes(effort)) {
+    err(`${label}.effort：模型「${model}」不支持档位「${effort}」，可选：${options.join(', ')}`);
   }
 }
 
@@ -108,11 +150,26 @@ function validate(cfg) {
       for (const [role, r] of Object.entries(mr)) {
         if (!ROLES.includes(role)) warn(`modelRouting."${role}" 不是已知角色（${ROLES.join('/')}）`);
         if (typeof r !== 'object' || r === null) { err(`modelRouting.${role} 必须是对象 { model, effort?, fallback? }`); continue; }
-        if (typeof r.model !== 'string' || !r.model.trim()) err(`modelRouting.${role}.model 必须是非空字符串`);
-        if (r.effort !== undefined && typeof r.effort !== 'string') err(`modelRouting.${role}.effort 必须是字符串`);
+        const hasModel = typeof r.model === 'string' && r.model.trim() !== '';
+        if (!hasModel) err(`modelRouting.${role}.model 必须是非空字符串`);
+        if (r.effort !== undefined) {
+          if (typeof r.effort !== 'string') err(`modelRouting.${role}.effort 必须是字符串`);
+          // 成对约束：effort 只在同时声明 model 时生效（官方契约）。
+          else if (!hasModel) err(`modelRouting.${role}.effort 需要同时声明 model：effort 只随 model 生效`);
+        }
+        if (hasModel) checkAgainstCatalog(`modelRouting.${role}`, r.model.trim(), r.effort, 'modelRouting');
         if (r.fallback !== undefined) {
-          if (typeof r.fallback !== 'object' || r.fallback === null || typeof r.fallback.model !== 'string' || !r.fallback.model.trim()) {
-            err(`modelRouting.${role}.fallback 必须是 { model: "..." }`);
+          const fb = r.fallback;
+          if (typeof fb !== 'object' || fb === null || Array.isArray(fb)) {
+            err(`modelRouting.${role}.fallback 必须是 { model: "...", effort?: "..." }`);
+          } else if (typeof fb.model !== 'string' || !fb.model.trim()) {
+            err(`modelRouting.${role}.fallback 必须是 { model: "...", effort?: "..." }`);
+          } else {
+            if (fb.effort !== undefined && typeof fb.effort !== 'string') {
+              err(`modelRouting.${role}.fallback.effort 必须是字符串，实际：${JSON.stringify(fb.effort)}`);
+            } else {
+              checkAgainstCatalog(`modelRouting.${role}.fallback`, fb.model.trim(), fb.effort, 'modelRouting');
+            }
           }
         }
       }
@@ -132,7 +189,8 @@ function validate(cfg) {
 }
 
 // --- main ---
-const path = process.argv[2] || 'steward.config.json';
+const skipCatalog = process.argv.includes('--skip-catalog');
+const path = process.argv.slice(2).find((a) => !a.startsWith('--')) || 'steward.config.json';
 let raw;
 try {
   raw = readFileSync(path, 'utf8');
@@ -147,6 +205,22 @@ try {
 } catch (e) {
   console.error(`[validate-config] JSON 解析失败：${path}\n  ${e.message}`);
   process.exit(1);
+}
+
+// 目录加载放在配置解析之后：配置文件本身坏了要先报那个错，不必白读模型目录。
+if (!skipCatalog) {
+  catalogState.checked = true;
+  try {
+    const catalog = loadCatalog();
+    catalogState.catalog = catalog;
+    catalogState.ok = catalog && catalog.ok === true;
+    catalogState.reason = catalogState.ok ? '' : String((catalog && catalog.reason) || '模型目录不可用');
+  } catch (e) {
+    // loadCatalog 内部已做探测与降级，走到这里说明是意料外异常：同样降级为警告，不阻断。
+    catalogState.ok = false;
+    catalogState.reason = `读取模型目录失败：${e.message}`;
+  }
+  if (!catalogState.ok) warn(`模型目录不可用（${catalogState.reason}），modelRouting 的模型/档位检查已降级为警告`);
 }
 
 validate(cfg);

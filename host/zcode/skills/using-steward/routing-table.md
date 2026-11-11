@@ -7,3 +7,4 @@
 | 接手存量项目 | `/steward:take-over` | 先盘点后动手 |
 | 写 PRD/FRD/契约/页面/测试/部署 | `/steward` + `docTier: 3` | 读主技能目录下 `references/doc-pipeline/README.md` |
 | 需求模糊 / 不知道从哪开始 | `/steward:plan` 或 Stage 0.1 | 最多 3 个 P0 问题；S 级不追问 |
+| 配置子代理模型 / 思考强度 | `steward:agent-settings` | ZCode 用宿主默认模型；按角色换模型请到 MiniMax 宿主 |

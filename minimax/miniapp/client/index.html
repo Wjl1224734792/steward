@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Steward · 子代理模型与思考强度</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="page-head">
+      <h1>子代理模型与思考强度</h1>
+      <p class="subtitle">
+        生效优先级：<strong>用户当次指定</strong> &gt;
+        <strong>项目级 steward.config.json</strong>（下次派单即生效）&gt;
+        <strong>插件默认</strong>（build + 安装后新会话生效）
+      </p>
+      <p class="meta" id="meta-line">正在读取本机状态…</p>
+    </header>
+
+    <!-- 告警区：catalog 不可用 / warning / 全局错误 -->
+    <section class="alerts" id="alerts" aria-live="polite" aria-label="状态提示"></section>
+
+    <!-- 加载态 -->
+    <div class="state-box" id="loading-box">正在读取模型目录与角色配置…</div>
+
+    <!-- 致命错误态（后端不可用等） -->
+    <div class="state-box state-error" id="fatal-box" hidden>
+      <h2 id="fatal-title">无法读取后端状态</h2>
+      <p id="fatal-message"></p>
+      <p class="hint">
+        请确认已通过 <code>node scripts/agent-config.mjs serve</code> 启动本地页，
+        或在 Mini App 中打开本页面；页面所有请求都走同源相对路径 <code>/api/*</code>。
+      </p>
+      <button type="button" class="btn" id="retry-btn">重试</button>
+      <pre class="raw" id="fatal-raw" hidden></pre>
+    </div>
+
+    <!-- 主内容 -->
+    <main id="main" hidden>
+      <section class="card">
+        <div class="card-head">
+          <h2>角色分配</h2>
+          <p class="meta" id="catalog-meta"></p>
+        </div>
+        <div class="table-wrap">
+          <table class="roles-table">
+            <caption class="sr-only">7 个子代理角色的模型与思考强度配置</caption>
+            <thead>
+              <tr>
+                <th scope="col">角色</th>
+                <th scope="col">模型</th>
+                <th scope="col">思考强度</th>
+                <th scope="col">fallback 模型 / 档位</th>
+                <th scope="col">来源</th>
+                <th scope="col">状态</th>
+              </tr>
+            </thead>
+            <tbody id="roles-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>写入范围</h2>
+        </div>
+        <fieldset class="scope-group" id="scope-group">
+          <legend class="sr-only">选择写入范围</legend>
+          <label class="radio">
+            <input type="radio" name="scope" value="project" checked />
+            <span>只写项目级</span>
+            <span class="hint">写入项目 steward.config.json，下次派单即生效</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="scope" value="plugin" />
+            <span>只写插件默认</span>
+            <span class="hint">改插件源码默认（frontmatter + 名册表），需 build + 安装后新会话才生效</span>
+          </label>
+          <label class="radio">
+            <input type="radio" name="scope" value="both" />
+            <span>两者都写</span>
+            <span class="hint">项目级与插件默认一起改</span>
+          </label>
+        </fieldset>
+        <p class="hint" id="scope-blocked" hidden></p>
+        <div class="paths">
+          <label class="field" for="project-root-input">
+            <span>项目根目录（写 steward.config.json）</span>
+            <input type="text" id="project-root-input" spellcheck="false" autocomplete="off" />
+          </label>
+          <label class="field" for="repo-root-input">
+            <span>Steward 源码仓库根目录（改插件默认）</span>
+            <input type="text" id="repo-root-input" spellcheck="false" autocomplete="off" />
+          </label>
+          <p class="hint">留空则沿用后端探测到的路径。写入只会落到上面目录里的 steward.config.json，以及仓库 host/minimax/ 下的 agent 默认文件与名册表。</p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="save-btn">保存</button>
+          <button type="button" class="btn" id="reload-btn">重新读取</button>
+          <span class="save-state" id="save-state" role="status" aria-live="polite"></span>
+        </div>
+      </section>
+
+      <section class="card" id="result-card" hidden>
+        <div class="card-head">
+          <h2 id="result-title">保存结果</h2>
+        </div>
+        <div id="result-body"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

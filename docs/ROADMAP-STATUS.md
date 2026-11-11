@@ -2,6 +2,12 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
+## P4（v0.9，ZCode 0.9.0 / MiniMax 0.9.0）— 2026-11-11
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| 23 | 子代理模型与思考强度可视化配置 | 已实现 | ① 构建：`node zcode/scripts/build.mjs` exit 0、`--check` exit 0 零 warning；② 单测：`node --test zcode/scripts/tests/agent-config.test.mjs` **49 tests / 10 suites / 49 pass / 0 fail**；③ 目录：`agent-config.mjs catalog` 列本机 8 供应商 / 19 模型 + 逐模型档位集合（非标准档位 mediem / hign 照原文标注）；④ 现状：`show` 输出 7 角色与生效来源；⑤ 本地页实跑：`GET /` 200、`/api/state` 200（roles=7、models=19）、`POST /api/save` 非法模型 400 且不落盘、合法写入 200 且随包返回 `[validate-config] 结果：PASS`（exit 0）、`/miniapp.json` 与 `/../scripts/build.mjs` 均 404；⑥ Mini App 冷启动：start(context) 实跑，`/` 200、`/api/state` 200、dispose 正常；⑦ 安装：`install --apply` 构建 exit 0 + 镜像 98 文件到本机插件目录，安装后版本 0.9.0、`miniapp/` 与 `skills/agent-settings` 到位；⑧ **effort 修复的硬证据**：新开会话实派 `steward:qa-engineer`，运行时 `local_runtime_session_agent_definitions` 记录其模型为 `custom_provider:provider-7970db/step-5-preview` 且 `thinking.effort = high`（旧会话同族定义无 effort 字段，即此前落到运行时默认） | 页面载体两形态：Mini App（主壳，与现有复制目录同一条安装链）+ `serve` 本地页（回落壳，同一份页面资产）。**Mini App 在真实宿主中的接纳与交互尚未实机验证**，本地页功能等价不受影响；档位名以本机配置原文为准（mediem / hign 不擅自纠正）；模型路由是 MiniMax-only，ZCode 侧沿用宿主默认模型 |
+
 ## P0（v0.5，ZCode 0.5.0 / MiniMax 1.3.0）— 2026-11-06
 
 验证环境：fixture 仓库 `tmp/steward-fixtures/ledger-demo/`（git 基线 a7fc1b1，Node v24.15.0 / win32，零依赖 node:test）。本仓库未做任何 commit / push，全部改动留在工作区。

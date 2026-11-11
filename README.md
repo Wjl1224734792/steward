@@ -26,6 +26,7 @@ Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代�
 | 接手存量 | `/steward:take-over` | 0.7.0 可用（扫描生成 T1 + 首轮健康扫描；MiniMax 用自然语言触发） |
 | 文档流水线 | `docTier: 3`（随 `/steward`） | 0.8.0 起双宿主可用（七阶段树 + 全量模板 + 文档检查；MiniMax 1.6.0 同步） |
 | 技能路由 | 加载 `steward:using-steward` | 0.8.1 起双宿主可用（不知道用哪个入口/技能时先做路由） |
+| 子代理模型配置 | 加载 `steward:agent-settings` | 0.9.0 起 MiniMax 可用（可视化配置页 / CLI；ZCode 沿用宿主默认模型） |
 
 功能交付：受理定级（S/M/L）→ 方案 → 批准门 → 实施 → QA → 浏览器验收 → 终审 → 收尾。Bug 修复按严重度分流：B2/B3 走「复现 → 失败测试 → 根因 → 最小修复 → 回归 → 记录」，B0/B1 增加止损与 postmortem 复盘。只出计划：方案 → 计划校验 → Plan Critic → 用户批准后停止，不实施。维护循环：八类扫描（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO/重构比例）→ 评分排序 backlog → 小修 → 更新 HEALTH。接手：扫描生成 T1 项目记忆 + 首轮健康扫描，先盘点后动手。演进与 T3/文档流水线见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -53,6 +54,7 @@ Steward 是面向 ZCode / MiniMax 的多角色研发团队插件。主对话代�
 - **学习循环（v0.6）**：05-record 回填——评审发现/事故教训/用户纠正沉淀到 CONSTITUTION / ADR / RUNBOOK / HEALTH。
 - **轻量技能（v0.6）**：`systematic-debugging`、`tdd`、`verification-before-completion`，按需加载不默认注入。
 - **技能路由（v0.8.1，ZCode 侧）**：不知道用哪个入口/技能时加载 `steward:using-steward`；它只做路由，不替代主技能。
+- **子代理模型与思考强度可视化配置（v0.9.0，MiniMax 侧）**：7 个子代理的模型与档位可视化改——应用内的 Mini App 配置页，或 `agent-config.mjs serve` 起的本地页；档位下拉只列该模型真实支持的集合（实时读本机模型目录，不硬编码）；写盘走「校验 → 备份 → 写 → 复校 → 失败回滚」。项目级 `steward.config.json` 下次派单即生效；插件默认改完 build + 安装后**新会话**生效。顺带修掉「frontmatter 只写 model 不写 effort → 直接调用子代理时档位落到 low」的偏差。
 - **项目记忆（v0.5）**：`take-over.mjs` 可为目标项目生成 AGENTS.md + `docs/project/` 七件套初稿（T0/T1）。
 - **工件交接**：`tmp/steward/<run-id>/`，不在 prompt 里转述长文。
 - **三道质量门**：QA → 浏览器验收（有 UI）→ 评审；缺陷按归属回派，最多 2 轮。
@@ -65,7 +67,7 @@ steward/
 ├── shared/                # 唯一正文源：技能 / agent 共享正文（含 @@SLOT@@ 宿主槽位）
 ├── host/{zcode,minimax}/  # 宿主片段：frontmatter、派发机制、模型表、浏览器操作方式等
 ├── zcode/                 # ZCode 插件包（技能/agent 由 build.mjs 生成）
-├── minimax/               # MiniMax 插件包（技能/agent 由 build.mjs 生成）
+├── minimax/               # MiniMax 插件包（技能/agent 由 build.mjs 生成；含 miniapp/ 配置页）
 ├── docs/
 │   ├── README.md
 │   ├── ROADMAP.md         # 2026 路线图
@@ -113,6 +115,15 @@ Copy-Item -Path "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minimax\plugi
 
 输入包含「开发团队 / 开发小组 / Steward」时，`UserPromptSubmit` Hook 自动加载技能；也可以直接描述需求。
 
+#### 配置子代理的模型与思考强度（v0.9.0）
+
+装好后新开会话，直接说「配置子代理模型」「把 QA 换个模型并调高思考强度」即可：主代理加载 `steward:agent-settings`，读本机模型目录并展示 7 个子代理当前的模型 / 档位与生效来源。
+
+- **可视化配置页**：MiniMax 应用面板里打开 Steward 的子代理模型配置页（Mini App）；宿主未接纳时用功能等价的本地页——在源码仓库执行 `node zcode/scripts/agent-config.mjs serve`，浏览器打开 `http://127.0.0.1:7317`（端口占用会自动换并打印实际地址）。
+- **命令行直改**：`node zcode/scripts/agent-config.mjs set --role qa-engineer --model custom_provider:provider-f9b585/glm-5.3-flash --effort medium --scope both`（`--scope` 取 project / plugin / both）。
+- **只看不改**：`node zcode/scripts/agent-config.mjs show`。
+- 改插件默认后要在源码仓库跑 `node zcode/scripts/agent-config.mjs install --apply`（build + 镜像安装到本机插件目录），改动**新会话**才生效。
+
 ### 使用
 
 ```text
@@ -153,6 +164,7 @@ Steward is a role-based engineering team plugin for ZCode and MiniMax. The lead 
 | Takeover | `/steward:take-over` | Available in 0.7.0+ (T1 generation + first health scan; on MiniMax trigger by natural language) |
 | Documentation pipeline | `docTier: 3` (with `/steward`) | Available in 0.8.0+ on both hosts (seven-phase tree + full templates + doc checks; MiniMax synced in 1.6.0) |
 | Skill routing | load `steward:using-steward` | Available in 0.8.1+ on both hosts (route to the right mode when unsure which entry point/skill to use) |
+| Subagent model config | load `steward:agent-settings` | Available in 0.9.0 on MiniMax (visual config page / CLI; ZCode keeps the host default model) |
 
 Feature delivery: intake & sizing (S/M/L) → plan → approval gate → implementation → QA → browser acceptance → final review → finishing. Bug fixes are triaged by severity: B2/B3 follow "repro → failing test → root cause → minimal fix → regression → record"; B0/B1 add mitigation-first and a postmortem. Plan-only mode stops after the approval gate — no implementation. Maintenance: an eight-category scan (deps / security / duplication / churn / doc drift / cycles / flaky / TODO) → scored backlog → small fixes → HEALTH.md updates. Full design: [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -180,6 +192,7 @@ Feature delivery: intake & sizing (S/M/L) → plan → approval gate → impleme
 - **Learning loop (v0.6)**: 05-record backfill — review findings, incident lessons, and user corrections are persisted into CONSTITUTION / ADRs / RUNBOOK / HEALTH.
 - **Lightweight skills (v0.6)**: `systematic-debugging`, `tdd`, `verification-before-completion` — loaded on demand, never injected by default.
 - **Skill router (v0.8.1, ZCode side)**: load `steward:using-steward` when the user is unsure which entry point or skill to use; it only routes, never replaces the main skill.
+- **Subagent model and thinking-effort configuration (v0.9.0, MiniMax side)**: change the model and effort of the 7 subagents from a visual page (an in-app Mini App, or the equivalent local page started by `agent-config.mjs serve`). The effort dropdown lists only the levels the selected model really supports (read live from the local model catalog, never hardcoded), and every write follows validate → back up → write → re-validate → roll back on failure. Project-level `steward.config.json` takes effect on the next dispatch; plugin defaults take effect in a **new session** after build + install. This also fixes the existing defect where agent frontmatter declared `model` but not `effort`, so a directly invoked subagent ran on the runtime default (observed: low) instead of the roster's high.
 - **Project memory (v0.5)**: `take-over.mjs` drafts AGENTS.md + the seven `docs/project/` files (T0/T1) for a target project.
 - **Artifact handoff**: `tmp/steward/<run-id>/`; no long prose in prompts.
 - **Three quality gates**: QA → browser acceptance (when UI) → review; defects are routed back, at most two rounds.
@@ -237,6 +250,15 @@ Copy-Item -LiteralPath "<repo>\minimax\*" -Destination "$env:USERPROFILE\.minima
 ```
 
 When the input contains "开发团队", "开发小组", or "Steward", the `UserPromptSubmit` hook loads the skill automatically.
+
+#### Configure subagent models and thinking effort (v0.9.0)
+
+Start a new session and say "configure subagent models" or "switch QA to another model with a higher thinking effort": the main agent loads `steward:agent-settings`, reads the local model catalog and shows each subagent's current model, effort and where it comes from.
+
+- **Visual page**: open the Steward subagent model configuration page in the MiniMax app panel (Mini App). If the host has not accepted the Mini App yet, use the equivalent local page: run `node zcode/scripts/agent-config.mjs serve` in the source repo and open `http://127.0.0.1:7317` (the port is printed if it had to change).
+- **CLI**: `node zcode/scripts/agent-config.mjs set --role qa-engineer --model custom_provider:provider-f9b585/glm-5.3-flash --effort medium --scope both` (`--scope` is project / plugin / both).
+- **Read only**: `node zcode/scripts/agent-config.mjs show`.
+- After changing plugin defaults run `node zcode/scripts/agent-config.mjs install --apply` in the source repo (build + mirror-install); changes apply in a **new session**.
 
 ### Usage
 

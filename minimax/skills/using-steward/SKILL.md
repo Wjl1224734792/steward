@@ -20,6 +20,7 @@ description: Steward 技能路由。当用户不知道用 Steward 的哪个入�
 | 接手存量项目 | 接手存量（自然语言：「接手这个项目」） | 先盘点后动手 |
 | 写 PRD/FRD/契约/页面/测试/部署 | 主技能 + `docTier: 3`（自然语言：「按 docTier=3 建文档树」） | 读主技能目录下 `references/doc-pipeline/README.md` |
 | 需求模糊 / 不知道从哪开始 | 只出计划模式 或 主技能 Stage 0.1 | 最多 3 个 P0 问题；S 级不追问 |
+| 配置子代理模型 / 思考强度 / 给某角色换模型 | `steward:agent-settings` | 先读本机模型目录再改；model 与 effort 成对传 |
 
 ## 轻量技能什么时候加载
 
@@ -28,12 +29,13 @@ description: Steward 技能路由。当用户不知道用 Steward 的哪个入�
 | Bug 说不通、要复现 / 缩小 / 根因 | `steward:systematic-debugging` |
 | 实现或修 Bug 要测试先行 | `steward:tdd` |
 | 准备说「完成 / 修好了 / 全绿」 | `steward:verification-before-completion` |
+| 想改子代理用的模型 / 思考强度 | `steward:agent-settings` |
 
 派单时在 prompt 里点名「加载 `steward:xxx` 并遵守」；不要默认塞给所有任务。
 
 ## 三条纪律
 
-1. **不新造角色/流程**：只用 7 个角色 + 4 个轻量技能（含本路由）+ 主技能；需要新角色先给方案，不直接加。
+1. **不新造角色/流程**：只用 7 个角色 + 5 个轻量技能（含本路由与子代理模型配置）+ 主技能；需要新角色先给方案，不直接加。
 2. **S 级直接做**：≤3 文件、单层、无 UI / 无 schema，不派全员、不建深文档。
 3. **不确定就先走只出计划模式**：先把方案 / 影响面 / 风险摆出来，再决定做不做；不要猜着写。
 

@@ -25,17 +25,23 @@ description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三�
 
 ### 模型分配（派单时显式带 `model` + `effort`）
 
-| 角色 | `model` | `effort` |
-|---|---|---|
-| `steward:pm` / `steward:architect` / `steward:qa-engineer` / `steward:reviewer` | `custom_provider:provider-7970db/step-5-preview` | `high` |
-| `steward:backend-dev` / `steward:frontend-dev` | `custom_provider:provider-f9b585/deepseek-v4.1-flash-1017` | `high` |
-| `steward:browser-tester` | `custom_provider:provider-f9b585/glm-5.3-flash` | `high` |
+| 角色 | `model` | `effort` | 生效方式 |
+|---|---|---|---|
+| `steward:pm` | `custom_provider:provider-7970db/step-5-preview` | `high` | 插件默认；项目级 `modelRouting` 可覆盖 |
+| `steward:architect` | `custom_provider:provider-7970db/step-5-preview` | `high` | 插件默认；项目级 `modelRouting` 可覆盖 |
+| `steward:backend-dev` | `custom_provider:provider-f9b585/deepseek-v4.1-flash-1017` | `high` | 插件默认；项目级 `modelRouting` 可覆盖 |
+| `steward:frontend-dev` | `custom_provider:provider-f9b585/deepseek-v4.1-flash-1017` | `high` | 插件默认；项目级 `modelRouting` 可覆盖 |
+| `steward:qa-engineer` | `custom_provider:provider-7970db/step-5-preview` | `high` | 插件默认；项目级 `modelRouting` 可覆盖 |
+| `steward:browser-tester` | `custom_provider:provider-f9b585/glm-5.3-flash` | `high` | 插件默认；项目级 `modelRouting` 可覆盖 |
+| `steward:reviewer` | `custom_provider:provider-7970db/step-5-preview` | `high` | 插件默认；项目级 `modelRouting` 可覆盖 |
 
 - 这两个参数**必须成对传**：模型带 thinking 档位时只传 `model` 会直接失败（`... requires an explicit thinking effort: low, high, max`），不会自动取默认值。
-- 各 agent 的 frontmatter 里也写了同样的 `model`，那是声明式默认值；**换模型时两处一起改**，别只改一处。
+- 各 agent 的 frontmatter 现在**同时声明 `model` 与 `effort`**（声明式默认值）；名册表与本文件的 frontmatter 由 `build.mjs` 机检一致性，**不要手改其中一处**。改模型请用可视化配置页（`steward:agent-settings`）或 `agent-config.mjs set`，避免两处漂移。
 - 派单示例：
   `task(agent_name="steward:architect", model="custom_provider:provider-7970db/step-5-preview", effort="high", description="...", prompt="...", run_in_background=false)`
 - 用户临时指定别的模型/档位时，以用户为准，覆盖上表。
+
+**生效优先级**：用户当次指定 > 项目级 `steward.config.json` 的 `modelRouting`（下次派单即生效）> 插件 frontmatter 默认（build + 安装后**新会话**生效）。
 
 **外援（非本插件角色，按需派）**：内置 `explore` 代理（只读 fan-out 搜索）——L 级需求开工前的仓库勘察（Stage 0.5）。
 
@@ -80,6 +86,7 @@ T1（AGENTS.md + docs/project/ 七件套）缺失时，可运行插件的 `take-
 | `verify.mjs run [--repeat N] [--out <file>]` | 独立复跑门禁（test/lint/typecheck），记录 exit code/耗时/输出；`--repeat` 查 flaky | Stage 3、终审前、修复回归 |
 | `verify.mjs baseline record/check` | 派发前记 HEAD+脏文件 hash；回收时比对：所有权外 diff=越界（exit 1）、测试 diff 未声明理由=反作弊（exit 1） | 每个实施批次前后 |
 | `maintain.mjs <root> [--out <报告>] [--skip-flaky]` | 维护扫描八类（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO/重构比例）→ 评分排序 backlog | 用户手动、发布前 |
+| `agent-config.mjs <catalog\|show\|set\|serve\|install>` | 子代理模型与思考强度：读本机模型目录、查当前分配、按角色改模型/档位（校验→备份→写→复校→失败回滚）、起本地配置页 | 用户要改子代理模型/档位时 |
 | `build.mjs [--check]` | 双宿主构建：scripts/templates 同步 + 技能/agent 正文单一源渲染 + 清单/frontmatter 校验 | 改动插件内容后、发版前 |
 
 门禁脚本 exit code 非 0 就是失败，**如实上报，不许解释掉**。
@@ -187,6 +194,8 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 ## 模型路由与预算（v0.6）
 
 - `steward.config.json` 可配 `modelRouting`（角色 → 模型/effort + fallback 模型）与 `budget`（`maxTotalAttempts`：整个 run 允许的任务失败重试总次数）。`validate-config.mjs` 会校验结构。
+- **生效优先级（唯一事实链）**：用户当次指定 > 项目级 `modelRouting`（**下次派单即生效**）> 插件 frontmatter 默认（`model` + `effort`，build + 安装后**新会话**生效）。
+- **可视化配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能（配置页或 `agent-config.mjs`）——**不要手改配置或 frontmatter**，也不要凭记忆写模型名（模型不存在会在派发时直接失败 `MODEL_SELECTION_INVALID`）。
 - **派发时**：config 有 `modelRouting` 就按它传模型参数（`model` + `effort` 必须成对传），派发失败若是模型/限流类错误 → 换 `fallback` 模型重试一次；再失败停下报告，不硬刷。config 没有 modelRouting 时用下表默认值；用户临时指定以用户为准。
 - **预算**：`run-state.mjs init --budget-attempts N` 写入 run.json；每次 fail 消耗一次，超限 → run 停摆（reason=budget-exhausted），如实向用户报告花费与卡点。
 

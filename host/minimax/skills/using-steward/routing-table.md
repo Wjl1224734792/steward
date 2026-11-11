@@ -7,3 +7,4 @@
 | 接手存量项目 | 接手存量（自然语言：「接手这个项目」） | 先盘点后动手 |
 | 写 PRD/FRD/契约/页面/测试/部署 | 主技能 + `docTier: 3`（自然语言：「按 docTier=3 建文档树」） | 读主技能目录下 `references/doc-pipeline/README.md` |
 | 需求模糊 / 不知道从哪开始 | 只出计划模式 或 主技能 Stage 0.1 | 最多 3 个 P0 问题；S 级不追问 |
+| 配置子代理模型 / 思考强度 / 给某角色换模型 | `steward:agent-settings` | 先读本机模型目录再改；model 与 effort 成对传 |
