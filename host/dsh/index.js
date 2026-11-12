@@ -680,16 +680,17 @@ function defineStewardTools(ctx, config) {
         }
       }
 
+      // DSH ≥ 0.2.1-rc.2 carries the task fields on the spec itself: the old
+      // nested `request` object was removed, and shipping it makes
+      // `startActivation` fail before the child exists.
       const activation = await subagents.startActivation({
         provider: SUBAGENT_PROVIDER,
         label: String(args?.description ?? roleId),
-        request: {
-          prompt: [{ type: 'text', text: dispatchPrompt(roleId, String(args?.prompt ?? '')) }],
-          parent,
-          agentPreset: CHILD_PRESET,
-          ...(typeof args?.cwd === 'string' && args.cwd !== '' ? { cwd: args.cwd } : {}),
-          ...(agentOptions === undefined ? {} : { agentOptions }),
-        },
+        prompt: [{ type: 'text', text: dispatchPrompt(roleId, String(args?.prompt ?? '')) }],
+        parent,
+        agentPreset: CHILD_PRESET,
+        ...(typeof args?.cwd === 'string' && args.cwd !== '' ? { cwd: args.cwd } : {}),
+        ...(agentOptions === undefined ? {} : { agentOptions }),
         signal: exec.signal,
         delivery: 'parent',
       });

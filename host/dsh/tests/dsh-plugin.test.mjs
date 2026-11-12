@@ -266,12 +266,18 @@ test('every role charter is a dispatch payload, not a mode', async () => {
   const bucket = await boot();
   const tool = bucket.state.tools.find((entry) => entry.name === 'steward_dispatch');
   for (const role of ROLE_IDS) {
-    const value = await tool.execute({ role, description: `${role} task`, prompt: '只回复 OK' }, execFor());
+    const exec = execFor();
+    const value = await tool.execute({ role, description: `${role} task`, prompt: '只回复 OK' }, exec);
     assert.equal(value.childPreset, CHILD_PRESET, `${role} must run the shipped composition`);
-    const text = bucket.state.activations.at(-1).request.prompt[0].text;
+    const spec = bucket.state.activations.at(-1);
+    // DSH >= 0.2.1-rc.2 removed the nested `request` object: the task fields
+    // are the activation spec itself and the backend dereferences spec.parent.
+    assert.equal(spec.request, undefined, `${role}: the activation spec must not nest a request object`);
+    assert.deepEqual(spec.parent, exec.agent, `${role}: the child must be owned by the calling agent`);
+    const text = spec.prompt[0].text;
     assert.ok(text.startsWith(roleBody(role)), `${role}: the dispatch must inject that role's charter`);
     assert.ok(text.endsWith('只回复 OK'), `${role}: the task must stay last`);
-    assert.equal(bucket.state.activations.at(-1).request.agentPreset, CHILD_PRESET);
+    assert.equal(spec.agentPreset, CHILD_PRESET);
   }
 });
 
@@ -281,7 +287,7 @@ test('dispatch inherits the parent route when the project configures none', asyn
   const value = await tool.execute({ role: 'reviewer', description: '冒烟', prompt: '只回复 OK', cwd: emptyDir }, execFor());
   assert.equal(value.source, 'inherit');
   assert.equal(value.provider, '');
-  assert.equal(bucket.state.activations.at(-1).request.agentOptions, undefined);
+  assert.equal(bucket.state.activations.at(-1).agentOptions, undefined);
 });
 
 test('the panel route applies when the project has no entry, and the project still wins', async () => {
@@ -291,7 +297,7 @@ test('the panel route applies when the project has no entry, and the project sti
   bucket.state.config.roles.reviewer = { provider: 'p1', model: 'm-high', effort: 'high' };
   const viaRole = await tool.execute({ role: 'reviewer', description: '冒烟', prompt: '只回复 OK', cwd: emptyDir }, execFor());
   assert.equal(viaRole.source, 'role');
-  assert.deepEqual(bucket.state.activations.at(-1).request.agentOptions, { provider: 'p1', model: 'm-high', reasoningEffort: 'high' });
+  assert.deepEqual(bucket.state.activations.at(-1).agentOptions, { provider: 'p1', model: 'm-high', reasoningEffort: 'high' });
 
   bucket.state.config.roles.reviewer = { provider: '', model: '', effort: '' };
   bucket.state.config.defaults = { provider: 'p1', model: 'm-high', effort: 'low' };
@@ -321,7 +327,7 @@ test('dispatch applies modelRouting from the project steward.config.json', async
   assert.equal(value.provider, 'p1');
   assert.equal(value.model, 'm-high');
   assert.equal(value.effort, 'high');
-  assert.deepEqual(bucket.state.activations.at(-1).request.agentOptions, { provider: 'p1', model: 'm-high', reasoningEffort: 'high' });
+  assert.deepEqual(bucket.state.activations.at(-1).agentOptions, { provider: 'p1', model: 'm-high', reasoningEffort: 'high' });
 
   // A role without its own entry still inherits.
   const inherited = await tool.execute({ role: 'pm', description: '规格', prompt: '只回复 OK', cwd: projectDir }, execFor());
@@ -346,7 +352,7 @@ test('a malformed modelRouting entry degrades to inherit instead of half-applyin
   const tool = bucket.state.tools.find((entry) => entry.name === 'steward_dispatch');
   const value = await tool.execute({ role: 'qa-engineer', description: 'QA', prompt: '跑门禁。', cwd: projectDir }, execFor());
   assert.equal(value.source, 'inherit');
-  assert.equal(bucket.state.activations.at(-1).request.agentOptions, undefined);
+  assert.equal(bucket.state.activations.at(-1).agentOptions, undefined);
 });
 
 test('dispatch fails loudly when the child composition or preset support is missing', async () => {
