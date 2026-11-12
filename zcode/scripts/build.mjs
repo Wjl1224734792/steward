@@ -70,12 +70,18 @@ function readText(p) {
   return existsSync(p) ? readFileSync(p, 'utf8').replace(/\r\n/g, '\n') : null;
 }
 
+// 内容比较统一走**换行无关**口径：本仓库在 core.autocrlf=true 的 Windows 上，
+// 同一份内容在工作树里可能是 CRLF 也可能是 LF（谁先落盘谁说了算），
+// 逐字节比较会把「内容相同、仅换行不同」误报成「与源不一致」。
+// 写盘仍按源的原始字节复制，由 git 在入库时归一。
+const sameContent = (a, b) => a.replace(/\r\n/g, '\n') === b.replace(/\r\n/g, '\n');
+
 // --- 1. 脚本与模板：单一正文源同步 ---
 const scriptFiles = readdirSync(join(zc, 'scripts')).filter((f) => f.endsWith('.mjs'));
 for (const f of scriptFiles) {
   const src = join(zc, 'scripts', f);
   const dst = join(mx, 'scripts', f);
-  if (!existsSync(dst) || readFileSync(src, 'utf8') !== readFileSync(dst, 'utf8')) {
+  if (!existsSync(dst) || !sameContent(readFileSync(src, 'utf8'), readFileSync(dst, 'utf8'))) {
     if (checkOnly) errors.push(`[scripts] minimax/scripts/${f} 与 zcode 版不一致（单一正文源被破坏，跑 node zcode/scripts/build.mjs 同步）`);
     else { copyFileSync(src, dst); synced.push(`minimax/scripts/${f}`); }
   }
@@ -87,7 +93,7 @@ for (const f of scriptFiles) {
   if (!existsSync(hDst)) { if (checkOnly) errors.push('[scripts] minimax/scripts/hooks 缺失'); else mkdirSync(hDst, { recursive: true }); }
   for (const f of existsSync(hSrc) ? readdirSync(hSrc).filter((x) => x.endsWith('.mjs')) : []) {
     const s = join(hSrc, f); const d = join(hDst, f);
-    if (!existsSync(d) || readFileSync(s, 'utf8') !== readFileSync(d, 'utf8')) {
+    if (!existsSync(d) || !sameContent(readFileSync(s, 'utf8'), readFileSync(d, 'utf8'))) {
       if (checkOnly) errors.push(`[scripts] minimax/scripts/hooks/${f} 与 zcode 版不一致`);
       else { copyFileSync(s, d); synced.push(`minimax/scripts/hooks/${f}`); }
     }
@@ -100,7 +106,7 @@ function syncDir(src, dst, label) {
   for (const e of existsSync(src) ? readdirSync(src, { withFileTypes: true }) : []) {
     const s = join(src, e.name); const d = join(dst, e.name);
     if (e.isDirectory()) { syncDir(s, d, `${label}/${e.name}`); continue; }
-    if (!existsSync(d) || readFileSync(s, 'utf8') !== readFileSync(d, 'utf8')) {
+    if (!existsSync(d) || !sameContent(readFileSync(s, 'utf8'), readFileSync(d, 'utf8'))) {
       if (checkOnly) errors.push(`[templates] ${label}/${e.name} 与 zcode 版不一致`);
       else { copyFileSync(s, d); synced.push(`${label}/${e.name}`); }
     }
@@ -114,7 +120,7 @@ function syncSkillDir(src, dst, label) {
   for (const e of readdirSync(src, { withFileTypes: true })) {
     const s = join(src, e.name); const d = join(dst, e.name);
     if (e.isDirectory()) { syncSkillDir(s, d, `${label}/${e.name}`); continue; }
-    if (!existsSync(d) || readFileSync(s, 'utf8') !== readFileSync(d, 'utf8')) {
+    if (!existsSync(d) || !sameContent(readFileSync(s, 'utf8'), readFileSync(d, 'utf8'))) {
       if (checkOnly) errors.push(`[skills] ${label}/${e.name} 与 shared 源不一致（跑 node zcode/scripts/build.mjs 同步）`);
       else { copyFileSync(s, d); synced.push(`${label}/${e.name}`); }
     }
@@ -143,7 +149,7 @@ for (const [host, pkgDir] of [['zcode', zc], ['minimax', mx]]) {
         errors.push(`[scripts] host/${host}/scripts/${e.name} 与 zcode/scripts/${e.name} 同名，会覆盖共享脚本`);
         continue;
       }
-      if (!existsSync(d) || readFileSync(s, 'utf8') !== readFileSync(d, 'utf8')) {
+      if (!existsSync(d) || !sameContent(readFileSync(s, 'utf8'), readFileSync(d, 'utf8'))) {
         if (checkOnly) errors.push(`[scripts] ${host}/scripts/${r} 与 host/${host}/scripts 源不一致（跑 node zcode/scripts/build.mjs 同步）`);
         else { mkdirSync(dstDir, { recursive: true }); copyFileSync(s, d); synced.push(`${host}/scripts/${r}`); }
       }
