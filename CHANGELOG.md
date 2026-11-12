@@ -4,22 +4,37 @@
 
 ## [Unreleased]
 
-> 文档与打包修复：仓库 README 拆成中英两个单语版本，DSH 插件页补上插件介绍与用法。不新增功能，不改运行时逻辑；按要求未更新本机 DSH 插件（留给用户手动更新）。
+（暂无。发布下一个版本前，把本节条目移入对应版本小节。）
+
+## [DSH 1.0.0] - 2026-11-12
+
+> 收口版：修掉 DSH ≥ 0.2.1-rc.2 上必然失败的派单，补上文档治理技能 `docs-governance` 与通用化的文档治理参考，并把 DSH 侧与通用 harness 技能 `project-lifecycle` 的版本统一到 1.0.0。ZCode / MiniMax 侧版本由用户单独推进到 1.0.0。
+
+### Added
+
+- **`docs-governance` 技能（DSH 0.9.0）**：活 / 记录 / 基线三类文档分治、体积预算、hub-and-spoke 拆册、frontmatter 读契约（always / dir / task / on-demand）、07-治理内部分层与归档轮转、`history/` 版本快照与修订溯源，以及与 `docs` 技能的分工边界。
+- **`scripts/docs-gate.mjs`**：G1–G11 门禁（体积 / frontmatter / AGENTS / 07 分层 / 自动索引区块 / ADR 双向 / 版本三处一致 / 快照完整性 / 现版不入历史 / 修订依据 / 计划 docsRead），支持 `init` / `fix` / `--baseline-write` / `--json` / `--strict`，退出码 0 / 1 / 2。
+- **`scripts/doc-snapshot.mjs`**：基线快照（原文进 `history/` + manifest sha256 + 索引行 + superseded-by + 现版 bump + 修订行），幂等，重跑输出 skip。
+- **`shared/skills/project-lifecycle/references/documentation.md`**：把文档治理通用化为 harness 无关口径（不含宿主脚本、配置字段与七阶段目录树），配合 `.agents/skills/project-lifecycle` 软链使用。
 
 ### Changed
 
-- **根 README 拆为两个版本**：`README.md` 只保留中文（默认入口），新增 `README.en.md` 只保留 English；两文件顶部互相链接，不再把中英写在同一文件。`docs/README.md` 的仓库根索引同步。
-- **DSH 插件页补介绍**：此前 DSH 插件管理页点开 Steward 没有任何介绍（bundle 无 README，locale 也没有 `meta.detail`）。新增 `host/dsh/README.zh.md` / `host/dsh/README.en.md`（定位、安装后得到什么、快速开始、入口与模式、角色名册、模型路由优先级、边界），由构建器复制为 `dsh/README.zh.md` / `dsh/README.en.md`；`locale/en.json`、`locale/zh.json` 的 `meta.detail` 分别指向对应文件，DSH 插件管理器据此在插件页渲染长介绍。
-- **插件卡片文案**：`locale` 的 `meta.title` / `meta.description` 从「Steward · 子代理模型」改为插件整体定位与用法摘要（7 个 Agent Presets、派发、计划批准门、Bug 通道、维护循环、门禁脚本、设置页），不再只描述设置页。
-- **包清单与构建校验**：`host/dsh/package.json` 的 `files` 增加 `README*.md`；`host/dsh/build.mjs` 同步 README，并把「`meta.detail` 必须指向存在的包根 `README*.md`、非空、≤ 1 MiB」纳入包契约机检。
-- **README 口径订正**：模式表中 Bug / 只出计划 / 维护 / 接手在 DSH 与 MiniMax 一样按自然语言触发；使用示例补充「DSH 用自然语言，`/steward` 只回显名册 / 预设 / 路由」；DSH 安装段补「插件管理页可见介绍」。
+- **根 README 拆为两个单语版本**：`README.md` 只保留中文（默认入口），新增 `README.en.md` 只保留 English，两文件顶部互相链接；`docs/README.md` 的仓库根索引同步。
+- **DSH 插件页补介绍**：新增 `host/dsh/README.zh.md` / `README.en.md`（定位、安装后得到什么、快速开始、入口与模式、角色名册、模型路由优先级、边界），由构建器复制为 `dsh/README.zh.md` / `dsh/README.en.md`；`locale/{en,zh}.json` 的 `meta.detail` 指向对应文件，插件管理页据此渲染长介绍；`files` 增加 `README*.md`，并把「`meta.detail` 指向存在、非空、≤ 1 MiB 的 `README*.md`」纳入包契约机检；插件卡片 `meta.title` / `meta.description` 改为插件整体定位与用法摘要。
+- **`project-lifecycle` 技能定为 1.0.0**：变更记录把未发布的 1.1.0 并入 1.0.0 作为首个正式版本；§10 扩为「项目记忆与文档治理」，§2 / §7 / §12 / §14 / §16 同步，完成定义补「文档按类治理」与「文档门禁」两条；`references/memory.md` 收敛为「记什么、放哪」，治理细节指向新参考。
+- 版本：`dsh/package.json` 0.9.1 → **1.0.0**。
+
+### Fixed
+
+- **`steward_dispatch` 在 DSH ≥ 0.2.1-rc.2 上必然失败（0.9.1）**：宿主移除了 `SubagentActivationSpec` 的嵌套 `request` 字段，插件仍把 `prompt` / `parent` / `agentPreset` / `agentOptions` 放在 `request` 里，`startActivation` 读 `spec.parent.id` 抛 `TypeError: Cannot read properties of undefined (reading 'id')`。改为任务字段直接放在 spec 顶层，`label` / `signal` / `delivery` 不变；测试同步断言新契约（`spec.request === undefined`、`spec.parent` 为调用方 agent）。
 
 ### 验证
 
-- `node host/dsh/build.mjs` → exit 0；`node host/dsh/build.mjs --check` → exit 0（幂等，README 与 `meta.detail` 契约通过）。
-- `node --test host/dsh/tests/` → **8 pass / 0 fail**（运行时逻辑未改）。
-- `dsh/README.zh.md`、`dsh/README.en.md` 与 `host/dsh/` 源逐字节一致；`locale/{zh,en}.json` 的 `meta.detail` 目标文件均存在。
-- 未执行 `plugin_manager install_bundle` / 插件更新：本机 DSH 由用户手动更新。
+- `node host/dsh/build.mjs` / `--check` → PASS；`node --test host/dsh/tests/` → **41 pass / 0 fail**（含 docs-gate G1–G11、快照幂等、派单 spec 契约、面板渲染与样式 token 契约）。
+- `node zcode/scripts/build.mjs --check` → PASS；`node --test zcode/scripts/tests/` → **54 pass / 0 fail**（本次只改 `shared/` 下的通用技能文本，宿主构建不消费该目录，复跑确认不受影响）。
+- 运行时：在 DSH 0.2.2-rc.2 上重载 bundle 后 `steward_dispatch` 成功启动子代理（`standard` 组合 + 面板路由 `workbuddy/deepseek-v4.1-flash @ max`），子代理回执 OK；运行实例重新读取包清单（1.0.0）。
+- `project-lifecycle` 的 `SKILL.md` / `documentation.md` 内部链接（`references/*`、`assets/*`）逐条存在。
+- 视觉验收：面板未复跑截图（`visual: unverified`）。
 
 ## [DSH 0.8.1] - 2026-11-12
 
