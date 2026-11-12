@@ -11,6 +11,12 @@
  *     所以 `zcode/` 侧**不同步** miniapp。
  *   - 生成物带「请勿手改」标记；`--check` 会发现手改/未重建并报错。
  *
+ * 宿主钩子（v1.0.0，全部以「宿主声明存在才生效」为前提，没声明的宿主行为逐字节不变）：
+ *   - host/<host>/scripts/                    宿主自有门禁脚本 → 同步进 <宿主包>/scripts/（不进共享单源）。
+ *   - host/<host>/skills/split-rules.json      主技能按 `## ` 锚点整段拆成独立技能，主技能原位留指针行；
+ *                                             被拆技能的 frontmatter 读 host/<host>/skills/<skill>/frontmatter.md。
+ *   - HOST_ONLY_LIGHT_SKILLS / HOST_ONLY_SKILLS / HOST_SKILL_RESOURCES  各宿主自己的技能清单与随包资源。
+ *
  * 槽位协议（写在 shared 正文里）：
  *   @@SLOT:相对路径@@   必填片段 → host/<host>/<相对路径>.md（缺失即报错）
  *   @@SLOT?:相对路径@@  可选片段（缺失或为空则删除该行）
@@ -100,10 +106,51 @@ function syncDir(src, dst, label) {
     }
   }
 }
+
+// shared 技能的附属目录（references/ assets/ 等）随包同步：措辞与 syncDir 区分开，
+// 免得把「与 shared 源不一致」报成「与 zcode 版不一致」。
+function syncSkillDir(src, dst, label) {
+  if (!existsSync(dst)) { if (checkOnly) errors.push(`[skills] ${label} 缺失（跑 node zcode/scripts/build.mjs 同步）`); else mkdirSync(dst, { recursive: true }); }
+  for (const e of readdirSync(src, { withFileTypes: true })) {
+    const s = join(src, e.name); const d = join(dst, e.name);
+    if (e.isDirectory()) { syncSkillDir(s, d, `${label}/${e.name}`); continue; }
+    if (!existsSync(d) || readFileSync(s, 'utf8') !== readFileSync(d, 'utf8')) {
+      if (checkOnly) errors.push(`[skills] ${label}/${e.name} 与 shared 源不一致（跑 node zcode/scripts/build.mjs 同步）`);
+      else { copyFileSync(s, d); synced.push(`${label}/${e.name}`); }
+    }
+  }
+}
 syncDir(tplSrc, tplDst, 'minimax/scripts/templates');
 // 文档流水线的本地脚本与参考库同样纳入单一正文源（v0.8.0 起双宿主共享）
 syncDir(join(zc, 'scripts', 'doc'), join(mx, 'scripts', 'doc'), 'minimax/scripts/doc');
 syncDir(join(zc, 'skills', 'steward', 'references'), join(mx, 'skills', 'steward', 'references'), 'minimax/skills/steward/references');
+
+// --- 1.1 宿主自有脚本目录（v1.0.0）：host/<host>/scripts/ → <宿主包>/scripts/ ---
+// 宿主自有的门禁脚本（如 host/minimax/scripts/ 的文档治理门禁）**不进** zcode/scripts/ 共享单源，
+// 免得灌进另一侧的包；语义与「zcode/scripts 单一正文源 → minimax/scripts」一致。
+// 宿主目录不存在 → 该宿主行为不变；与 zcode/scripts 同名视为冲突（会静默覆盖共享单源），直接报错。
+for (const [host, pkgDir] of [['zcode', zc], ['minimax', mx]]) {
+  const hostScripts = join(hostsRoot, host, 'scripts');
+  if (!existsSync(hostScripts)) continue;
+  const sharedNames = new Set(readdirSync(join(zc, 'scripts')).filter((n) => n.endsWith('.mjs')));
+  const walkHostScripts = (srcDir, dstDir, rel) => {
+    for (const e of readdirSync(srcDir, { withFileTypes: true })) {
+      const s = join(srcDir, e.name);
+      const d = join(dstDir, e.name);
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) { walkHostScripts(s, d, r); continue; }
+      if (rel === '' && e.name.endsWith('.mjs') && sharedNames.has(e.name)) {
+        errors.push(`[scripts] host/${host}/scripts/${e.name} 与 zcode/scripts/${e.name} 同名，会覆盖共享脚本`);
+        continue;
+      }
+      if (!existsSync(d) || readFileSync(s, 'utf8') !== readFileSync(d, 'utf8')) {
+        if (checkOnly) errors.push(`[scripts] ${host}/scripts/${r} 与 host/${host}/scripts 源不一致（跑 node zcode/scripts/build.mjs 同步）`);
+        else { mkdirSync(dstDir, { recursive: true }); copyFileSync(s, d); synced.push(`${host}/scripts/${r}`); }
+      }
+    }
+  };
+  walkHostScripts(hostScripts, join(pkgDir, 'scripts'), '');
+}
 
 // --- 1.2 Mini App 载荷（v0.9.0）：host/minimax/miniapp/ → minimax/miniapp/，package.json → 包根 ---
 // ZCode 宿主没有 Mini App 能力，zcode/ 侧不做同步。
@@ -187,13 +234,61 @@ function withBanner(fullText, host) {
   return `${head}\n\n${bannerOf(host)}\n\n${rest}\n`;
 }
 
+/**
+ * 宿主级技能拆分（v1.0.0）：把主技能里若干 `## ` 整段摘出成独立技能，主技能原位留一行指针。
+ * 规则来自 host/<host>/skills/split-rules.json——没有该文件的宿主一律不拆（输出与旧版逐字节相同）。
+ * 算法与 host/dsh/build.mjs 的 splitModeSections 同法：先按 `## ` 分块，再整块搬走。
+ * 锚点匹配不到 → 直接报错并打印实际标题清单：拆出内容静默丢失是最坏的失效方式。
+ * @param {string} text 已渲染槽位的主技能正文。
+ * @param {Array<{skill: string, headings: string[], pointer: string}>} rules 拆分规则。
+ * @param {string} label 报错用的来源标签。
+ * @returns {{ core: string, sections: Map<string, string[]> }} 主技能正文与被摘出的段落。
+ */
+function splitSkillSections(text, rules, label) {
+  const blocks = [];
+  let current = { heading: '', lines: [] };
+  for (const line of text.split('\n')) {
+    if (line.startsWith('## ')) {
+      blocks.push(current);
+      current = { heading: line, lines: [line] };
+      continue;
+    }
+    current.lines.push(line);
+  }
+  blocks.push(current);
+
+  const sections = new Map(rules.map((rule) => [rule.skill, []]));
+  const matched = new Set();
+  const pointed = new Set();
+  const core = [];
+  for (const block of blocks) {
+    const rule = rules.find((candidate) => candidate.headings.some((heading) => block.heading.startsWith(heading)));
+    if (rule === undefined) { core.push(...block.lines); continue; }
+    sections.get(rule.skill).push(...block.lines);
+    matched.add(rule.skill);
+    if (!pointed.has(rule.skill)) { core.push(rule.pointer, ''); pointed.add(rule.skill); }
+  }
+  const unmatched = rules.filter((rule) => !matched.has(rule.skill));
+  if (unmatched.length > 0) {
+    const headings = blocks.map((block) => block.heading).filter((heading) => heading !== '');
+    for (const rule of unmatched) {
+      errors.push(`[split] ${label}：拆出规则「${rule.skill}」的锚点没匹配到任何小节（锚点：${rule.headings.join(' / ')}）；主技能正文实际标题清单：` + headings.map((h) => `\n    - ${h}`).join(''));
+    }
+  }
+  return { core: core.join('\n').replace(/\n{3,}/g, '\n\n'), sections };
+}
+
 const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-completion', 'using-steward', 'agent-settings'];
 // ZCode 专属、shared 单一正文的技能（v1.0.0 对齐 DSH）：正文在 shared/skills/<n>/SKILL.md（宿主无关），
 // 只渲染进 zcode/ 插件包；MiniMax 待其自身任务再启用，不得并入 LIGHT_SKILLS（两宿主同步在别的任务里做）。
-const ZCODE_ONLY_LIGHT_SKILLS = ['project-lifecycle'];
+const HOST_ONLY_LIGHT_SKILLS = { zcode: ['project-lifecycle'], minimax: ['project-lifecycle'] };
 // 宿主全文技能：正文是 host/<host>/skills/<name>/SKILL.md（各宿主各自实现，语义对齐、措辞可异），
-// 只渲染进本宿主插件包。ZCode 的 docs-governance 与 DSH 的 host/dsh 同名技能是并列实现。
-const HOST_ONLY_SKILLS = { zcode: ['docs-governance'] };
+// 只渲染进本宿主插件包。ZCode / MiniMax / DSH 的 docs-governance 是三份并列实现。
+const HOST_ONLY_SKILLS = { zcode: ['docs-governance'], minimax: ['docs-governance'] };
+// 宿主随包资源：shared 技能的 references/ assets/ 附属目录（只对声明的宿主生效）。
+// ZCode 侧本轮只随包了 SKILL.md（其 references/assets 未随包，见 ROADMAP-STATUS 的待办）；
+// MiniMax 侧随包带全，避免技能正文里的相对链接在包内断链。
+const HOST_SKILL_RESOURCES = { minimax: { 'project-lifecycle': ['references', 'assets'] } };
 const AGENTS = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'browser-tester', 'reviewer'];
 // 官方契约的思考强度白名单（大小写敏感）；effort 只在同时声明 model 时生效。
 const EFFORT_VALUES = ['default', 'off', 'on', 'none', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -207,14 +302,49 @@ for (const host of ['zcode', 'minimax']) {
   const bodyRaw = readText(join(root, 'shared/skills/steward.body.md'));
   if (fm === null) errors.push(`[render] 缺 host/${host}/skills/steward/frontmatter.md`);
   if (bodyRaw === null) errors.push('[render] 缺 shared/skills/steward.body.md');
+  // 宿主级拆分规则：host/<host>/skills/split-rules.json 不存在 → 该宿主不拆任何小节（走原路径）。
+  const splitRules = [];
+  {
+    const rulesPath = join(hostDir, 'skills/split-rules.json');
+    if (existsSync(rulesPath)) {
+      let parsed = null;
+      try { parsed = JSON.parse(readFileSync(rulesPath, 'utf8')); }
+      catch (e) { errors.push(`[split] host/${host}/skills/split-rules.json JSON 解析失败：${e.message}`); }
+      const list = parsed?.splits ?? [];
+      if (!Array.isArray(list)) errors.push(`[split] host/${host}/skills/split-rules.json 的 splits 必须是数组`);
+      for (const [i, rule] of (Array.isArray(list) ? list : []).entries()) {
+        const bad = [];
+        if (typeof rule?.skill !== 'string' || rule.skill === '') bad.push('skill 必须是非空字符串');
+        if (!Array.isArray(rule?.headings) || rule.headings.length === 0 || rule.headings.some((h) => typeof h !== 'string' || h === '')) bad.push('headings 必须是非空字符串数组');
+        if (typeof rule?.pointer !== 'string' || rule.pointer.trim() === '') bad.push('pointer 必须是非空字符串');
+        if (bad.length > 0) { errors.push(`[split] host/${host}/skills/split-rules.json 第 ${i + 1} 条规则非法：${bad.join('；')}`); continue; }
+        splitRules.push(rule);
+      }
+    }
+  }
   if (fm !== null && bodyRaw !== null) {
+    const rendered = renderSlots(bodyRaw, host, `skills/steward (${host})`);
+    // 无拆分规则的宿主（ZCode）：core 就是渲染结果本身，输出与旧版完全一致。
+    const split = splitRules.length > 0
+      ? splitSkillSections(rendered, splitRules, `skills/steward (${host})`)
+      : { core: rendered, sections: new Map() };
     targets.push({
       out: join(pluginDir, 'skills/steward/SKILL.md'),
-      text: assemble(fm, host, renderSlots(bodyRaw, host, `skills/steward (${host})`)),
+      text: assemble(fm, host, split.core),
     });
+    for (const rule of splitRules) {
+      const skillFm = readText(join(hostDir, 'skills', rule.skill, 'frontmatter.md'));
+      if (skillFm === null) {
+        errors.push(`[split] 缺 host/${host}/skills/${rule.skill}/frontmatter.md（拆出技能必须有宿主 frontmatter，不许静默跳过）`);
+        continue;
+      }
+      const section = (split.sections.get(rule.skill) ?? []).join('\n').replace(/^\n+/, '').replace(/\n+$/, '');
+      if (section === '') continue; // 锚点未命中已在 splitSkillSections 里报错，这里不再重复
+      targets.push({ out: join(pluginDir, 'skills', rule.skill, 'SKILL.md'), text: assemble(skillFm, host, section) });
+    }
   }
 
-  const lightSkills = host === 'zcode' ? [...LIGHT_SKILLS, ...ZCODE_ONLY_LIGHT_SKILLS] : LIGHT_SKILLS;
+  const lightSkills = [...LIGHT_SKILLS, ...(HOST_ONLY_LIGHT_SKILLS[host] ?? [])];
   for (const s of lightSkills) {
     const src = readText(join(root, 'shared/skills', s, 'SKILL.md'));
     if (src === null) { errors.push(`[render] 缺 shared/skills/${s}/SKILL.md`); continue; }
@@ -225,6 +355,15 @@ for (const host of ['zcode', 'minimax']) {
     const src = readText(join(hostDir, 'skills', s, 'SKILL.md'));
     if (src === null) { errors.push(`[render] 缺 host/${host}/skills/${s}/SKILL.md（宿主全文技能的唯一正文）`); continue; }
     targets.push({ out: join(pluginDir, 'skills', s, 'SKILL.md'), text: withBanner(src, host) });
+  }
+
+  // 宿主随包资源：shared 技能的 references/ assets/ 随包同步（只对声明该资源的宿主生效）
+  for (const [skill, dirs] of Object.entries(HOST_SKILL_RESOURCES[host] ?? {})) {
+    for (const dir of dirs) {
+      const src = join(root, 'shared/skills', skill, dir);
+      if (!existsSync(src)) { errors.push(`[render] 缺 shared/skills/${skill}/${dir}/（宿主 ${host} 声明随包该资源）`); continue; }
+      syncSkillDir(src, join(pluginDir, 'skills', skill, dir), `${host}/skills/${skill}/${dir}`);
+    }
   }
 
   for (const a of AGENTS) {

@@ -6,6 +6,46 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [MiniMax 1.0.0] - 2026-11-12
+
+> MiniMax 侧对齐 DSH 1.0.0 的流程/规范增量，全部用 **MiniMax Code 自己的机制**落地：主技能按需拆出 `inline` / `docs` 两个小技能、新增 `steward:docs-governance` 文档治理技能与随包本地门禁（`docs-gate.mjs` G1–G11 / `doc-snapshot.mjs` 快照溯源）、渲染进宿主无关的 `steward:project-lifecycle`，并把版本号同升 **1.0.0**。语义对齐 DSH，措辞按 MiniMax 口径；**DSH 侧与 ZCode 侧功能零改动**（ZCode 侧 1.0.0 是并行的另一项任务）。
+
+### Added
+
+- **主技能按需拆分（对齐 DSH 0.5.0）**：MiniMax 生成物里，主技能的「执行模式（subagent / inline）」与「T3 文档按需升级 + 文档流水线」两节整段移到 `skills/inline/SKILL.md` 与 `skills/docs/SKILL.md`，主技能只留一行指针。共享正文 `shared/skills/steward.body.md` **不改**（仍是单一来源），拆分由宿主配置 `host/minimax/skills/split-rules.json`（按 `## ` 标题锚点）驱动；锚点失配或缺 frontmatter 一律 build FAIL，避免内容静默丢失。
+- **`steward:docs-governance` 技能（对齐 DSH 0.9.0）**：活 / 记录 / 基线三类文档分治、体积预算与 hub-and-spoke 拆册、frontmatter 读契约（always / dir / task / on-demand）、07-治理内部分层与归档轮转、`history/` 版本快照与双向溯源链。正文是 MiniMax 侧实现（`host/minimax/skills/docs-governance/`），与 DSH / ZCode 同名技能语义对齐、措辞按 MiniMax 口径（自然语言入口，无斜杠命令；脚本在 `scripts/`）。
+- **随包本地门禁**：`minimax/scripts/docs-gate.mjs`（G1–G11；`check` / `init` / `fix` / `--baseline-write` / `--json` / `--strict`，退出码 0/1/2）与 `minimax/scripts/doc-snapshot.mjs`（九步基线快照，幂等，重跑输出 skip）。正文源在 `host/minimax/scripts/`，由构建器同步进包（宿主自有脚本，不进 `zcode/scripts/` 共享单源，也不灌进 ZCode 包）；与 DSH 版逐字节等价，仅 2 行注释措辞差异。
+- **`steward:project-lifecycle` 技能**：消费 `shared/skills/project-lifecycle/`（DSH 1.0.0 已定版的宿主无关母本），经构建器渲染进 MiniMax 包；**references/ 与 assets/ 一并随包**（ZCode 侧本轮只随包了 SKILL.md，其包内相对链接目前断链——见「已知偏差」）。
+- **测试**：`host/minimax/tests/docs-governance.test.mjs` 7 例——门禁冒烟（G 编号 + 退出码）、`--json` 机读、快照首跑 + 复跑 skip 且不改文件、四技能随包与清单 11 项一致、主技能三节已拆走只留指针、随包脚本与正文源逐字节一致、文档治理技能 0–12 节与 MiniMax 化口径。
+
+### Changed
+
+- **构建器新增宿主钩子**（`zcode/scripts/build.mjs`，ZCode/MiniMax 共享工具）：① 宿主级技能拆分（`host/<host>/skills/split-rules.json`）；② 宿主自有脚本目录（`host/<host>/scripts/` → `<宿主包>/scripts/`，与共享单源同名即判冲突）；③ 宿主随包资源（`HOST_SKILL_RESOURCES`，本次为 MiniMax 的 project-lifecycle references/assets）。三者一律「宿主声明存在才生效」，**ZCode 侧生成物与主线逐字节一致**。
+- **技能清单结构统一**：主线的 `ZCODE_ONLY_LIGHT_SKILLS` 泛化为 `HOST_ONLY_LIGHT_SKILLS`（按宿主声明），`HOST_ONLY_SKILLS` 增加 minimax 的 `docs-governance`；MiniMax 包技能数 7 → **11**。
+- **入口与路由**：`host/minimax/skills/steward/entry-points.md` 补文档治理入口；新增 `host/minimax/skills/steward/doc-governance.md` 片段（供共享正文新增的可选槽位 `@@SLOT?:skills/steward/doc-governance@@` 渲染，主技能与 docs 技能都能指到 `steward:docs-governance`）；`using-steward/routing-table.md` 补 inline / docs / docs-governance 三行；`banner.md` 版本行 0.11.0 → 1.0.0 并列出新能力。
+- **版本**：`minimax/.minimax-plugin/plugin.json` 0.11.0 → **1.0.0**（11 项技能、中英描述补新能力）；`zcode/.zcode-plugin/plugin.json` 沿用主线已升的 1.0.0。仓库「两宿主同号」约定的版本不一致 warning 消除。
+- **仓库文档**：根 `README.md` / `README.en.md` 能力清单与安装说明同步（11 技能、文档治理、project-lifecycle）；`AGENTS.md` 补 `host/<宿主>/scripts/` 目录归属与 MiniMax 侧测试命令。
+
+### 不移植的 DSH 能力（机制不对等，明确留口）
+
+- **共享任务板（Agent Teams）**：MiniMax 无 Agent Teams 扩展点；等价能力是 `run.json` 状态机 + `steward-visualizer`（DAG / 缺陷 / 健康看板）。
+- **原生 Config / Settings / configForms 配置页**：MiniMax 侧等价物是 `agent-config.mjs`（CLI + Mini App 配置页）+ 项目根 `steward.config.json` 的 `modelRouting`，已具备。
+- **角色去模式化 / 派单 spec 契约**：属 DSH 宿主扩展点；MiniMax 侧子代理由 frontmatter 的 `model` + `effort` 决定，已具备。
+
+### 验证
+
+- `node zcode/scripts/build.mjs --check` → **PASS，零 warning**（两宿主版本一致、清单与磁盘一一对应）。
+- `node --test zcode/scripts/tests/` → **74 pass / 0 fail**（含主线新增的 20 例文档治理测试）。
+- `node --test host/minimax/tests/` → **7 pass / 0 fail**。
+- `node host/dsh/build.mjs --check` → PASS；`node --test host/dsh/tests/` → **41 pass / 0 fail**。
+- 宿主隔离硬证据：`git diff --stat -- host/dsh dsh/`、`-- zcode/skills zcode/agents zcode/commands`、`-- shared/` 均为空（内容层面）。
+- 门禁脚本等价性：`git diff --no-index` 对 DSH 同名脚本各 **1 增 1 删**（仅注释措辞：DSH 宿主 → MiniMax 宿主）。
+
+### 已知偏差
+
+- **DSH 运行时不归一换行（归属 DSH 侧，非本次引入）**：`host/dsh/index.js` 读角色章程时不做 `\r\n` → `\n` 归一，本机 `core.autocrlf=true` 的新检出（CRLF）会让 DSH 两条断言（章程注入 / brief 首行）失败。DSH 构建器「内容一致就跳过写盘」使 CRLF 检出态留在包里，需由 DSH 侧在运行时归一（本次以 DSH 自家构建器把生成物重写为规范 LF 字节，内容与 HEAD 一致、`git diff` 为空）。
+- **ZCode 侧 project-lifecycle 随包不完整（归属 ZCode 侧）**：ZCode 1.0.0 只随包了 `skills/project-lifecycle/SKILL.md`，其 `references/` `assets/` 未随包，技能正文里的相对链接在 ZCode 包内断链；MiniMax 侧已随包带全。建议 ZCode 侧按 `HOST_SKILL_RESOURCES` 机制补齐。
+
 ## [ZCode 1.0.0] - 2026-11-12
 
 > 收口版：对齐 DSH 0.8.0 → 1.0.0 的流程/规范增量（文档治理 + 项目全生命周期），全部用 ZCode 自身机制落地；宿主侧零越界（`minimax/` 生成物与 HEAD 逐字节相同）。ZCode 0.11.0 → **1.0.0**。
