@@ -292,9 +292,11 @@ const HOST_ONLY_LIGHT_SKILLS = { zcode: ['project-lifecycle'], minimax: ['projec
 // 只渲染进本宿主插件包。ZCode / MiniMax / DSH 的 docs-governance 是三份并列实现。
 const HOST_ONLY_SKILLS = { zcode: ['docs-governance'], minimax: ['docs-governance'] };
 // 宿主随包资源：shared 技能的 references/ assets/ 附属目录（只对声明的宿主生效）。
-// ZCode 侧本轮只随包了 SKILL.md（其 references/assets 未随包，见 ROADMAP-STATUS 的待办）；
-// MiniMax 侧随包带全，避免技能正文里的相对链接在包内断链。
-const HOST_SKILL_RESOURCES = { minimax: { 'project-lifecycle': ['references', 'assets'] } };
+// 两宿主都随包带全，避免技能正文里的相对链接在包内断链（ZCode 侧 1.0.0 曾只随包 SKILL.md）。
+const HOST_SKILL_RESOURCES = {
+  zcode: { 'project-lifecycle': ['references', 'assets'] },
+  minimax: { 'project-lifecycle': ['references', 'assets'] },
+};
 const AGENTS = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'browser-tester', 'reviewer'];
 // 官方契约的思考强度白名单（大小写敏感）；effort 只在同时声明 model 时生效。
 const EFFORT_VALUES = ['default', 'off', 'on', 'none', 'low', 'medium', 'high', 'xhigh', 'max'];
