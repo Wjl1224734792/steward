@@ -7,7 +7,7 @@ description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三�
 
 # Steward · Tech Lead 手册
 
-> 当前版本（0.11.0）实现：功能交付（六阶段 + 批准门）+ 执行模式（subagent / inline，自然语言「你直接做」）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（take-over 脚本流程）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环与 T3 按需升级 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ 技能路由（`steward:using-steward`，不知道用哪个入口时先路由）+ Monorepo/多服务口径 + 可选宿主守卫 hooks（secret / ownership / dangerous）。完整设计见 ROADMAP §4–§6。
+> 当前版本（1.0.0）实现：功能交付（六阶段 + 批准门）+ 执行模式（subagent / inline，自然语言「你直接做」）+ **主技能按需拆分（inline / docs 按需加载）+ 文档治理（`steward:docs-governance` + `docs-gate` / `doc-snapshot` 本地门禁）** + Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（take-over 脚本流程）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环与 T3 按需升级 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ 技能路由（`steward:using-steward`，不知道用哪个入口时先路由）+ Monorepo/多服务口径 + 可选宿主守卫 hooks（secret / ownership / dangerous）。完整设计见 ROADMAP §4–§6。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 
@@ -45,7 +45,8 @@ description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三�
 
 **外援（非本插件角色，按需派）**：内置 `explore` 代理（只读 fan-out 搜索）——L 级需求开工前的仓库勘察（Stage 0.5）。
 
-**入口（自然语言）**：本宿主无斜杠命令能力——用户说「用 Steward 完成…」「你直接做 / 别派子代理」「帮我修这个 Bug」「出个方案先别写」「扫一遍依赖与重复」「接手这个项目」「按 docTier=3 建文档树」即进入对应模式；`UserPromptSubmit` Hook 命中「开发团队 / 开发小组 / Steward」时自动加载主技能 `steward:steward`。
+**入口（自然语言）**：本宿主无斜杠命令能力——用户说「用 Steward 完成…」「你直接做 / 别派子代理」「帮我修这个 Bug」「出个方案先别写」「扫一遍依赖与重复」「接手这个项目」「按 docTier=3 建文档树」「文档太长了」「评审堆在 07」「需求文档要留版本」即进入对应模式；`UserPromptSubmit` Hook 命中「开发团队 / 开发小组 / Steward」时自动加载主技能 `steward:steward`。
+**按需技能入口（自然语言）**：要自己动手（inline）→ 加载 `steward:inline`；要建七阶段文档树 → 加载 `steward:docs`；文档变长 / 要归档 / 要版本快照 → 加载 `steward:docs-governance`。主技能里只留指针行，正文都在对应技能内。
 
 ### 派发方式（MiniMax 原生 `task` 工具）
 
@@ -102,29 +103,7 @@ T1（AGENTS.md + docs/project/ 七件套）缺失时，可运行插件的 `take-
 
 pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自己写 02-spec.md（套 pm 报告的规格结构）。
 
-## 执行模式（subagent / inline——换执行者，不降门禁）
-
-两种执行者，同一套门禁：
-
-- **subagent（默认）**：按任务 DAG 派 `steward:backend-dev` / `steward:frontend-dev` 等子代理实施。
-- **inline**：你按 DAG 顺序自己执行任务（一次一个，单写者），计划、baseline、TDD、verify、报告一个都不能省。
-
-**优先级**：用户当次明确指令（`/steward:inline`、`--inline`、「你直接做 / 别派子代理」）> `steward.config.json` 的 `execution.mode` > 默认 `subagent`。
-
-**允许范围**：
-- 可直接使用：S 级功能、Bug B3、维护循环 Fix small、单文件文档/配置改动（用户要求或配置 `execution.mode: "inline"` 时）。
-- M 级：仅当用户显式要求（`--inline` 或配置显式 `execution.mode: "inline"`）；**只把实施者换成你，Stage 3 QA 与 Stage 5 reviewer 照旧派**。
-- 禁止：L 级、B0/B1/B2、跨模块、含 schema/契约迁移、UI 大改。命中禁止项就回退 subagent，并一句话告诉用户原因。
-
-**inline 的硬动作**（缺一不可）：
-1. 计划不省：S 级写迷你方案；B3/M 仍出 `03-plan.json` 并跑 `validate-plan.mjs`。
-2. `verify.mjs baseline record` → 按 DAG 顺序一次一个任务执行（M 级用 `run-state.mjs start/done` 标记）→ `baseline check`；越界即停。
-3. 可复现缺陷先写失败测试；实现遵守 `steward:tdd`。
-4. `verify.mjs run` 贴真实输出；红了就是失败，不许解释掉。
-5. 落 `reports/t<ID>-lead.md`（改了什么/证据/偏差）与 `05-record.md`；不 git commit/push。
-6. 不越出计划文件所有权；要扩权先在 `03-plan.md` 记录并告知用户。
-
-**不能做的事**：把 inline 当免检（跳过计划/baseline/TDD/verify）；自己写测试又自己宣布通过（M 级必须独立 QA）；顺手重构；并行多任务。
+> **直接执行（inline）已拆出**：需要时加载 `steward:inline` 技能（适用范围 / 硬动作 / 反模式都在里面；S、B3、维护小修可直接用，M 需显式要求，L 与 B0/B1/B2 禁止）。
 
 ## 工件目录（所有交接走文件，别在 prompt 里转述长文）
 
@@ -251,37 +230,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 - **批量改动 / codemod**：需要跨大量文件的机械改动时**不直接动手**——走只出计划模式出 codemod 计划（转换脚本 + 抽样验证 + 全量执行 + diff 审查 + 回滚点），执行按任务 DAG 分批，每批跑 `verify.mjs run` + `baseline check`，任何一批红了立即停。
 - **模块边界**：架构漂移（新循环依赖、层级越界）先在 DECISIONS 立 ADR 记决策，重构单独立项走功能交付流程，不在维护小修里夹带。
 
-## T3 文档按需升级（docTier=3，v0.7）
-
-- 触发：L 级 / 合规 / 新项目，或用户明确要求；在 `steward.config.json` 设 `docTier: 3`。
-- 产物六件：PRD、FRD、契约（CONTRACT）、页面布局（PAGE-LAYOUT）、测试方案（TEST-PLAN）、部署工程化（DEPLOYMENT）——模板在插件 `scripts/templates/t3/`，按需复制填空；PRD/FRD 的验收条目最终收敛进 02-spec.md 的 AC，被 validate-plan 机检。
-- T3 是升级不是常态：每个 T3 文档都要能回答「它防的是什么漂移」，答不出就别建。
-
-## 文档流水线（完整版，docTier=3）
-
-
-**启用**：`steward.config.json` 设 `docTier: 3`，或 L 级 / 合规 / 新项目由你提升。docTier<3 **不建**深文档树，只维护 T0 `AGENTS.md` + T1 `docs/project/`。
-
-**索引**：`references/doc-pipeline/README.md`（相对本技能目录）是唯一入口；模板在 `references/doc-pipeline/templates/`，规范正文在同级 `*.md`。写 PRD/FRD/架构/契约/页面/测试/部署/治理文档前先读索引，不凭记忆写。
-
-**目录（docTier=3）**：
-- `docs/01-需求/` PRD + FRD；`docs/02-架构/` 架构总纲 + {X}工程化 + 可观测性 + 部署工程化；`docs/03-契约/` 数据模型 + API/错误码；`docs/04-专项/`；`docs/05-页面/` 页面设计 + 布局稿 + 详设；`docs/06-测试/` 测试方案 + 黄金集；`docs/07-治理/` ADR + 执行步骤 + 开发顺序 + 评审记录；`docs/README.md` 文档地图。
-- 约束正文：根/子目录 `AGENTS.md` + `.agents/rules/`；视觉 token：`.agents/designs/DESIGN.md`。
-- T1 `docs/project/` 仍是每轮必读薄记忆：ARCHITECTURE/DECISIONS/RUNBOOK 只放摘要 + 链接，正文进深文档，交叉引用不复制。
-
-**七阶段在 Steward 流程里的位置**：需求（PRD→FRD）在 Stage 0/1；架构/契约/页面在 Stage 1 冻结；实现/质量/部署/治理在 Stage 2–5 落档。每阶段出口按 `references/doc-pipeline/README.md` 的门禁清单独立通读、清点关键数字、用 `file:line` 证据，结论写 `docs/07-治理/评审记录-*.md`。
-
-**变更入口**：新需求 / 改口径 / 改范围先做影响面扫描（SSOT 地图 + 联动表）→ 需拍板项列给用户 → 拍板后按联动表同批落档；不拍板不动文档。
-
-**本地门禁（不做 CI）**：
-- `node <插件>/scripts/doc/doc-init.mjs <root> --tier 3 [--write]`：建七阶段树 + 索引骨架；幂等不覆盖。
-- `node <插件>/scripts/doc/doc-check.mjs <root>`：T1 / 索引 / 死链 / 未索引文件；exit 1 即失败。
-- `node <插件>/scripts/doc/guard-naming.mjs <root>`：代码产物禁波次/工单/批次编号；基线只减不增。
-三个脚本 exit code 非 0 一律如实上报。
-
-**与 T3 六件骨架的关系**：以 `references/doc-pipeline/templates/` 完整库为准；`scripts/templates/t3/` 六件保留给轻量场景，不重复维护正文。
-
-**DocTier 判定**：S/M 级不建深树；L 级且涉及契约/多端/合规/新项目才提升到 3。不要为了「完整」建空目录。
+> **文档流水线（docTier=3）已拆出**：需要建七阶段文档树时加载 `steward:docs` 技能（模板索引、变更联动表与本地门禁都在里面）。
 
 ## Monorepo / 多服务（v0.7）
 
