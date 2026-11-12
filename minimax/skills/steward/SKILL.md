@@ -7,7 +7,7 @@ description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三�
 
 # Steward · Tech Lead 手册
 
-> 当前版本（1.0.0）实现：功能交付（六阶段 + 批准门）+ 执行模式（subagent / inline，自然语言「你直接做」）+ **主技能按需拆分（inline / docs 按需加载）+ 文档治理（`steward:docs-governance` + `docs-gate` / `doc-snapshot` 本地门禁）** + Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（take-over 脚本流程）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环与 T3 按需升级 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ 技能路由（`steward:using-steward`，不知道用哪个入口时先路由）+ Monorepo/多服务口径 + 可选宿主守卫 hooks（secret / ownership / dangerous）。完整设计见 ROADMAP §4–§6。
+> 当前版本（1.0.1）实现：功能交付（六阶段 + 批准门）+ 执行模式（subagent / inline，自然语言「你直接做」）+ **主技能按需拆分（inline / docs 按需加载）+ 文档治理（`steward:docs-governance` + `docs-gate` / `doc-snapshot` 本地门禁）** + Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（take-over 脚本流程）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环与 T3 按需升级 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ 技能路由（`steward:using-steward`，不知道用哪个入口时先路由）+ Monorepo/多服务口径 + 可选宿主守卫 hooks（secret / ownership / dangerous）。完整设计见 ROADMAP §4–§6。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 

@@ -175,12 +175,12 @@ test('docs-governance 技能正文覆盖 0–12 小节、脚本路径与 MiniMax
 });
 // --- 3. 构建产物契约（防回归） -------------------------------------------------
 
-test('minimax 包含 inline / docs / docs-governance / project-lifecycle 四技能，清单恰好 11 项、路径都存在、两宿主同版本 1.0.0', () => {
+test('minimax 包含 inline / docs / docs-governance / project-lifecycle 四技能，清单恰好 11 项、路径都存在、两宿主同版本 1.0.1', () => {
   for (const skill of ['inline', 'docs', 'docs-governance']) {
     assert.ok(existsSync(join(MX, 'skills', skill, 'SKILL.md')), `缺 minimax/skills/${skill}/SKILL.md`);
   }
   const pkg = JSON.parse(readFileSync(join(MX, '.minimax-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(pkg.version, '1.0.0', 'MiniMax 清单 version 应为 1.0.0');
+  assert.equal(pkg.version, '1.0.1', 'MiniMax 清单 version 应为 1.0.1');
   assert.equal(pkg.skills.length, 11, 'MiniMax 清单 skills 应恰好 11 项（7 基础 + inline / docs / docs-governance / project-lifecycle）');
   // project-lifecycle 的 references/ assets/ 必须随包，否则技能正文里的相对链接在包内断链
   for (const res of ['references', 'assets']) {
@@ -192,7 +192,7 @@ test('minimax 包含 inline / docs / docs-governance / project-lifecycle 四技�
     assert.ok(existsSync(join(MX, rel)), `清单列出的 ${rel} 不存在`);
   }
   const zc = JSON.parse(readFileSync(join(ROOT, 'zcode', '.zcode-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(zc.version, '1.0.0', 'ZCode 清单 version 应为 1.0.0（两宿主同号）');
+  assert.equal(zc.version, '1.0.1', 'ZCode 清单 version 应为 1.0.1（两宿主同号）');
 });
 
 test('主技能三节已拆走只留指针，拆出技能正文承接原节', () => {
