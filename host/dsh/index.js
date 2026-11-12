@@ -62,6 +62,17 @@ function stripFrontmatter(text) {
   return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
 }
 
+/**
+ * Read a shipped text file with CRLF normalized to LF.
+ * A Windows checkout (`core.autocrlf=true`) rewrites the packaged role and
+ * skill files to CRLF, so the charter and skill bodies must not depend on the
+ * checkout's line endings — otherwise the injected charter silently differs
+ * from the LF text the host contract compares against.
+ */
+function readTextFile(file) {
+  return fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+}
+
 const ROLE_MANIFEST = readJson(path.join(ROLES_DIR, 'manifest.json'), { roles: [] });
 const SKILL_MANIFEST = readJson(path.join(SKILLS_DIR, 'manifest.json'), { skills: [] });
 const ROLES = Array.isArray(ROLE_MANIFEST.roles) ? ROLE_MANIFEST.roles : [];
@@ -260,7 +271,7 @@ function roleCharter(roleId) {
   let text = '';
   if (role !== undefined) {
     try {
-      text = stripFrontmatter(fs.readFileSync(path.join(HERE, role.path), 'utf8')).replace(BANNER, '').trim();
+      text = stripFrontmatter(readTextFile(path.join(HERE, role.path))).replace(BANNER, '').trim();
     } catch {
       text = '';
     }
@@ -751,7 +762,7 @@ function registerSkills(ctx) {
     for (const skill of SKILL_MANIFEST.skills ?? []) {
       let content;
       try {
-        content = stripFrontmatter(fs.readFileSync(path.join(HERE, skill.path), 'utf8'));
+        content = stripFrontmatter(readTextFile(path.join(HERE, skill.path)));
       } catch {
         continue;
       }

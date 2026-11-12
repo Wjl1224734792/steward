@@ -10,10 +10,11 @@
  * 不启动宿主：用假 ctx 驱动 apply()。
  */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const PLUGIN = new URL('../../../dsh/index.js', import.meta.url);
 const ROLES = new URL('../../../dsh/roles/', import.meta.url);
@@ -279,6 +280,30 @@ test('every role charter is a dispatch payload, not a mode', async () => {
     assert.ok(text.endsWith('只回复 OK'), `${role}: the task must stay last`);
     assert.equal(spec.agentPreset, CHILD_PRESET);
   }
+});
+
+test('the runtime normalizes CRLF role charters (Windows checkout state)', async () => {
+  // A Windows checkout (`core.autocrlf=true`) rewrites the packaged role files
+  // to CRLF. The injected charter must not carry the \r, and must still match
+  // the LF baseline the host contract compares against.
+  const crlfPkg = join(workDir, 'crlf-pkg');
+  cpSync(fileURLToPath(new URL('../../../dsh/', import.meta.url)), crlfPkg, { recursive: true });
+  for (const id of ROLE_IDS) {
+    const file = join(crlfPkg, 'roles', `${id}.md`);
+    const lf = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+    writeFileSync(file, lf.replace(/\n/g, '\r\n'), 'utf8');
+  }
+
+  const crlfPlugin = await import(pathToFileURL(join(crlfPkg, 'index.js')).href);
+  const bucket = createBucket();
+  crlfPlugin.apply(bucket.ctx, bucket.config);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const tool = bucket.state.tools.find((entry) => entry.name === 'steward_dispatch');
+  await tool.execute({ role: 'backend-dev', description: 'CRLF 检出态冒烟', prompt: '只回复 OK' }, execFor());
+  const text = bucket.state.activations.at(-1).prompt[0].text;
+  assert.ok(!text.includes('\r'), '注入的章程不得带入 CRLF 的 \\r');
+  assert.ok(text.startsWith(roleBody('backend-dev')), 'CRLF 检出态下的章程必须与 LF 基准一致');
 });
 
 test('dispatch inherits the parent route when the project configures none', async () => {
