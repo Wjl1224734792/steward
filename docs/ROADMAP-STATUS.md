@@ -2,6 +2,17 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
+## 三宿主 1.0.1（收口 1.0.0 留给他侧的两项偏差）— 2026-11-12
+
+> 用户指示「其他侧的也提交并推送」后落地：把 1.0.0 收口时明确写进「已知偏差」的两项（DSH 运行时换行归一、ZCode 随包资源补齐）在本仓库一次性修完，并按仓库「两宿主同号」规则把 ZCode / MiniMax 同升 1.0.1、DSH 独立升 1.0.1。
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| N1 | DSH 运行时归一换行 | 已实现 | `host/dsh/index.js` 新增 `readTextFile()`，读角色章程 / 技能正文时 `\r\n` → `\n`；红灯验证：临时撤掉归一后新增用例 1 fail，重建后 22 pass / 0 fail；`node --test host/dsh/tests/` 42 pass | DSH 侧独立修复，不改 ZCode / MiniMax / shared；由 `host/dsh/build.mjs` 重建 `dsh/index.js` |
+| N2 | ZCode 随包资源补齐 | 已实现 | `zcode/scripts/build.mjs` 的 `HOST_SKILL_RESOURCES` 增 `zcode` 项；`zcode/skills/project-lifecycle/` 由 1 个文件变 11 个；`zcode/scripts/tests/package-resources.test.mjs` 断言正文相对链接不断链 + 两宿主资源集合一致 | 共享构建器改动按跨宿主处理：MiniMax 侧原有行为不变（资源集合逐项一致） |
+| N3 | 版本同号 1.0.1 | 已实现 | ZCode / MiniMax 两份 `plugin.json` 与 banner 版本行均 1.0.1；DSH `package.json` 1.0.1；`build --check` 零 warning | 仓库「两宿主同号」规则维持 |
+| N4 | 全量门禁复跑 | 已实现 | `zcode/scripts/tests` 76 pass、`host/minimax/tests` 7 pass、`host/dsh/tests` 42 pass；`build --check` 与 `host/dsh/build.mjs --check` 均 PASS | 相对 1.0.0 基线新增 3 例 |
+
 ## MiniMax 1.0.0（对齐 DSH 1.0.0 的流程/规范增量）— 2026-11-12
 
 > 用户拍板：MiniMax 侧对齐 DSH 的能力更新，**用 MiniMax Code 自己的机制实现**，版本升 1.0.0；脚本落位选「宿主自带副本」（严格宿主隔离，DSH 侧零改动），版本选「两宿主同号」。实施期间主线并行落地了 ZCode 侧同款对齐（`02f9552`），本轮基线已快进到该提交并在此之上收敛。
@@ -11,7 +22,7 @@
 | M1 | 主技能按需拆分（`inline` / `docs`） | 已实现 | `node zcode/scripts/build.mjs --check` exit 0 零 warning；主技能不再含「## 执行模式」「## T3 文档按需升级」「## 文档流水线」三标题，两节正文完整落在 `minimax/skills/inline/SKILL.md`、`minimax/skills/docs/SKILL.md` | 共享正文 `shared/` 不改；拆分由 `host/minimax/skills/split-rules.json` 按 `## ` 锚点驱动；锚点失配即 build FAIL |
 | M2 | `steward:docs-governance` 技能（MiniMax 版） | 已实现 | `host/minimax/skills/docs-governance/SKILL.md` 0–12 节齐全（与 DSH 版表格/阈值逐项对齐，md 表格行数 61 = 61）；禁用词 grep 0 命中；`node --test host/minimax/tests/` 含该技能的文本级用例 | 与 DSH / ZCode 三份并列实现，措辞按各宿主口径 |
 | M3 | 随包门禁脚本（docs-gate / doc-snapshot） | 已实现 | `minimax/scripts/docs-gate.mjs`、`doc-snapshot.mjs` 随包且与 `host/minimax/scripts/` 逐字节一致；`git diff --no-index` 对 DSH 同名脚本各 1 增 1 删（仅注释措辞）；冒烟：门禁报 G5 error + G10 warning 且 exit 1，快照首跑 exit 0、复跑 skip | 宿主自有脚本，不进 `zcode/scripts/` 共享单源，不灌 ZCode 包 |
-| M4 | `steward:project-lifecycle` 渲染进 MiniMax 包 | 已实现 | `minimax/skills/project-lifecycle/` 下 SKILL.md + references/ + assets/ 共 11 个文件；技能正文里的相对链接在包内可解析 | ZCode 侧本轮只随包 SKILL.md（包内相对链接断链，属 ZCode 侧待办） |
+| M4 | `steward:project-lifecycle` 渲染进 MiniMax 包 | 已实现 | `minimax/skills/project-lifecycle/` 下 SKILL.md + references/ + assets/ 共 11 个文件；技能正文里的相对链接在包内可解析 | ZCode 侧同期只随包 SKILL.md（属 ZCode 侧待办），已由 **1.0.1** 按同一 `HOST_SKILL_RESOURCES` 机制补齐 |
 | M5 | 两宿主版本同升 1.0.0 | 已实现 | 两份 `plugin.json` version 均 1.0.0；`build --check` 不再报「两宿主版本不一致」 | ZCode 侧功能零改动（主线已自带 1.0.0） |
 | M6 | 宿主侧隔离不破 | 已实现 | `git diff --stat -- host/dsh dsh/`、`-- zcode/skills zcode/agents zcode/commands`、`-- shared/` 均空（内容层面） | DSH 生成物仅按其自家构建器归一换行字节（内容与 HEAD 一致，diff 为空） |
 
@@ -28,10 +39,10 @@
 | 路由项目优先 | 项目根 `steward.config.json` | 同 | 已在位 |
 | 原生 Config/Settings 配置页 | `configForms` | `agent-config.mjs` + Mini App 配置页 | 已在位 |
 
-### 已知偏差（归属他侧，非本轮引入）
+### 已知偏差（归属他侧，非本轮引入）— 已在 1.0.1 收口
 
-- **DSH 运行时不归一换行**：`host/dsh/index.js` 读角色章程不做 `\r\n`→`\n` 归一，CRLF 检出态（本机 `core.autocrlf=true`）会让 DSH 两条断言失败——属 DSH 侧既有缺陷，需在 DSH 运行时归一。
-- **ZCode 侧 project-lifecycle 随包不完整**：ZCode 1.0.0 只随包 SKILL.md，`references/` `assets/` 缺失导致包内相对链接断链——建议 ZCode 侧按 `HOST_SKILL_RESOURCES` 机制补齐。
+- **DSH 运行时不归一换行**（已修）：`host/dsh/index.js` 原先读角色章程不做 `\r\n`→`\n` 归一，CRLF 检出态（本机 `core.autocrlf=true`）会让 DSH 两条断言失败。**DSH 1.0.1** 起运行时读章程 / 技能正文时归一，检出换行不再影响注入内容。
+- **ZCode 侧 project-lifecycle 随包不完整**（已修）：ZCode 1.0.0 只随包 SKILL.md，`references/` `assets/` 缺失导致包内相对链接断链。**ZCode 1.0.1** 起按 `HOST_SKILL_RESOURCES` 机制补齐随包资源，测试锁住「链接不断链 + 两宿主资源集合一致」。
 
 ## DSH 0.6.0（Steward 团队面板）— 2026-11-12
 
