@@ -6,3 +6,4 @@
 - 只出计划：「只出方案，先别写代码」——到批准门停止。
 - 维护循环：「做一次维护扫描」；接手存量：「接手这个仓库，先盘点再动手」。
 - 改子代理模型/档位：「配置子代理模型」——加载 `agent-settings` 技能，改项目根 `steward.config.json` 的 `modelRouting`，跑 `scripts/validate-config.mjs` 校验。
+- 文档治理/拆分/归档/版本溯源：「文档太长了」「评审堆在 07」「需求文档要留版本」——加载 `docs-governance` 技能，跑 `scripts/docs-gate.mjs` 与 `scripts/doc-snapshot.mjs`。

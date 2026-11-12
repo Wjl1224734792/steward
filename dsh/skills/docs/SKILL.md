@@ -6,6 +6,7 @@ description: Steward 文档流水线（docTier=3，DSH）。当需求属 L 级�
 # Steward · 文档流水线（docTier=3）
 
 > 本技能从主技能按需拆出：只在需要建深文档树时加载。docTier<3 不建这套目录，不要为了「完整」建空树。
+> **文档变长/要归档/要版本快照？** 加载 `docs-governance` 技能（拆分预算、07 分层归档、`history/` 版本溯源、`docs-gate` / `doc-snapshot` 门禁）。
 
 <!-- 由 host/dsh/build.mjs 从 shared/ + host/dsh/ 生成，请勿手改；改源后重跑 node host/dsh/build.mjs。 -->
 

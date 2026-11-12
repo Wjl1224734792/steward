@@ -36,7 +36,7 @@ if (!existsSync(shared) || !existsSync(zc)) {
 }
 
 const AGENTS = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'browser-tester', 'reviewer'];
-const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-completion', 'using-steward', 'agent-settings'];
+const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-completion', 'using-steward', 'agent-settings', 'docs-governance'];
 const SKIP_SCRIPTS = new Set(['agent-config.mjs', 'agent-config-core.mjs', 'trigger.mjs', 'build.mjs']);
 
 const errors = [];
@@ -289,6 +289,14 @@ for (const f of readdirSync(join(zc, 'scripts')).filter((name) => name.endsWith(
 }
 syncDir(join(zc, 'scripts', 'templates'), join(outDir, 'scripts', 'templates'), 'scripts/templates');
 syncDir(join(zc, 'scripts', 'doc'), join(outDir, 'scripts', 'doc'), 'scripts/doc');
+// DSH 自有门禁脚本（文档治理）：与 zcode/scripts 同名即为冲突，必须显式报错
+if (existsSync(join(hostDir, 'scripts'))) {
+  const zcNames = new Set(readdirSync(join(zc, 'scripts')).filter((n) => n.endsWith('.mjs')));
+  for (const n of readdirSync(join(hostDir, 'scripts')).filter((x) => x.endsWith('.mjs'))) {
+    if (zcNames.has(n)) errors.push(`[sync] host/dsh/scripts/${n} 与 zcode/scripts/${n} 同名，会覆盖共享脚本`);
+  }
+  syncDir(join(hostDir, 'scripts'), join(outDir, 'scripts'), 'scripts');
+}
 syncDir(join(zc, 'skills', 'steward', 'references'), join(outDir, 'skills', 'steward', 'references'), 'skills/steward/references');
 
 // --- 3. 运行期清单（Host 插件读取） ---
@@ -319,7 +327,7 @@ function addManifest(rel, value) {
     skills.push({ name: skillName, description, path: `skills/${name}/SKILL.md`, dir: `skills/${name}` });
   }
   skills.sort((a, b) => a.name.localeCompare(b.name));
-  if (skills.length !== 8) errors.push(`[dsh] 技能清单应有 8 项（含按需拆出的 inline / docs），实际 ${skills.length} 项`);
+  if (skills.length !== 9) errors.push(`[dsh] 技能清单应有 9 项（含按需拆出的 inline / docs / docs-governance），实际 ${skills.length} 项`);
   addManifest('skills/manifest.json', { version: 1, skills });
 
   let metaRoles = [];

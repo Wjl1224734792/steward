@@ -219,6 +219,7 @@ test('apply registers the two tools, one command and the bundled skills — noth
   assert.deepEqual(bucket.state.skills.map((skill) => skill.name).sort(), [
     'agent-settings',
     'docs',
+    'docs-governance',
     'inline',
     'steward',
     'systematic-debugging',

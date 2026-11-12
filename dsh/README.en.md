@@ -31,11 +31,11 @@ With no shared board yet, the page explains the three setup steps and offers "Co
 | Model & effort | `modelRouting.<role>` in the project's `steward.config.json` (wins, checked by `scripts/validate-config.mjs`), else the Steward panel's per-role/default selection, else the parent agent |
 | **Team panel** | Sidebar "Steward team" full page (`main` slot): run summary (members / completion / blocked with a progress bar), a team switcher when several boards exist, lead row + member cards (**click one to open its session**), a gate phase rail with work-item rows, and the per-role model + effort table (the same table is in Settings → Steward) |
 | Main skill | `steward`: the Tech Lead playbook (sizing / DAG / dispatch / gates / finishing) |
-| On-demand skills | `inline` (what the lead must still do when it executes a task itself) and `docs` (the docTier=3 seven-phase pipeline), both split out of the main skill |
+| On-demand skills | `inline` (what the lead must still do when it executes a task itself), `docs` (the docTier=3 seven-phase pipeline) and `docs-governance` (the increment layer for splitting, archiving, versioned snapshots and the `docs-gate` / `doc-snapshot` gates), all split out of the main skill |
 | Companion skills | `using-steward` (routing), `agent-settings` (model config), `systematic-debugging`, `tdd`, `verification-before-completion` |
 | Shared task board | `steward_board(action="sync"/"status"/"brief")`: turns `03-plan.json` into gate + work tasks on the Agent Teams board; status is read in the native Team panel |
 | Command | `/steward`: echoes the roster and the routing rule (it does not dispatch work) |
-| Gate scripts | `scripts/`: `validate-plan.mjs`, `verify.mjs` (including `baseline record/check`), `run-state.mjs`, `maintain.mjs`, `take-over.mjs`, `validate-config.mjs`, plus the `doc/` documentation-pipeline tools |
+| Gate scripts | `scripts/`: `validate-plan.mjs`, `verify.mjs` (including `baseline record/check`), `run-state.mjs`, `maintain.mjs`, `take-over.mjs`, `validate-config.mjs`, `docs-gate.mjs` / `doc-snapshot.mjs` (documentation governance), plus the `doc/` documentation-pipeline tools |
 
 ## Why no modes (Agent Presets)
 
@@ -61,6 +61,26 @@ With the host's Agent Teams bundle enabled, **the Team panel in the Web session 
 - Status semantics: `pending` not started / `in_progress` owned by someone / `completed` means the report landed and the task's own verification passed. **A blocked task cannot be claimed** — Steward's DAG and gates run at the native layer.
 - Dispatch: `steward_board(action="brief", role="backend-dev", task="T1")` → hand the brief to `spawn_teammate` → `team_task_update(action="reassign", owner=<teammate>)`; the teammate claims before working.
 - Without the bundle there is no `agentTeams` service, `steward_board` fails loudly, and the solo `steward_dispatch` + `run.json` path stays in charge.
+
+## Documentation governance (`docs-governance`, an increment layer)
+
+The `docs` skill builds the tree (seven phases + templates); `docs-governance` keeps that tree from turning into a swamp: splitting, archiving, versions and read contracts. Triggers: "the docs are getting too long", "reviews are piling up under 07-governance", "this PRD needs a version".
+
+| Kind of document | How it grows | Treatment |
+|---|---|---|
+| Living (AGENTS / README / docs map / T1 / a single volume) | edited in place, one document per topic | line budgets (100 / 120 / 150 / 120 / 400 / 150) + hub-and-spoke splits |
+| Record (one ADR, one review) | append-only, a record never mutates | thin always-read index + quarterly `archive/` rotation |
+| Baseline (PRD / FRD / API contract / data model) | edited in place + milestone snapshots | frontmatter `version` + revision log + same-domain `history/` snapshots with a sha256 manifest |
+
+Two bundled scripts (plain Node, zero dependencies, run by absolute path from the target repo root):
+
+| Script | What it does |
+|---|---|
+| `scripts/docs-gate.mjs <root> check` | G1–G11: budgets, frontmatter read contract, no frontmatter on AGENTS, 07 layering, generated index block, ADR cross-check, version in three places, snapshot integrity, current version not in history, revision evidence, plan `docsRead` |
+| `scripts/docs-gate.mjs <root> init` / `fix` | Scaffold the inner 07 layers and each domain's `history/`; rewrite the generated index block in `docs/README.md` (idempotent, never overwrites) |
+| `scripts/doc-snapshot.mjs <doc> --next <ver>` | Baseline snapshot: original into `history/` + manifest hash + index row + `superseded-by` + current-doc bump + revision row (idempotent; a rerun prints `skip`) |
+
+Overrides for budgets and the baseline live under `docsGovernance` in the project's `steward.config.json`; on an existing project record the baseline with `--baseline-write` and ratchet down only. It runs alongside `doc-check.mjs`, not instead of it.
 
 ## Quick start
 
@@ -91,6 +111,7 @@ With the host's Agent Teams bundle enabled, **the Team panel in the Web session 
 | Maintenance loop | "Run a maintenance scan" → eight-category scan + scored backlog + small fixes |
 | Takeover | "Take over this repository, inventory first" → T1 project memory + first health scan |
 | Documentation pipeline | `docTier: 3` (with `/steward`) → seven-phase docs tree + full templates |
+| Documentation governance | "The docs are too long / reviews pile up under 07 / this PRD needs a version" → `docs-governance`: splitting, archiving, `history/` snapshots, `docs-gate` / `doc-snapshot` |
 | Model / effort | "Configure subagent models" → `agent-settings`: edit `modelRouting` in the project's `steward.config.json` and run `validate-config.mjs` |
 | Unsure which entry | Load `using-steward` to route |
 

@@ -15,11 +15,11 @@ Steward 是给 DeepSeek Harness 用的多角色研发团队插件：主对话代
 | 模型与档位 | 项目根 `steward.config.json` 的 `modelRouting.<role>`（仓库优先，跑 `scripts/validate-config.mjs`）；没写的角色用**面板**里的该角色 / 默认配置；都没有则继承主代理 |
 | **团队面板** | 侧栏「Steward 团队」整页（`main` slot）：运行总览（成员 / 完成比 / 阻塞 + 进度条）、多团队切换条、Lead 行 + 成员卡（**点卡进子会话**）、门禁阶段条 + 工作单行列表、逐角色模型与思考强度表格；同一表格也在「设置 → Steward」 |
 | 主技能 | `steward`：Tech Lead 调度手册（定级 / DAG / 派单 / 门禁 / 收尾） |
-| 按需技能 | `inline`（主代理自己动手时的硬动作与范围）、`docs`（docTier=3 七阶段文档流水线）——从主技能拆出，只在需要时加载 |
+| 按需技能 | `inline`（主代理自己动手时的硬动作与范围）、`docs`（docTier=3 七阶段文档流水线）、`docs-governance`（文档拆分 / 归档 / 版本快照与 `docs-gate` / `doc-snapshot` 门禁的增量层）——从主技能拆出，只在需要时加载 |
 | 配套技能 | `using-steward`（路由）、`agent-settings`（模型配置）、`systematic-debugging`、`tdd`、`verification-before-completion` |
 | 共享任务板 | `steward_board(action="sync"/"status"/"brief")`：把 `03-plan.json` 变成 Agent Teams 板上的门禁 + 工作单，状态在 Web Team 面板里直接看 |
 | 命令 | `/steward`：回显名册与路由口径（不负责派活） |
-| 门禁脚本 | `scripts/`：`validate-plan.mjs`、`verify.mjs`（含 `baseline record/check`）、`run-state.mjs`、`maintain.mjs`、`take-over.mjs`、`validate-config.mjs`，以及 `doc/` 文档流水线工具 |
+| 门禁脚本 | `scripts/`：`validate-plan.mjs`、`verify.mjs`（含 `baseline record/check`）、`run-state.mjs`、`maintain.mjs`、`take-over.mjs`、`validate-config.mjs`、`docs-gate.mjs` / `doc-snapshot.mjs`（文档治理），以及 `doc/` 文档流水线工具 |
 
 ## 为什么不注册模式（Agent Preset）
 
@@ -45,6 +45,26 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 - 状态口径：`pending` 未开始 / `in_progress` 有人在做 / `completed` 报告已落盘且该任务所有权内验证通过。**被依赖阻塞的任务 claim 不上**——Steward 的 DAG 与门禁在原生层执行。
 - 派活：`steward_board(action="brief", role="backend-dev", task="T1")` 取自包含任务书 → `spawn_teammate` → `team_task_update(action="reassign", owner=<teammate>)`；teammate 先 claim 再动手。
 - 没启用团队时没有 `agentTeams` 服务，`steward_board` 直接报错，回到 `steward_dispatch` + `run.json` 的单人模式。
+
+## 文档治理（`docs-governance`，增量层）
+
+`docs` 技能管**建树**（七阶段 + 模板），`docs-governance` 管树建好之后**别长成屎山**：拆分、归档、版本、读契约。触发语：「文档太长了」「评审记录堆在 07-治理」「需求文档要留版本」。
+
+| 三类文档 | 生长方式 | 治理手段 |
+|---|---|---|
+| 活文档（AGENTS / README / docs 地图 / T1 / 单册） | 原地修订，同一主题只一份 | 体积预算（100 / 120 / 150 / 120 / 400 / 150 行）+ hub-and-spoke 拆册 |
+| 记录文档（ADR 单条、评审记录单篇） | 只增不改，单条不可变 | 薄索引（恒读）+ 按季 `archive/` 轮转 |
+| 基线文档（PRD / FRD / API 契约 / 数据模型） | 原地修订 + 里程碑快照 | frontmatter `version` + 修订记录 + 同域 `history/` 快照与 sha256 清单 |
+
+两个随包脚本（纯 Node、零依赖，在目标仓库根用绝对路径运行）：
+
+| 脚本 | 作用 |
+|---|---|
+| `scripts/docs-gate.mjs <root> check` | G1–G11：体积预算、frontmatter 读契约、AGENTS 无 frontmatter、07 分层、自动索引区块、ADR 双向、版本三处一致、快照完整性、现版不入历史、修订依据、计划 `docsRead` |
+| `scripts/docs-gate.mjs <root> init` / `fix` | 建 07 内部分层与各域 `history/` 骨架；重写 `docs/README.md` 自动索引区块（幂等不覆盖） |
+| `scripts/doc-snapshot.mjs <doc> --next <ver>` | 基线快照：原文进 `history/` + manifest 哈希 + 索引行 + `superseded-by` + 现版 bump + 修订行（幂等，重跑输出 `skip`） |
+
+预算与基线可在项目 `steward.config.json` 的 `docsGovernance` 覆盖；存量项目先 `--baseline-write` 记基线，此后只减不增。与 `doc-check.mjs` 并存不互替。
 
 ## Steward 团队面板（Web 整页）
 
@@ -90,6 +110,7 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 | 维护循环 | 「做一次维护扫描」→ 八类扫描 + 评分 backlog + 小修 |
 | 接手存量 | 「接手这个仓库，先盘点再动手」→ T1 项目记忆 + 首轮健康扫描 |
 | 文档流水线 | `docTier: 3`（随 `/steward`）→ 七阶段文档树 + 全量模板 |
+| 文档治理 | 「文档太长了 / 评审堆在 07 / 需求文档要留版本」→ `docs-governance`：拆分、归档、`history/` 快照、`docs-gate` / `doc-snapshot` |
 | 改模型 / 档位 | 「配置子代理模型」→ `agent-settings`：改项目根 `steward.config.json` 的 `modelRouting` 并跑 `validate-config.mjs` |
 | 不知道用哪个入口 | 加载 `using-steward` 做路由 |
 

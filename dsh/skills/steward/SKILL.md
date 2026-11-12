@@ -43,6 +43,7 @@ description: Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当�
 - 只出计划：「只出方案，先别写代码」——到批准门停止。
 - 维护循环：「做一次维护扫描」；接手存量：「接手这个仓库，先盘点再动手」。
 - 改子代理模型/档位：「配置子代理模型」——加载 `agent-settings` 技能，改项目根 `steward.config.json` 的 `modelRouting`，跑 `scripts/validate-config.mjs` 校验。
+- 文档治理/拆分/归档/版本溯源：「文档太长了」「评审堆在 07」「需求文档要留版本」——加载 `docs-governance` 技能，跑 `scripts/docs-gate.mjs` 与 `scripts/doc-snapshot.mjs`。
 
 **检索工具栈（DSH 宿主工具，团队全员继承可用）**：`web_search`（网页搜索）、`web_fetch`（抓取正文）、`research`（多来源证据包）、`platform_search`（GitHub / V2EX / B站 / Reddit 等站点内搜索）、`domain_search`（包 / 论文 / 漏洞 / 金融等垂直源）。各角色的查证纪律已写进自身提示词；这些工具不可用时如实标注「检索不可用」，不阻塞流程，不得凭记忆臆造 API。
 
