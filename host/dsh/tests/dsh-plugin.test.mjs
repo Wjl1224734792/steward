@@ -1150,6 +1150,116 @@ test('the board renders a dependency graph, an ownership matrix and a list', asy
 });
 
 /**
+ * Model settings and the solo dispatch list share one tabbed footer: the model table
+ * is the default pane, both panes stay mounted (an unsaved draft survives a switch),
+ * and the solo list is capped with an explicit "show more".
+ */
+test('the footer tabs switch between the model table and a capped solo list', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const registered = [];
+  const snapshot = {
+    status: 'ready',
+    writable: true,
+    revision: 2,
+    value: { defaults: { provider: '', model: '', effort: '' }, roles: {} },
+  };
+  const catalog = {
+    ok: true,
+    value: {
+      groups: [
+        { id: 'ctaigw', name: 'CTAIGW', models: [{ id: 'glm-5.3', name: 'GLM 5.3', reasoning: { efforts: [{ id: 'high', name: 'High' }] } }] },
+      ],
+    },
+  };
+  instance.apply({
+    slots: {
+      inject: (name, callback) => callback(),
+      register: (options, component) => { registered.push({ options, component }); return () => {}; },
+    },
+    locale: { getLocale: () => ({ id: 'zh-CN' }) },
+    remote: { session: { modelCatalog: async () => catalog } },
+    configForms: { get: () => ({ getSnapshot: () => snapshot, subscribe: () => () => {}, mutate: async () => true }) },
+    uiWorkspace: { openSession: () => {} },
+    effect: (callback) => { callback(); },
+  });
+
+  const solo = Array.from({ length: 8 }, (_, index) => ({
+    id: 'child-solo-' + (index + 1),
+    name: 'backend-dev-solo-' + (index + 1),
+    mode: 'spawn',
+    activity: index === 0 ? 'running' : 'idle',
+  }));
+  const state = {
+    projectionsBySession: {
+      'session-run02': {
+        values: {
+          agentTeam: {
+            members: [{ id: 'child-a', name: 'backend-dev-t1', phase: 'active' }],
+            tasks: [{ id: 't1', subject: 'T1 · backend-dev · 实现导出', status: 'in_progress', ownerName: 'backend-dev-t1', blockedBy: [], writeScopes: ['src/export.ts'], writeScopeWarnings: [] }],
+          },
+        },
+      },
+      'session-solo02': { values: { subagentCatalog: solo } },
+    },
+  };
+  const renderPage = () => registered[0].component({ useSessions: (selector) => selector(state), useSessionStatus: () => undefined });
+
+  let host = await harness.settle(renderPage);
+
+  // Two panes, the model table selected by default.
+  const tabs = harness.collect(host, harness.byClass('stwd-ftab'));
+  assert.equal(tabs.length, 2, 'the footer offers exactly two panes');
+  assert.match(harness.textOf(tabs[0]), /子代理模型与思考强度/, 'the first pane is the model table');
+  assert.match(harness.textOf(tabs[1]), /子代理（steward_dispatch）/, 'the second pane is the solo list');
+  assert.match(harness.textOf(tabs[1]), /8/, 'and it carries the count');
+  assert.equal(tabs[0].props['aria-selected'], 'true', 'the model table is the default pane');
+  assert.equal(tabs[1].props['aria-selected'], 'false');
+  const panes = harness.collect(host, harness.byClass('stwd-tabpanel'));
+  assert.equal(panes.length, 2, 'both panes stay mounted');
+  const configPane = panes.find((pane) => pane.props.id === 'stwd-pane-config');
+  const soloPane = panes.find((pane) => pane.props.id === 'stwd-pane-solo');
+  assert.equal(configPane.props.hidden, false, 'the model table is visible');
+  assert.equal(soloPane.props.hidden, true, 'the solo list is hidden until its tab is chosen');
+  assert.equal(harness.collect(host, harness.byClass('stwd-tr')).length, 9, 'the model table renders in the default pane');
+
+  // The solo list is capped: six rows plus an explicit "show more".
+  tabs[1].props.onClick();
+  host = await harness.settle(renderPage);
+  const soloRows = () => harness.collect(host, harness.byClass('stwd-row'));
+  assert.equal(soloRows().length, 6, 'the solo list shows one page at a time');
+  const more = harness.collect(host, (node) => node.type === 'button' && harness.textOf(node).indexOf('显示更多') === 0)[0];
+  assert.ok(more, 'a show-more control continues the list');
+  more.props.onClick();
+  host = await harness.settle(renderPage);
+  assert.equal(soloRows().length, 8, 'show more reveals the remaining rows');
+  const collapse = harness.collect(host, (node) => node.type === 'button' && harness.textOf(node) === '收起')[0];
+  assert.ok(collapse, 'the expanded list can be collapsed again');
+  collapse.props.onClick();
+  host = await harness.settle(renderPage);
+  assert.equal(soloRows().length, 6, 'collapsing returns to the first page');
+
+  // An unsaved route edit survives switching panes.
+  const backTabs = harness.collect(host, harness.byClass('stwd-ftab'));
+  backTabs[0].props.onClick();
+  host = await harness.settle(renderPage);
+  const providerSelect = harness.collect(host, (node) => node.type === 'select')[0];
+  providerSelect.props.onChange({ target: { value: 'ctaigw' } });
+  host = await harness.settle(renderPage);
+  const afterEdit = harness.collect(host, (node) => node.type === 'select')[0];
+  assert.equal(afterEdit.props.value, 'ctaigw', 'the edit is staged in the table');
+  const soloTab = harness.collect(host, harness.byClass('stwd-ftab'))[1];
+  soloTab.props.onClick();
+  host = await harness.settle(renderPage);
+  harness.collect(host, harness.byClass('stwd-ftab'))[0].props.onClick();
+  host = await harness.settle(renderPage);
+  const afterSwitch = harness.collect(host, (node) => node.type === 'select')[0];
+  assert.equal(afterSwitch.props.value, 'ctaigw', 'an unsaved draft survives a tab switch');
+  assert.match(harness.textOf(harness.collect(host, harness.byClass('stwd-toolbar'))[0]), /有未保存修改/);
+});
+
+/**
  * A cyclic board cannot be layered: the panel must fall back to the list and say
  * why instead of drawing a broken graph.
  */

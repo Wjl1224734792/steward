@@ -21,6 +21,23 @@
 - `dsh/README.zh.md`、`dsh/README.en.md` 与 `host/dsh/` 源逐字节一致；`locale/{zh,en}.json` 的 `meta.detail` 目标文件均存在。
 - 未执行 `plugin_manager install_bundle` / 插件更新：本机 DSH 由用户手动更新。
 
+## [DSH 0.8.1] - 2026-11-12
+
+> 底部两块合并成一排 tab（默认显示模型设置），并给子代理列表加上分页——它不再随派发次数无限把页面撑长。
+
+### Changed
+
+- **`模型与思考强度` 与 `子代理（steward_dispatch）` 合并为 tab**（`role="tablist"` + `role="tab"` + `role="tabpanel"`，方向键可切），**默认展开模型表格**；tab 上带子代理数量。
+- **两个面板常驻**：切 tab 只是隐藏/显示（`hidden` + 显式 `display:none`，避免被 `.stwd-section` 的 `display:flex` 覆盖），所以**未保存的模型改动不会因为切 tab 丢失**（测试覆盖）。
+- **子代理列表分页**：默认 6 行，点「显示更多（还有 N 个）」每次 +12 行，展开后可「收起」，并显示「已显示 x/y」。
+- 版本：`dsh/package.json` 0.8.0 → **0.8.1**。
+
+### 验证
+
+- `node host/dsh/build.mjs` / `--check` → PASS；`node --check dsh/client.js` → exit 0。
+- `node --test host/dsh/tests/` → **21 pass / 0 fail**（新增：底部两 tab 且默认模型面板可见、子代理 6→8→6 的分页与收起、切 tab 后未保存的 provider 选择仍在、工具条显示「有未保存修改」）。
+- 视觉仍未截图（浏览器扩展离线）：`visual: unverified`。
+
 ## [DSH 0.8.0] - 2026-11-12
 
 > 面板从「排整齐的卡片」改成**以依赖图为核心的可视化驾驶舱**：任务板是「分叉再汇合」的 DAG，列表/树无法表达汇合，所以主视图改为分层依赖图，并补上文件 × 代理的归属矩阵。只改渲染层与样式，数据来源、会话跳转、`configForms` 保存逻辑与构建契约不变；只动 DSH 侧。

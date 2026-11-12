@@ -12,6 +12,9 @@ window.__ModuleLoader__.load({
     const FIELDS = ['provider', 'model', 'effort'];
     /** Remembers which team tab is expanded; storage is optional and never fatal. */
     const TEAM_STORAGE_KEY = 'dsh-steward:team';
+    /** Solo dispatch list: first page size and the increment of "show more". */
+    const SOLO_PAGE = 6;
+    const SOLO_STEP = 12;
 
     const ROLES = [
       { id: 'pm', zh: '需求分析师', en: 'Requirements analyst', zhDesc: '模糊需求 → 可执行、可验收的规格', enDesc: 'Turns a vague request into a testable spec' },
@@ -127,6 +130,10 @@ window.__ModuleLoader__.load({
         railAlertsNone: '没有需要处理的问题。',
         alertOverlap: '{n} 个文件被多个代理同时写入',
         alertUnknown: '{n} 条依赖指向不在板上的任务',
+        footerPanes: '面板',
+        soloMore: '显示更多（还有 {n} 个）',
+        soloCollapse: '收起',
+        soloShown: '已显示 {shown}/{total}',
         buildSteps: [
           '在会话里启用「智能体团队」（Agent Teams）。',
           '让 Lead 跑 steward_board(action="sync", plan=...) 把 03-plan.json 建成任务板。',
@@ -238,6 +245,10 @@ window.__ModuleLoader__.load({
         railAlertsNone: 'Nothing needs your attention.',
         alertOverlap: '{n} files are written by more than one agent',
         alertUnknown: '{n} dependencies point at tasks that are not on the board',
+        footerPanes: 'Panel',
+        soloMore: 'Show more ({n} left)',
+        soloCollapse: 'Collapse',
+        soloShown: 'Showing {shown} of {total}',
         buildSteps: [
           'Enable Agent Teams in the session.',
           'Have the lead run steward_board(action="sync", plan=...) over 03-plan.json.',
@@ -1807,6 +1818,8 @@ window.__ModuleLoader__.load({
       const [rememberedTeam, setRememberedTeam] = useState(() => readStoredTeam());
       const [copied, setCopied] = useState(false);
       const [view, setView] = useState('dag');
+      const [footerTab, setFooterTab] = useState('config');
+      const [soloVisible, setSoloVisible] = useState(SOLO_PAGE);
       const [selectedTaskId, setSelectedTaskId] = useState(null);
       const [hoverTaskId, setHoverTaskId] = useState(null);
       const [focusOwner, setFocusOwner] = useState('');
@@ -1891,6 +1904,22 @@ window.__ModuleLoader__.load({
           // focus movement is an enhancement only
         }
       }, [teams, active, selectTeam]);
+
+      const onFooterTabKeyDown = useCallback((event) => {
+        if (!event) return;
+        if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+        event.preventDefault();
+        const next = footerTab === 'config' ? 'solo' : 'config';
+        setFooterTab(next);
+        try {
+          if (event.currentTarget && typeof event.currentTarget.querySelector === 'function') {
+            const node = event.currentTarget.querySelector('#stwd-tab-' + next);
+            if (node && typeof node.focus === 'function') node.focus();
+          }
+        } catch {
+          // focus movement is an enhancement only
+        }
+      }, [footerTab]);
 
       const copyBuildHint = useCallback(() => {
         try {
@@ -2085,18 +2114,87 @@ window.__ModuleLoader__.load({
         )
         : null;
 
-      const soloSection = h('section', { className: 'stwd-section', 'aria-label': text.soloTitle },
-        h(SectionHead, { title: text.soloTitle, count: soloAgents.length === 0 ? '' : String(soloAgents.length) }),
+      // Configuration and the solo dispatch list share one tabbed strip: the model
+      // table is the default pane, and the solo list never grows the page without a
+      // deliberate "show more". Both panes stay mounted so an unsaved draft survives
+      // a tab switch; the inactive one is hidden from layout and the a11y tree.
+      const soloShown = Math.min(soloAgents.length, soloVisible);
+      const soloMore = soloAgents.length - soloShown;
+      const soloPanel = h('div', {
+        className: 'stwd-tabpanel',
+        role: 'tabpanel',
+        id: 'stwd-pane-solo',
+        'aria-labelledby': 'stwd-tab-solo',
+        hidden: footerTab !== 'solo',
+      },
+        h(SectionHead, { title: text.soloTitle, count: soloAgents.length === 0 ? '' : `${soloShown}/${soloAgents.length}` }),
         soloAgents.length === 0
           ? h('p', { className: 'stwd-note' }, text.soloEmpty)
           : h('div', { className: 'stwd-table stwd-table-rows' },
-            soloAgents.map((entry) => h(SoloRow, {
+            soloAgents.slice(0, soloShown).map((entry) => h(SoloRow, {
               key: entry.parentSessionId + ':' + entry.id,
               text,
               entry,
               onOpen: () => openSession({ parentSessionId: entry.parentSessionId, childSessionId: entry.id, mode: 'continuable' }),
             })),
           ),
+        soloMore === 0 && soloShown <= SOLO_PAGE
+          ? null
+          : h('div', { className: 'stwd-listfoot' },
+            soloMore > 0
+              ? h('button', {
+                type: 'button',
+                className: 'stwd-btn',
+                onClick: () => setSoloVisible((current) => Math.min(soloAgents.length, current + SOLO_STEP)),
+              }, text.soloMore.replace('{n}', String(soloMore)))
+              : null,
+            soloShown > SOLO_PAGE
+              ? h('button', {
+                type: 'button',
+                className: 'stwd-btn stwd-btn-ghost',
+                onClick: () => setSoloVisible(SOLO_PAGE),
+              }, text.soloCollapse)
+              : null,
+            h('span', { className: 'stwd-listfoot-count' }, text.soloShown
+              .replace('{shown}', String(soloShown))
+              .replace('{total}', String(soloAgents.length))),
+          ),
+      );
+      const configPanel = h('div', {
+        className: 'stwd-tabpanel',
+        role: 'tabpanel',
+        id: 'stwd-pane-config',
+        'aria-labelledby': 'stwd-tab-config',
+        hidden: footerTab !== 'config',
+      }, h(ConfigSection, { ctx, text, lang, compact: false }));
+
+      const footerPanes = [
+        { id: 'config', label: text.configTitle, pane: configPanel },
+        { id: 'solo', label: text.soloTitle, pane: soloPanel },
+      ];
+      const footer = h('section', { className: 'stwd-footer', 'aria-label': text.footerPanes },
+        h('div', {
+          className: 'stwd-ftabs',
+          role: 'tablist',
+          'aria-label': text.footerPanes,
+          onKeyDown: onFooterTabKeyDown,
+        },
+          footerPanes.map((entry) => h('button', {
+            type: 'button',
+            key: entry.id,
+            id: 'stwd-tab-' + entry.id,
+            role: 'tab',
+            'aria-selected': footerTab === entry.id ? 'true' : 'false',
+            'aria-controls': 'stwd-pane-' + entry.id,
+            className: 'stwd-ftab',
+            onClick: () => setFooterTab(entry.id),
+          },
+            h('span', null, entry.label),
+            entry.id === 'solo' && soloAgents.length > 0 ? h('span', { className: 'stwd-tab-count' }, String(soloAgents.length)) : null,
+          )),
+        ),
+        configPanel,
+        soloPanel,
       );
 
       const sections = [];
@@ -2104,8 +2202,7 @@ window.__ModuleLoader__.load({
       if (onboarding) sections.push(h('div', { key: 'onboarding' }, onboarding));
       if (boardSection) sections.push(h('div', { key: 'board', className: 'stwd-band' }, boardSection));
       if (lower) sections.push(h('div', { key: 'lower', className: 'stwd-band' }, lower));
-      sections.push(h('div', { key: 'solo' }, soloSection));
-      sections.push(h('div', { key: 'config' }, h(ConfigSection, { ctx, text, lang, compact: false })));
+      sections.push(h('div', { key: 'footer', className: 'stwd-band' }, footer));
 
       return h('div', { className: 'stwd-root stwd-page' },
         styles(),
@@ -2275,6 +2372,16 @@ window.__ModuleLoader__.load({
       '.stwd-avatar-done{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 55%,transparent);color:var(--dsw-alias-state-success-primary)}',
       '.stwd-avatar-warn{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 55%,transparent);color:var(--dsw-alias-state-warn-primary)}',
       '.stwd-avatar-error{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 60%,transparent);color:var(--dsw-alias-state-error-primary)}',
+      '/* --- footer panes (models + solo dispatch) -------------------------------- */',
+      '.stwd-footer{display:flex;flex-direction:column;gap:10px;margin-top:32px;min-width:0}',
+      '.stwd-ftabs{display:inline-flex;align-items:center;gap:2px;padding:3px;border-radius:9px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1);width:fit-content;max-width:100%;overflow-x:auto}',
+      '.stwd-ftab{display:inline-flex;align-items:center;gap:6px;flex:none;min-height:26px;padding:2px 10px;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;white-space:nowrap}',
+      '.stwd-ftab:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
+      '.stwd-ftab[aria-selected="true"]{background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);font-weight:500;box-shadow:var(--stwd-elev)}',
+      '.stwd-tabpanel{display:flex;flex-direction:column;gap:10px;min-width:0}',
+      '.stwd-tabpanel[hidden]{display:none}',
+      '.stwd-listfoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:2px}',
+      '.stwd-listfoot-count{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));font-variant-numeric:tabular-nums}',
       '/* --- team tabs --------------------------------------------------------- */',
       '.stwd-tabs-wrap{margin-top:16px;min-width:0}',
       '.stwd-tabs{display:flex;align-items:center;gap:2px;padding:3px;border-radius:9px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1);width:fit-content;max-width:100%;overflow-x:auto}',
