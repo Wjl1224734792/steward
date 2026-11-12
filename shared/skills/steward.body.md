@@ -224,6 +224,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 **与 T3 六件骨架的关系**：以 `references/doc-pipeline/templates/` 完整库为准；`scripts/templates/t3/` 六件保留给轻量场景，不重复维护正文。
 
 **DocTier 判定**：S/M 级不建深树；L 级且涉及契约/多端/合规/新项目才提升到 3。不要为了「完整」建空目录。
+@@SLOT?:skills/steward/doc-governance@@
 
 ## Monorepo / 多服务（v0.7）
 

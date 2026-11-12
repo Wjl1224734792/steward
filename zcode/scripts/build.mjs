@@ -16,7 +16,7 @@
  *   @@SLOT?:相对路径@@  可选片段（缺失或为空则删除该行）
  *
  * 用法：
- *   node zcode/scripts/build.mjs            # 同步 scripts/templates/references + Mini App 载荷 + 渲染 24 个技能/agent 文件
+ *   node zcode/scripts/build.mjs            # 同步 scripts/templates/references + Mini App 载荷 + 渲染技能/agent 文件（v1.0.0 起含 ZCode 宿主专属技能）
  *   node zcode/scripts/build.mjs --check    # 只校验不写（不一致即 exit 1）
  *   node zcode/scripts/build.mjs --json     # 机读结果
  *
@@ -188,6 +188,12 @@ function withBanner(fullText, host) {
 }
 
 const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-completion', 'using-steward', 'agent-settings'];
+// ZCode 专属、shared 单一正文的技能（v1.0.0 对齐 DSH）：正文在 shared/skills/<n>/SKILL.md（宿主无关），
+// 只渲染进 zcode/ 插件包；MiniMax 待其自身任务再启用，不得并入 LIGHT_SKILLS（两宿主同步在别的任务里做）。
+const ZCODE_ONLY_LIGHT_SKILLS = ['project-lifecycle'];
+// 宿主全文技能：正文是 host/<host>/skills/<name>/SKILL.md（各宿主各自实现，语义对齐、措辞可异），
+// 只渲染进本宿主插件包。ZCode 的 docs-governance 与 DSH 的 host/dsh 同名技能是并列实现。
+const HOST_ONLY_SKILLS = { zcode: ['docs-governance'] };
 const AGENTS = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'browser-tester', 'reviewer'];
 // 官方契约的思考强度白名单（大小写敏感）；effort 只在同时声明 model 时生效。
 const EFFORT_VALUES = ['default', 'off', 'on', 'none', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -208,10 +214,17 @@ for (const host of ['zcode', 'minimax']) {
     });
   }
 
-  for (const s of LIGHT_SKILLS) {
+  const lightSkills = host === 'zcode' ? [...LIGHT_SKILLS, ...ZCODE_ONLY_LIGHT_SKILLS] : LIGHT_SKILLS;
+  for (const s of lightSkills) {
     const src = readText(join(root, 'shared/skills', s, 'SKILL.md'));
     if (src === null) { errors.push(`[render] 缺 shared/skills/${s}/SKILL.md`); continue; }
     targets.push({ out: join(pluginDir, 'skills', s, 'SKILL.md'), text: withBanner(renderSlots(src, host, `skills/${s} (${host})`), host) });
+  }
+
+  for (const s of HOST_ONLY_SKILLS[host] ?? []) {
+    const src = readText(join(hostDir, 'skills', s, 'SKILL.md'));
+    if (src === null) { errors.push(`[render] 缺 host/${host}/skills/${s}/SKILL.md（宿主全文技能的唯一正文）`); continue; }
+    targets.push({ out: join(pluginDir, 'skills', s, 'SKILL.md'), text: withBanner(src, host) });
   }
 
   for (const a of AGENTS) {

@@ -1,13 +1,13 @@
 ---
 name: steward
-description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「启动开发团队」「/steward」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」「/steward:fix」，按 B0–B3 分流走调试与修复通道；③只出计划——「/steward:plan」，出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层（完整库）；⑤需求澄清——M/L/二义需求先做第一性原理四问 + 最多 3 个 P0 问题，S 级不追问；⑥技能路由——不知道用哪个入口/技能时加载 `steward:using-steward`，先做路由再执行；⑦执行模式——默认 subagent 派发，S / B3 / 维护小修可用 `/steward:inline` 由主代理直接执行（计划、baseline、TDD、verify 不省；L 与 B0/B1/B2 禁止）。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
+description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「启动开发团队」「/steward」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」「/steward:fix」，按 B0–B3 分流走调试与修复通道；③只出计划——「/steward:plan」，出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层（完整库）；⑤需求澄清——M/L/二义需求先做第一性原理四问 + 最多 3 个 P0 问题，S 级不追问；⑥技能路由——不知道用哪个入口/技能时加载 `steward:using-steward`，先做路由再执行；⑦执行模式——默认 subagent 派发，S / B3 / 维护小修可用 `/steward:inline` 由主代理直接执行（计划、baseline、TDD、verify 不省；L 与 B0/B1/B2 禁止）；⑧文档治理——文档越写越长要拆分、评审记录堆积在 07-治理、或基线文档要版本快照/溯源时加载 `steward:docs-governance`（活/记录/基线三类分治、体积预算与 hub-and-spoke 拆册、`history/` 版本快照与修订溯源、`scripts/docs-gov/` G1–G11 本地门禁）。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
 ---
 
 <!-- 由 zcode/scripts/build.mjs 从 shared/ + host/zcode/ 生成，请勿手改；改源后重跑 build.mjs。 -->
 
 # Steward · Tech Lead 手册
 
-> 当前版本（0.11.0）实现：功能交付（六阶段 + 批准门）+ 执行模式（subagent / inline，`/steward:inline`）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（`/steward:take-over`）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ 技能路由（`steward:using-steward`，不知道用哪个入口时先路由）+ Monorepo/多服务口径 + 可选宿主守卫 hooks。完整设计见 ROADMAP §4–§6。
+> 当前版本（1.0.0）实现：功能交付（六阶段 + 批准门）+ 执行模式（subagent / inline，`/steward:inline`）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（`/steward:take-over`）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ 文档治理（`steward:docs-governance` 增量层：活/记录/基线三类分治、体积预算与拆册、`history/` 版本快照溯源、`scripts/docs-gov/` G1–G11 门禁）+ 通用项目全生命周期（`steward:project-lifecycle`）+ 技能路由（`steward:using-steward`，不知道用哪个入口时先路由）+ Monorepo/多服务口径 + 可选宿主守卫 hooks。完整设计见 ROADMAP §4–§6。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 
@@ -239,6 +239,8 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 **与 T3 六件骨架的关系**：以 `references/doc-pipeline/templates/` 完整库为准；`scripts/templates/t3/` 六件保留给轻量场景，不重复维护正文。
 
 **DocTier 判定**：S/M 级不建深树；L 级且涉及契约/多端/合规/新项目才提升到 3。不要为了「完整」建空目录。
+
+**文档治理（文档越写越长/要快照/评审记录堆积时）**：加载 `steward:docs-governance` 技能——三类文档分治、体积预算与拆册、`history/` 版本快照（`doc-snapshot.mjs`）与 `docs-gate.mjs` G1–G11 门禁；交付收尾跑一次 `docs-gate check`（与 `doc-check` 并存不互替，两者都要绿）。
 
 ## Monorepo / 多服务（v0.7）
 

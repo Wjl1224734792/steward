@@ -6,6 +6,29 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [ZCode 1.0.0] - 2026-11-12
+
+> 收口版：对齐 DSH 0.8.0 → 1.0.0 的流程/规范增量（文档治理 + 项目全生命周期），全部用 ZCode 自身机制落地；宿主侧零越界（`minimax/` 生成物与 HEAD 逐字节相同）。ZCode 0.11.0 → **1.0.0**。
+
+### Added
+
+- **`steward:docs-governance` 技能（对齐 DSH 0.9.0）**：活 / 记录 / 基线三类文档分治、体积预算与 hub-and-spoke 拆册、frontmatter 读契约（always / dir / task / on-demand）、07-治理内部分层与归档轮转、`history/` 版本快照与修订溯源链。正文是 ZCode 侧实现（`host/zcode/skills/docs-governance/`，经 build.mjs 渲染进插件包），与 DSH 同名技能语义对齐、措辞按 ZCode 口径（分工对象为主技能「文档流水线」节，脚本在 `scripts/docs-gov/`）。
+- **`zcode/scripts/docs-gov/` 本地门禁**：`docs-gate.mjs`（G1–G11：体积预算 / frontmatter / AGENTS 无头部 / 07 分层 / 自动索引区块 / ADR 双向 / 版本三处一致 / 快照完整性 / 现版不入历史 / 修订依据 / 计划 `docsRead`；支持 `init` / `fix` / `--baseline-write` / `--json` / `--strict`，退出码 0/1/2）与 `doc-snapshot.mjs`（基线快照：原文进同域 `history/` + manifest sha256 + 索引行 + superseded-by + 现版 bump + 修订行；幂等，重跑输出 skip）。放在 build 同步盲区子目录（build.mjs 只同步 scripts 顶层与 hooks/templates/doc），ZCode 专属脚本不进 MiniMax 包。
+- **`steward:project-lifecycle` 技能**：消费 `shared/skills/project-lifecycle/`（DSH 1.0.0 已定版 1.0.0 的宿主无关母本），经 build.mjs 渲染进 ZCode 插件包；正文单一源不变。
+- **steward 主技能接入口**：「文档流水线」节末新增可选槽位（`@@SLOT?:skills/steward/doc-governance@@` + `host/zcode/skills/steward/doc-governance.md` 片段）：文档越写越长 / 要快照 / 评审记录堆积时加载 `steward:docs-governance`，交付收尾跑一次 `docs-gate check`（与 `doc-check` 并存不互替）。MiniMax 无此片段，槽位行整体删除，生成物逐字节不变。
+- **测试**：`zcode/scripts/tests/docs-governance.test.mjs` 20 例——docs-gate G1–G11 逐条触发/放行矩阵、init/fix 幂等、`--json` 机读、doc-snapshot 九步快照 + 二次执行 skip + 手改快照拒绝 + 非法 `--next` / 缺 version 拒绝。
+
+### Changed
+
+- **build.mjs**：新增 `ZCODE_ONLY_LIGHT_SKILLS`（shared 单一正文、仅渲染进 ZCode 包）与 `HOST_ONLY_SKILLS`（宿主全文技能，正文唯一源 `host/<host>/skills/<n>/SKILL.md`）清单及渲染循环；`minimax/scripts/build.mjs` 由单一正文源机制自动镜像（MiniMax 侧无行为变化）。
+- steward 主技能 frontmatter description 补 ⑧文档治理触发口径；banner 版本行 0.11.0 → 1.0.0 并列出新能力。
+- `plugin.json`：version 0.11.0 → **1.0.0**，中英描述补文档治理与 project-lifecycle。`build --check` 出现一条预期 warning（两宿主版本不一致：MiniMax 待其自身任务跟版，DSH 1.0.0 变更说明已预告）。
+
+### 验证
+
+- `node zcode/scripts/build.mjs --check` → PASS；`node --test zcode/scripts/tests/` → **74 pass / 0 fail**（54 存量 + 20 新增文档治理）。
+- MiniMax 侧核验：`minimax/skills/`、`minimax/agents/` 与 HEAD 逐字节相同（`git diff` 为空）；唯一差异是 `minimax/scripts/build.mjs` 工具镜像随单一正文源同步。
+
 ## [DSH 1.0.0] - 2026-11-12
 
 > 收口版：修掉 DSH ≥ 0.2.1-rc.2 上必然失败的派单，补上文档治理技能 `docs-governance` 与通用化的文档治理参考，并把 DSH 侧与通用 harness 技能 `project-lifecycle` 的版本统一到 1.0.0。ZCode / MiniMax 侧版本由用户单独推进到 1.0.0。
