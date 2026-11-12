@@ -1,19 +1,19 @@
 ---
 name: steward
-description: Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当用户提出要开发/修改一个软件功能、修复 Bug、只出实施方案、做维护扫描或接手存量仓库时加载。流程：受理定级（S/M/L）→ 需求澄清（第一性原理，M/L 条件启用）→ 任务 DAG + 文件所有权 → 用 `steward_dispatch` 按角色派子代理（pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer，模型与思考强度在「设置 → Steward」页配置）→ QA → 浏览器验收 → 终审 → 汇报；含 Bug 通道（B0–B3）、可信变更门禁脚本、文档流水线（docTier=3）、学习循环与 inline 执行模式。Use when the user asks the Steward team to develop a feature, fix a bug, produce a plan, run maintenance, or take over an existing repository.
+description: Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当用户提出要开发/修改一个软件功能、修复 Bug、只出实施方案、做维护扫描或接手存量仓库时加载。流程：受理定级（S/M/L）→ 需求澄清（第一性原理，M/L 条件启用）→ 任务 DAG + 文件所有权 → 用 `steward_dispatch` 按角色派子代理（pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer，角色章程随派单注入，模型与思考强度按项目根 steward.config.json 的 modelRouting 解析）→ QA → 浏览器验收 → 终审 → 汇报；含 Bug 通道（B0–B3）、可信变更门禁脚本、文档流水线（docTier=3）、学习循环与 inline 执行模式。Use when the user asks the Steward team to develop a feature, fix a bug, produce a plan, run maintenance, or take over an existing repository.
 ---
 
 <!-- 由 host/dsh/build.mjs 从 shared/ + host/dsh/ 生成，请勿手改；改源后重跑 node host/dsh/build.mjs。 -->
 
 # Steward · Tech Lead 手册
 
-> 当前版本（DSH 0.2.0，原生机制重写）：功能交付（六阶段 + 批准门）+ 需求澄清（第一性原理 + 提问预算）+ 任务 DAG / 文件所有权 + Bug 通道（B0–B3）+ 可信变更门禁（计划校验 / 独立验证 / 基线守卫 / run-state）+ 维护循环 + 接手存量 + 浏览器证据契约 + 学习循环 + 收尾 + 文档流水线（docTier=3）+ 子代理模型与思考强度原生配置（设置 → Steward）+ 宿主原生执行模式（subagent / inline）。角色本身是 DSH **Agent Presets**（`steward-<role>`：persona + 原生工具组合）。
+> 当前版本（DSH 侧 0.7.0）：功能交付（六阶段 + 批准门）+ 需求澄清（第一性原理 + 提问预算）+ 任务 DAG / 文件所有权 + Bug 通道（B0–B3）+ 可信变更门禁（计划校验 / 独立验证 / 基线守卫 / run-state）+ 维护循环 + 接手存量 + 浏览器证据契约 + 学习循环 + 收尾 + 文档流水线（docTier=3，细节见按需技能 `docs`）+ **Steward 团队面板**（Web 整页：运行总览 + 团队切换 + Lead/成员卡点击进子会话 + 门禁阶段条与工作单 + 逐角色模型表格）+ 项目级子代理模型路由（`steward.config.json` 优先于面板）+ **Agent Teams 共享任务板**。角色是**派单时注入的章程**：本插件不注册 Agent Preset，7 个角色不会出现在模式选择器里。
 >
 > **DSH 宿主映射（读正文前先记住这几条）**：
-> ①文中 `steward:<角色>` 指 `steward_dispatch` 工具的 `role` 参数（`pm` / `architect` / `backend-dev` / `frontend-dev` / `qa-engineer` / `browser-tester` / `reviewer`），派发时**只填 role，不手写模型**——子代理以对应 Agent Preset 启动，模型与思考强度由原生设置自动套用；
-> ②文中 `steward:xxx` 技能 = 本宿主技能名 `xxx`（如 `tdd`、`systematic-debugging`、`agent-settings`）；
-> ③文中 `/steward:inline` = 用户明确说「你直接做 / 别派子代理」或 `steward.config.json` 的 `execution.mode: "inline"`；DSH 的原生 `/steward` 命令只回显名册/预设/当前路由，派活入口仍是自然语言 + 本技能；
-> ④门禁脚本表里若出现 `agent-config.mjs` / `build.mjs`，那是源码仓库工具、**不随本包提供**：改子代理模型走「设置 → Steward」（原生 Settings）或 `steward_config` 工具；更新本插件走插件管理器；源码构建用 `node host/dsh/build.mjs`。
+> ①文中 `steward:<角色>` 指 `steward_dispatch` 工具的 `role` 参数（`pm` / `architect` / `backend-dev` / `frontend-dev` / `qa-engineer` / `browser-tester` / `reviewer`），派发时**只填 role，不手写模型**——子代理以 DSH 内置 `standard` 组合启动，角色章程由工具拼在派单正文前，模型与思考强度按「项目根 `steward.config.json` 的 `modelRouting.<role>` > 面板该角色 > 面板默认 > 继承主代理」解析；
+> ②文中 `steward:xxx` 技能 = 本宿主技能名 `xxx`（如 `tdd`、`systematic-debugging`、`agent-settings`、`inline`、`docs`）；
+> ③文中 `/steward:inline` = 用户明确说「你直接做 / 别派子代理」或 `steward.config.json` 的 `execution.mode: "inline"`，此时**加载 `inline` 技能**按它列的硬动作执行；DSH 的原生 `/steward` 命令只回显名册/路由口径，派活入口仍是自然语言 + 本技能；
+> ④门禁脚本表里若出现 `agent-config.mjs` / `build.mjs`，那是源码仓库工具、**不随本包提供**：改子代理模型改 **Steward 面板**（侧栏「Steward 团队」或设置 → Steward）或项目根 `steward.config.json` 的 `modelRouting`（仓库优先）；更新本插件走插件管理器；源码构建用 `node host/dsh/build.mjs`。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 
@@ -29,19 +29,20 @@ description: Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当�
 | 浏览器验收员 | `browser-tester` | 真实浏览器 GUI 黑盒验收 | 逐条判定 + 缺陷清单 |
 | 评审员 | `reviewer` | 终审 diff；Plan Critic 模式审计划 | 终审报告（三级意见） |
 
-派发示例：`steward_dispatch(role="architect", description="架构方案：订单导出", prompt="<自包含派单正文>")`。工具会按「设置 → Steward」页里该角色的模型与思考强度起子代理；子代理看不到本对话上下文，prompt 必须自包含。
+派发示例：`steward_dispatch(role="architect", description="架构方案：订单导出", prompt="<自包含派单正文>")`。子代理以 DSH 内置 `standard` 组合启动，工具会把该角色的**章程**拼在派单正文前面，再按项目根 `steward.config.json` 的 `modelRouting.<role>` 解析模型与思考强度（没有配置就继承主代理）；子代理看不到本对话上下文，prompt 必须自包含。
+
+**角色不是模式**：本插件不注册 Agent Preset，7 个角色不会出现在模式选择器里——用户切不到「后端工程师模式」，也就不会绕过计划门 / 基线守卫 / QA / 终审。
 
 **外援（非本插件角色，按需派）**：内置 `subagent` 代理（只读 fan-out 搜索）——L 级需求开工前的仓库勘察（Stage 0.5）。
 
-**入口（DSH：自然语言触发本技能；原生 `/steward` 命令只回显名册/预设/路由）**：
+**入口（DSH：自然语言触发本技能；原生 `/steward` 命令只回显名册/路由）**：
 
 - 功能交付：「用 Steward 做 <需求>」「启动开发团队实现 <需求>」——走六阶段 + 批准门。
 - 直接执行（inline）：「你直接做 / 别派子代理」——限 S / B3 / 维护小修；M 需显式要求；L 与 B0/B1/B2 禁止。
 - Bug 修复：「修这个 Bug / 这个功能坏了」——按 B0–B3 分流。
 - 只出计划：「只出方案，先别写代码」——到批准门停止。
 - 维护循环：「做一次维护扫描」；接手存量：「接手这个仓库，先盘点再动手」。
-- 改子代理模型/档位：「配置子代理模型」——加载 `agent-settings` 技能，打开「设置 → Steward」（原生 Settings）。
-
+- 改子代理模型/档位：「配置子代理模型」——加载 `agent-settings` 技能，改项目根 `steward.config.json` 的 `modelRouting`，跑 `scripts/validate-config.mjs` 校验。
 
 **检索工具栈（DSH 宿主工具，团队全员继承可用）**：`web_search`（网页搜索）、`web_fetch`（抓取正文）、`research`（多来源证据包）、`platform_search`（GitHub / V2EX / B站 / Reddit 等站点内搜索）、`domain_search`（包 / 论文 / 漏洞 / 金融等垂直源）。各角色的查证纪律已写进自身提示词；这些工具不可用时如实标注「检索不可用」，不阻塞流程，不得凭记忆臆造 API。
 
@@ -83,35 +84,12 @@ T1（AGENTS.md + docs/project/ 七件套）缺失时，可运行插件的 `take-
 
 pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自己写 02-spec.md（套 pm 报告的规格结构）。
 
-## 执行模式（subagent / inline——换执行者，不降门禁）
-
-两种执行者，同一套门禁：
-
-- **subagent（默认）**：按任务 DAG 派 `steward:backend-dev` / `steward:frontend-dev` 等子代理实施。
-- **inline**：你按 DAG 顺序自己执行任务（一次一个，单写者），计划、baseline、TDD、verify、报告一个都不能省。
-
-**优先级**：用户当次明确指令（`/steward:inline`、`--inline`、「你直接做 / 别派子代理」）> `steward.config.json` 的 `execution.mode` > 默认 `subagent`。
-
-**允许范围**：
-- 可直接使用：S 级功能、Bug B3、维护循环 Fix small、单文件文档/配置改动（用户要求或配置 `execution.mode: "inline"` 时）。
-- M 级：仅当用户显式要求（`--inline` 或配置显式 `execution.mode: "inline"`）；**只把实施者换成你，Stage 3 QA 与 Stage 5 reviewer 照旧派**。
-- 禁止：L 级、B0/B1/B2、跨模块、含 schema/契约迁移、UI 大改。命中禁止项就回退 subagent，并一句话告诉用户原因。
-
-**inline 的硬动作**（缺一不可）：
-1. 计划不省：S 级写迷你方案；B3/M 仍出 `03-plan.json` 并跑 `validate-plan.mjs`。
-2. `verify.mjs baseline record` → 按 DAG 顺序一次一个任务执行（M 级用 `run-state.mjs start/done` 标记）→ `baseline check`；越界即停。
-3. 可复现缺陷先写失败测试；实现遵守 `steward:tdd`。
-4. `verify.mjs run` 贴真实输出；红了就是失败，不许解释掉。
-5. 落 `reports/t<ID>-lead.md`（改了什么/证据/偏差）与 `05-record.md`；不 git commit/push。
-6. 不越出计划文件所有权；要扩权先在 `03-plan.md` 记录并告知用户。
-
-**不能做的事**：把 inline 当免检（跳过计划/baseline/TDD/verify）；自己写测试又自己宣布通过（M 级必须独立 QA）；顺手重构；并行多任务。
+> **直接执行（inline）已拆出**：需要时加载 `inline` 技能（适用范围 / 硬动作 / 反模式都在里面；S、B3、维护小修可直接用，M 需显式要求，L 与 B0/B1/B2 禁止）。
 
 ## 工件目录（所有交接走文件，别在 prompt 里转述长文）
 
 `tmp/steward/<月日-时分>-<slug>/`（仓库根无 tmp 约定时改用 `.steward/`）：
 `00-context.md`（仓库勘察地图，如有）、`01-requirement.md`、`02-spec.md`、`02-impact.md`（影响面，M/L）、`03-plan.md`（人类可读计划）、`03-plan.json`（机读任务 DAG，validate-plan 的输入）、`run.json`（run-state 状态机）、`baseline.json`（回滚锚点）、`verify-result.json`（门禁证据）、`reports/t1-backend.md … qa.md browser.md review.md`、`final-report.md`。落盘时机：你收到子代理返回后立即写。
-
 
 ## 流程（六阶段 + 批准门）
 
@@ -158,6 +136,32 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 **汇报纪律**：只贴真实输出；UI 结论引用 browser-evidence.json 的可读证据；视觉类问题注明「视觉未验证」。
 
+## 共享任务板（Agent Teams，DSH）
+
+宿主启用「智能体团队」后，**任务板就是唯一的实时看板**：会话页头的 Team 面板里有成员状态（provisioning / running / inactive / failed）与任务板（未开始 = 灰点、被依赖阻塞 = 橙点、进行中 = loading、完成 = 绿点），并显示负责人、依赖、就绪态、写入范围与**文件重叠告警**。Lead 不再靠脑子记「谁在做哪张单」。
+
+**建板（计划批准后一次）**：`steward_board(action="sync", plan="<工件目录>/03-plan.json", level="M")`。不要手写板上的任务：
+
+| 板上任务 | 来源 | 作用 |
+|---|---|---|
+| `G1 · 计划批准` | 门禁 | 未完成时所有工作单都 claim 不上（原生依赖闸门） |
+| `T<id> · <role> · <标题>` | `03-plan.json` 的 tasks | 工作单：描述里带目标 / 完成标准 / 所有权 / 报告落点；`writeScopes` = 文件清单（重叠会告警） |
+| `G2 · QA 门禁` | 门禁 | 依赖全部工作单，完成前不进终审 |
+| `G3 · 终审` | 门禁 | 依赖 G2 |
+
+**派活**：`steward_board(action="brief", role="backend-dev", task="T1", plan="<…>")` 取自包含任务书 → `spawn_teammate(name="backend-dev-t1", description="…", prompt=<任务书>)` → `team_task_update(action="reassign", expected_revision=<最新>, owner=<teammate target>)` 把板上任务分给它；teammate 先 claim 再动手。
+
+**状态口径**（面板颜色与它一致）：
+- `pending` = 未开始；`in_progress` = 有人在做；`completed` = 实施报告已落盘且该任务所有权内的验证通过。
+- 不许提前 complete：报告不在、`verify.mjs run` 没跑、把别人的任务标完成，都算造假（与「铁律」同级）。
+- 阻塞没解就 claim 不上——这就是 Steward 的 DAG 在原生层被执行，**不要删 `blocked_by` 抢跑**。
+
+**回派与修复**：缺陷回派给**同一个** teammate（`send_message`），不要为同一角色反复 spawn（teammate 名字永久占用）；板上把该任务 `reopen` 回 `pending` 并在描述里记轮次。
+
+**看板自检**：`steward_board(action="status", plan="<…>")` 返回与面板一致的文本快照（门禁进度 / 每单状态·负责人·阻塞·就绪）。向用户同步进度时贴它，不要自己编。
+
+**没启用团队时**：会话里没有 `agentTeams` 服务，`steward_board` 会直接报错——此时走单人模式（`steward_dispatch` + `run.json`），照 DAG 派活，只是没有看板。
+
 ## 调度规则（串行/并行的唯一依据）
 
 1. **并行条件（两者同时满足）**：任务间无依赖（DAG 同层或可证无依赖）**且**文件所有权不相交。
@@ -188,10 +192,10 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 - `steward.config.json` 可配 `modelRouting`（角色 → 模型/effort + fallback 模型）与 `budget`（`maxTotalAttempts`：整个 run 允许的任务失败重试总次数）。`validate-config.mjs` 会校验结构。
 - **生效优先级（唯一事实链）**：用户当次指定 > 项目级 `modelRouting`（**下次派单即生效**）> 插件 frontmatter 默认（`model` + `effort`，build + 安装后**新会话**生效）。
-- **可视化配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能（「设置 → Steward」页或 `steward_config` 工具）——**不要手改配置或 frontmatter**，也不要凭记忆写模型名（模型不存在会在派发时直接失败 `MODEL_SELECTION_INVALID`）。
-- **派发时**：`steward_dispatch` 会自动套用「设置 → Steward」里该角色配置的模型与思考强度；用户当次点名模型/档位时，按用户当次指令执行并提示这会覆盖配置。派发失败若是模型不存在 / 档位不支持 / 限流类错误 → 换配置里的其他模型或如实报告，不硬刷；`MODEL_SELECTION_INVALID` 一律先回配置页核对。
+- **配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能——DSH 侧没有设置页，也没有 `steward_config` 工具，改的是项目根 `steward.config.json` 的 `modelRouting.<role>`（改完跑 `scripts/validate-config.mjs`）；**不要凭记忆写模型名**（模型不存在会在派发时直接失败）。
+- **派发时**：`steward_dispatch` 从项目根 `steward.config.json` 的 `modelRouting.<role>` 解析该角色的模型与思考强度（没有配置就继承主代理）；用户当次点名模型/档位时，按用户当次指令执行，并提示这与项目配置不一致。派发失败若是模型不存在 / 档位不支持 / 限流类错误 → 改项目配置或如实报告，不硬刷；模型名先在宿主模型目录里核对，不凭记忆写。
 - **预算**：`run-state.mjs init --budget-attempts N` 写入 run.json；每次 fail 消耗一次，超限 → run 停摆（reason=budget-exhausted），如实向用户报告花费与卡点。
-- 角色未单独配置时继承主代理当前模型；要单独指定，先在「设置 → Steward」页给该角色选模型与档位（保存后**下一次派单即生效**）。项目根有 `steward.config.json` 且写了 `modelRouting.<role>`（`model: "provider/model"` + `effort`）时，项目级优先于设置页；两者都没有才继承主代理。
+- 角色未单独配置时继承主代理当前模型；要单独指定，在项目根 `steward.config.json` 写 `modelRouting.<role>`（`{ "model": "provider/model", "effort": "…" }`，改完跑 `scripts/validate-config.mjs`，**下一次派单即生效**）。DSH 侧没有设置页、也没有 `steward_config` 工具——路由只有一个来源：项目配置文件。
 
 ## 学习循环（05-record，v0.6）
 
@@ -220,37 +224,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 - **批量改动 / codemod**：需要跨大量文件的机械改动时**不直接动手**——走只出计划模式出 codemod 计划（转换脚本 + 抽样验证 + 全量执行 + diff 审查 + 回滚点），执行按任务 DAG 分批，每批跑 `verify.mjs run` + `baseline check`，任何一批红了立即停。
 - **模块边界**：架构漂移（新循环依赖、层级越界）先在 DECISIONS 立 ADR 记决策，重构单独立项走功能交付流程，不在维护小修里夹带。
 
-## T3 文档按需升级（docTier=3，v0.7）
-
-- 触发：L 级 / 合规 / 新项目，或用户明确要求；在 `steward.config.json` 设 `docTier: 3`。
-- 产物六件：PRD、FRD、契约（CONTRACT）、页面布局（PAGE-LAYOUT）、测试方案（TEST-PLAN）、部署工程化（DEPLOYMENT）——模板在插件 `scripts/templates/t3/`，按需复制填空；PRD/FRD 的验收条目最终收敛进 02-spec.md 的 AC，被 validate-plan 机检。
-- T3 是升级不是常态：每个 T3 文档都要能回答「它防的是什么漂移」，答不出就别建。
-
-## 文档流水线（完整版，docTier=3）
-
-
-**启用**：`steward.config.json` 设 `docTier: 3`，或 L 级 / 合规 / 新项目由你提升。docTier<3 **不建**深文档树，只维护 T0 `AGENTS.md` + T1 `docs/project/`。
-
-**索引**：`references/doc-pipeline/README.md`（相对本技能目录）是唯一入口；模板在 `references/doc-pipeline/templates/`，规范正文在同级 `*.md`。写 PRD/FRD/架构/契约/页面/测试/部署/治理文档前先读索引，不凭记忆写。
-
-**目录（docTier=3）**：
-- `docs/01-需求/` PRD + FRD；`docs/02-架构/` 架构总纲 + {X}工程化 + 可观测性 + 部署工程化；`docs/03-契约/` 数据模型 + API/错误码；`docs/04-专项/`；`docs/05-页面/` 页面设计 + 布局稿 + 详设；`docs/06-测试/` 测试方案 + 黄金集；`docs/07-治理/` ADR + 执行步骤 + 开发顺序 + 评审记录；`docs/README.md` 文档地图。
-- 约束正文：根/子目录 `AGENTS.md` + `.agents/rules/`；视觉 token：`.agents/designs/DESIGN.md`。
-- T1 `docs/project/` 仍是每轮必读薄记忆：ARCHITECTURE/DECISIONS/RUNBOOK 只放摘要 + 链接，正文进深文档，交叉引用不复制。
-
-**七阶段在 Steward 流程里的位置**：需求（PRD→FRD）在 Stage 0/1；架构/契约/页面在 Stage 1 冻结；实现/质量/部署/治理在 Stage 2–5 落档。每阶段出口按 `references/doc-pipeline/README.md` 的门禁清单独立通读、清点关键数字、用 `file:line` 证据，结论写 `docs/07-治理/评审记录-*.md`。
-
-**变更入口**：新需求 / 改口径 / 改范围先做影响面扫描（SSOT 地图 + 联动表）→ 需拍板项列给用户 → 拍板后按联动表同批落档；不拍板不动文档。
-
-**本地门禁（不做 CI）**：
-- `node <插件>/scripts/doc/doc-init.mjs <root> --tier 3 [--write]`：建七阶段树 + 索引骨架；幂等不覆盖。
-- `node <插件>/scripts/doc/doc-check.mjs <root>`：T1 / 索引 / 死链 / 未索引文件；exit 1 即失败。
-- `node <插件>/scripts/doc/guard-naming.mjs <root>`：代码产物禁波次/工单/批次编号；基线只减不增。
-三个脚本 exit code 非 0 一律如实上报。
-
-**与 T3 六件骨架的关系**：以 `references/doc-pipeline/templates/` 完整库为准；`scripts/templates/t3/` 六件保留给轻量场景，不重复维护正文。
-
-**DocTier 判定**：S/M 级不建深树；L 级且涉及契约/多端/合规/新项目才提升到 3。不要为了「完整」建空目录。
+> **文档流水线（docTier=3）已拆出**：需要建七阶段文档树时加载 `docs` 技能（模板索引、变更联动表与本地门禁都在里面）。
 
 ## Monorepo / 多服务（v0.7）
 

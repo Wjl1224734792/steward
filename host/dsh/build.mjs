@@ -19,7 +19,7 @@
  *   node host/dsh/build.mjs --json     # 机读结果
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 const here = import.meta.dirname ?? process.cwd();
 const root = resolve(here, '..', '..');
@@ -100,6 +100,60 @@ function assemble(fm, body) {
   return `${head}\n\n${BANNER}\n\n${text}\n`;
 }
 
+/**
+ * 主技能按需拆分：inline 执行模式与文档流水线单独成技能，主技能里只留一行指针。
+ * 正文仍来自 shared/（不复制、不改共享源），拆分只发生在 DSH 生成物里。
+ */
+const SPLIT_RULES = [
+  {
+    skill: 'inline',
+    headings: ['## 执行模式（'],
+    pointer: '> **直接执行（inline）已拆出**：需要时加载 `inline` 技能（适用范围 / 硬动作 / 反模式都在里面；S、B3、维护小修可直接用，M 需显式要求，L 与 B0/B1/B2 禁止）。',
+  },
+  {
+    skill: 'docs',
+    headings: ['## T3 文档按需升级（', '## 文档流水线（'],
+    pointer: '> **文档流水线（docTier=3）已拆出**：需要建七阶段文档树时加载 `docs` 技能（模板索引、变更联动表与本地门禁都在里面）。',
+  },
+];
+
+/**
+ * Split recognized `## ` sections out of the main skill body.
+ * @param {string} text rendered main skill body.
+ * @returns {{ core: string, sections: Record<string, string[]> }} core body and extracted sections.
+ */
+function splitModeSections(text) {
+  const blocks = [];
+  let current = { heading: '', lines: [] };
+  for (const line of text.split('\n')) {
+    if (line.startsWith('## ')) {
+      blocks.push(current);
+      current = { heading: line, lines: [line] };
+      continue;
+    }
+    current.lines.push(line);
+  }
+  blocks.push(current);
+
+  const sections = Object.fromEntries(SPLIT_RULES.map((rule) => [rule.skill, []]));
+  const pointed = new Set();
+  const core = [];
+  for (const block of blocks) {
+    const rule = SPLIT_RULES.find((candidate) => candidate.headings.some((heading) => block.heading.startsWith(heading)));
+    if (rule === undefined) {
+      core.push(...block.lines);
+      continue;
+    }
+    sections[rule.skill].push(...block.lines);
+    if (!pointed.has(rule.skill)) {
+      core.push(rule.pointer, '');
+      pointed.add(rule.skill);
+    }
+  }
+  const coreText = core.join('\n').replace(/\n{3,}/g, '\n\n');
+  return { core: coreText, sections };
+}
+
 function withBanner(fullText) {
   const m = fullText.match(/^---\n[\s\S]*?\n---\n/);
   if (!m) return `${BANNER}\n\n${fullText.replace(/^\n+/, '').replace(/\n+$/, '')}\n`;
@@ -115,14 +169,21 @@ function withBanner(fullText) {
 function dshRewrite(text, label) {
   const lines = [];
   for (const line of text.split('\n')) {
-    if (line.startsWith('| `agent-config.mjs')) continue; // DSH 用原生设置页 / steward_config，没有该脚本
+    if (line.startsWith('| `agent-config.mjs')) continue; // DSH 没有该脚本：路由走项目 steward.config.json
     if (line.startsWith('| `build.mjs')) continue; // DSH 构建器是 host/dsh/build.mjs，不随包提供
     if (line.startsWith('**检索工具栈（宿主 MCP')) {
       lines.push('**检索工具栈（DSH 宿主工具，团队全员继承可用）**：`web_search`（网页搜索）、`web_fetch`（抓取正文）、`research`（多来源证据包）、`platform_search`（GitHub / V2EX / B站 / Reddit 等站点内搜索）、`domain_search`（包 / 论文 / 漏洞 / 金融等垂直源）。各角色的查证纪律已写进自身提示词；这些工具不可用时如实标注「检索不可用」，不阻塞流程，不得凭记忆臆造 API。');
       continue;
     }
     if (line.includes('**可视化配置入口**')) {
-      lines.push('- **可视化配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能（「设置 → Steward」页或 `steward_config` 工具）——**不要手改配置或 frontmatter**，也不要凭记忆写模型名（模型不存在会在派发时直接失败 `MODEL_SELECTION_INVALID`）。');
+      lines.push('- **配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能——DSH 侧没有设置页，也没有 `steward_config` 工具，改的是项目根 `steward.config.json` 的 `modelRouting.<role>`（改完跑 `scripts/validate-config.mjs`）；**不要凭记忆写模型名**（模型不存在会在派发时直接失败）。');
+      continue;
+    }
+    if (line.startsWith('## 调度规则（')) {
+      const board = readText(join(hostDir, 'skills/steward/board.md'));
+      if (board === null) errors.push('[render] 缺 host/dsh/skills/steward/board.md（任务板协议）');
+      else lines.push(board.replace(/\n+$/, ''), '');
+      lines.push(line);
       continue;
     }
     lines.push(line);
@@ -155,8 +216,19 @@ function dshAgentRewrite(text) {
   if (fm === null) errors.push('[render] 缺 host/dsh/skills/steward/frontmatter.md');
   if (body === null) errors.push('[render] 缺 shared/skills/steward.body.md');
   if (fm !== null && body !== null) {
-    const rendered = renderSlots(body, 'skills/steward');
-    targets.push({ out: join(outDir, 'skills/steward/SKILL.md'), text: assemble(fm, dshRewrite(rendered, 'skills/steward')) });
+    const rendered = dshRewrite(renderSlots(body, 'skills/steward'), 'skills/steward');
+    const split = splitModeSections(rendered);
+    targets.push({ out: join(outDir, 'skills/steward/SKILL.md'), text: assemble(fm, split.core) });
+    for (const rule of SPLIT_RULES) {
+      const skillFm = readText(join(hostDir, 'skills', rule.skill, 'frontmatter.md'));
+      if (skillFm === null) { errors.push(`[render] 缺 host/dsh/skills/${rule.skill}/frontmatter.md`); continue; }
+      const section = (split.sections[rule.skill] ?? []).join('\n').replace(/^\n+/, '').replace(/\n+$/, '');
+      if (section === '') {
+        errors.push(`[split] ${rule.skill}：没在主技能正文里找到要拆的小节（共享正文标题可能已改，检查 build.mjs 的 SPLIT_RULES）`);
+        continue;
+      }
+      targets.push({ out: join(outDir, 'skills', rule.skill, 'SKILL.md'), text: assemble(skillFm, section) });
+    }
   }
 
   for (const s of LIGHT_SKILLS) {
@@ -227,17 +299,27 @@ function addManifest(rel, value) {
 {
   const skills = [];
   const skillsRoot = join(outDir, 'skills');
-  for (const name of existsSync(skillsRoot) ? readdirSync(skillsRoot) : []) {
+  // Skills rendered in this run are not on disk yet at this point: prefer the
+  // in-memory targets, otherwise a description edit would leave the manifest
+  // one build behind and make `--check` fail on an otherwise clean tree.
+  const pending = new Map(targets.map((target) => [target.out, target.text]));
+  const renderedNames = targets
+    .filter((target) => target.out.startsWith(`${skillsRoot}\\`) || target.out.startsWith(`${skillsRoot}/`))
+    .filter((target) => target.out.endsWith(`${basename('SKILL.md')}`))
+    .map((target) => basename(dirname(target.out)));
+  const names = [...new Set([...(existsSync(skillsRoot) ? readdirSync(skillsRoot) : []), ...renderedNames])];
+  for (const name of names) {
     const file = join(skillsRoot, name, 'SKILL.md');
-    if (!existsSync(file)) continue;
-    const fm = fmOf(readText(file) ?? '');
+    const text = pending.get(file) ?? readText(file);
+    if (text === null) continue;
+    const fm = fmOf(text);
     const skillName = fmField(fm, 'name') || name;
     const description = fmField(fm, 'description');
     if (skillName === '' || description === '') { errors.push(`[dsh] skills/${name}/SKILL.md 缺 name/description，无法生成运行期清单`); continue; }
     skills.push({ name: skillName, description, path: `skills/${name}/SKILL.md`, dir: `skills/${name}` });
   }
   skills.sort((a, b) => a.name.localeCompare(b.name));
-  if (skills.length !== 6) errors.push(`[dsh] 技能清单应有 6 项，实际 ${skills.length} 项`);
+  if (skills.length !== 8) errors.push(`[dsh] 技能清单应有 8 项（含按需拆出的 inline / docs），实际 ${skills.length} 项`);
   addManifest('skills/manifest.json', { version: 1, skills });
 
   let metaRoles = [];
@@ -347,25 +429,41 @@ for (const f of existsSync(join(outDir, 'roles')) ? readdirSync(join(outDir, 'ro
   }
 }
 
-// DSH 原生机制契约：宿主半用 Agent Presets / Config / 原生命令，客户端半用 configForms。
+// DSH 原生机制契约：角色是派单注入的章程（不注册 Agent Preset）、路由项目文件优先于面板设置、
+// 任务板走 Agent Teams；客户端半只用原生 configForms / 原生跳转，不自建 HTTP 桥。
 {
   const host = readText(join(outDir, 'index.js')) ?? '';
   const client = readText(join(outDir, 'client.js')) ?? '';
   for (const [needle, label] of [
-    ['agentPresets', 'ctx.agentPresets（角色 Agent Presets）'],
-    ['export const Config', '原生 Config（设置命名空间 steward）'],
-    ['settings.update', '原生设置持久化'],
+    ['export const Config', '原生 Config（Steward 面板的设置命名空间）'],
+    ['settings.describe', '原生设置读取（面板写入走 configForms）'],
     ['commands.register', '原生人类命令注册'],
     ['skills.register', '原生技能注册'],
-    ['agentPreset', '派发时选择 agent preset'],
+    ['agentPreset', '派发时选择子代理组合'],
+    ['startActivation', '经 ctx.subagents 委派'],
+    ['dispatchPrompt', '派单时注入角色章程'],
+    ['steward.config.json', '项目级路由来源'],
+    ['agentTeams', 'Agent Teams 任务板（团队模式）'],
   ]) {
     if (!host.includes(needle)) errors.push(`[dsh] index.js 缺少 ${label}`);
   }
-  if (host.includes('webServer') || host.includes('/api/dsh-steward')) {
-    errors.push('[dsh] index.js 仍含自定义 HTTP 桥（webServer / /api/dsh-steward）；DSH 侧应使用原生 settings/configForms');
+  for (const [needle, label] of [
+    ['agentPresets.register', 'index.js 注册了 Agent Preset：角色会变成用户可选的会话模式（应改为派单注入章程）'],
+    ['steward_config', 'index.js 仍带 steward_config 工具（已移除：路由改走项目配置 + 面板）'],
+    ['/api/dsh-steward', 'index.js 仍含旧的自定义 HTTP 桥（/api/dsh-steward）'],
+  ]) {
+    if (host.includes(needle)) errors.push(`[dsh] ${label}`);
   }
   if (!client.includes('configForms')) errors.push('[dsh] client.js 必须通过 configForms 读写原生设置');
-  if (client.includes('/api/dsh-steward')) errors.push('[dsh] client.js 仍含自定义 HTTP 桥；应改用 configForms');
+  if (client.includes('/api/dsh-steward')) errors.push('[dsh] client.js 仍含旧的自定义 HTTP 桥；应改用 configForms');
+  for (const [needle, label] of [
+    ["name: 'main'", 'Steward 整页面板（main slot）'],
+    ['sidebar.panellist', '侧栏入口（sidebar.panellist）'],
+    ['settings.section', '设置页分区（settings.section）'],
+    ['uiWorkspace', '跳转子会话（ctx.uiWorkspace.openSession）'],
+  ]) {
+    if (!client.includes(needle)) errors.push(`[dsh] client.js 缺少 ${label}`);
+  }
 }
 
 // --- 5. 输出 ---

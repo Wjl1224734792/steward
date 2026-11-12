@@ -1,14 +1,20 @@
 # Steward — long-lived engineering team for DeepSeek Harness.
 #
 # One Host row. The plugin registers, through DSH-native extension points:
-#   - seven role Agent Presets (`steward-<role>`) via ctx.agentPresets, each a
-#     persona + native tool composition;
-#   - a native Settings section (`steward`, volatile Config fields) for per-role
-#     subagent model and reasoning-effort routes;
-#   - the `steward_dispatch` / `steward_config` tools and the `/steward` command;
+#   - the `steward_dispatch` tool (one role per call, over ctx.subagents);
+#   - the `/steward` human command;
 #   - the bundled Steward skills on ctx.skills.
-# The browser half (loaded from ./client) renders the Settings → Steward page
-# over ctx.configForms, so this bundle serves no HTTP bridge.
+#
+# Two deliberate omissions:
+#   * **No Agent Preset.** A preset is a user-selectable session mode, and a
+#     specialist mode a human can switch into would bypass the plan gate,
+#     baseline guard, QA and review that make Steward worth using. Every child
+#     runs the shipped `standard` composition; the role charter is prepended to
+#     the task prompt.
+#   * **No Config and no browser half.** Per-role model routes live in the
+#     project's `steward.config.json` (`modelRouting.<role>`), versioned with the
+#     repository and checked by `scripts/validate-config.mjs` — not in a
+#     per-machine settings namespace.
 - insert:
     - id: steward
       name: dsh-steward

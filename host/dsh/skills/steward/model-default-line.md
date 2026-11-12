@@ -1,1 +1,1 @@
-- 角色未单独配置时继承主代理当前模型；要单独指定，先在「设置 → Steward」页给该角色选模型与档位（保存后**下一次派单即生效**）。项目根有 `steward.config.json` 且写了 `modelRouting.<role>`（`model: "provider/model"` + `effort`）时，项目级优先于设置页；两者都没有才继承主代理。
+- 角色未单独配置时继承主代理当前模型；要单独指定，在项目根 `steward.config.json` 写 `modelRouting.<role>`（`{ "model": "provider/model", "effort": "…" }`，改完跑 `scripts/validate-config.mjs`，**下一次派单即生效**）。DSH 侧没有设置页、也没有 `steward_config` 工具——路由只有一个来源：项目配置文件。

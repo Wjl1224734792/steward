@@ -1,23 +1,28 @@
 /**
  * dsh-steward — Host half, built on DSH-native extension points.
  *
- *  - Roles are declared as **Agent Presets** (`ctx.agentPresets`), each a real
- *    Cordis composition: persona + native tool plugins. A dispatched child is
- *    started with `agentPreset`, so its system prompt and tool set come from
- *    the preset rather than injected prose.
- *  - Per-role model routes live in this plugin's **Config** (`export const
- *    Config`), whose editable fields are `.volatile()`: they are served by the
- *    native Settings service (`settings` namespace `steward`), persist through
- *    the profile's config editor, and update in place without a restart.
+ *  - Roles are **dispatch-time charters**, not Agent Presets. A registered
+ *    preset is by definition a user-selectable session mode, and a specialist
+ *    mode a human can switch into bypasses the plan gate, baseline guard, QA
+ *    and review that give Steward its value. `steward_dispatch` therefore
+ *    starts every child on the shipped `standard` composition and prepends the
+ *    role charter to the task prompt, so roles never appear in the mode picker.
+ *  - Model routes have two layers, both visible in the Steward panel:
+ *    `<repo>/steward.config.json` (`modelRouting.<role>`) wins because it is
+ *    versioned with the code, then this plugin's native **Config** (namespace
+ *    `steward`, edited on the panel through `configForms`), then the parent
+ *    route. There is no private config file and no custom HTTP bridge.
  *  - `steward_dispatch` is a thin delegation tool over `ctx.subagents`: it
- *    resolves the role's preset + route and calls `startActivation`.
- *  - `steward_config` reads and writes the same native settings section.
+ *    composes the role charter + task prompt, resolves the route and calls
+ *    `startActivation` on the `standard` composition.
+ *  - `steward_board` mirrors `03-plan.json` onto the Agent Teams shared task
+ *    board, so the native Team panel is the live dashboard.
  *  - `/steward` is registered on the native human-command registry.
  *  - Skills are registered on the native `ctx.skills` registry.
  *
- * The package is installed as a local link, so `@deepseek-ai/schemastery` is
- * resolved from the active profile's hoisted node_modules (see
- * `resolveSchemastery`); nothing else outside Node builtins is imported.
+ * `@deepseek-ai/schemastery` is resolved from the installed package or the
+ * active profile (see `resolveSchemastery`); nothing else outside Node builtins
+ * is imported.
  */
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
@@ -30,10 +35,14 @@ const ROLES_DIR = path.join(HERE, 'roles');
 const SKILLS_DIR = path.join(HERE, 'skills');
 /** Native settings namespace — must equal the Loader row id in cordis.patch.yml. */
 const CONFIG_NS = 'steward';
-/** Agent preset ids are `<prefix><role id>`. */
-const PRESET_PREFIX = 'steward-';
 /** DSH in-process subagent backend that supports independent preset selection. */
 const SUBAGENT_PROVIDER = 'spawn';
+/**
+ * Composition every dispatched child runs on. The shipped `standard` preset is
+ * always registered (with or without the code-work tools), so a role never
+ * needs its own preset — and this plugin never registers one.
+ */
+const CHILD_PRESET = 'standard';
 
 function readJson(file, fallback) {
   try {
@@ -52,6 +61,12 @@ const BANNER = /^\s*<!--[\s\S]*?-->\s*/;
 function stripFrontmatter(text) {
   return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
 }
+
+const ROLE_MANIFEST = readJson(path.join(ROLES_DIR, 'manifest.json'), { roles: [] });
+const SKILL_MANIFEST = readJson(path.join(SKILLS_DIR, 'manifest.json'), { skills: [] });
+const ROLES = Array.isArray(ROLE_MANIFEST.roles) ? ROLE_MANIFEST.roles : [];
+const ROLE_IDS = ROLES.map((role) => role.id);
+const ROLE_BY_ID = new Map(ROLES.map((role) => [role.id, role]));
 
 /**
  * Resolve schemastery from the installed package (npm install) or, for a
@@ -91,13 +106,10 @@ function resolveSchemastery() {
 
 const z = resolveSchemastery();
 
-const ROLE_MANIFEST = readJson(path.join(ROLES_DIR, 'manifest.json'), { roles: [] });
-const SKILL_MANIFEST = readJson(path.join(SKILLS_DIR, 'manifest.json'), { skills: [] });
-const ROLES = Array.isArray(ROLE_MANIFEST.roles) ? ROLE_MANIFEST.roles : [];
-const ROLE_IDS = ROLES.map((role) => role.id);
-const ROLE_BY_ID = new Map(ROLES.map((role) => [role.id, role]));
-
-// --- Config: native DSH settings -------------------------------------------------
+// --- Config: native DSH settings --------------------------------------------------
+// The Steward panel edits this namespace through ctx.configForms (per role:
+// provider / model / effort). A project's steward.config.json still wins at
+// dispatch time, so the repository stays the authoritative layer.
 
 function routeSchema(label) {
   return z.object({
@@ -110,7 +122,7 @@ function routeSchema(label) {
 export const Config = z.object({
   defaults: routeSchema('默认配置'),
   roles: z.object(Object.fromEntries(ROLES.map((role) => [role.id, routeSchema(role.name ?? role.id)]))),
-}).description('Steward 子代理的模型与思考强度（DSH 原生设置：设置 → Steward，保存后下一次派发立即生效）');
+}).description('Steward 面板：每个角色（或默认）的模型与思考强度；项目根 steward.config.json 的 modelRouting 优先，保存后下一次派发生效');
 
 function unwrap(value) {
   if (value !== null && typeof value === 'object' && typeof value.get === 'function') return value.get();
@@ -176,6 +188,7 @@ function settingsDocumentPath(ctx) {
   }
 }
 
+/** Settings-layer route for one role: its own entry, then the defaults, then inherit. */
 function effectiveFor(config, roleId) {
   const own = config.roles[roleId];
   if (own !== undefined && own.provider !== '' && own.model !== '') return { ...own, source: 'role' };
@@ -183,263 +196,10 @@ function effectiveFor(config, roleId) {
   return { ...emptySelection(), source: 'inherit' };
 }
 
-async function saveConfig(ctx, patch) {
-  const settings = ctx.get('settings');
-  if (settings === undefined || typeof settings.update !== 'function') {
-    throw new Error('the native settings service is unavailable in this profile; cannot persist the Steward configuration');
-  }
-  await settings.update(CONFIG_NS, patch);
-}
-
-// --- Roles → Agent Presets -------------------------------------------------------
-
-const rolePersonas = new Map();
-
-function rolePersona(roleId) {
-  if (rolePersonas.has(roleId)) return rolePersonas.get(roleId);
-  const role = ROLE_BY_ID.get(roleId);
-  let text = '';
-  if (role !== undefined) {
-    try {
-      text = stripFrontmatter(fs.readFileSync(path.join(HERE, role.path), 'utf8')).replace(BANNER, '').trim();
-    } catch {
-      text = '';
-    }
-  }
-  rolePersonas.set(roleId, text);
-  return text;
-}
-
-function presetIdFor(roleId) {
-  return `${PRESET_PREFIX}${roleId}`;
-}
-
-function shellToolEntry() {
-  return process.platform === 'win32'
-    ? { id: 'tool-pwsh', name: '@deepseek-ai/dsh-tool-pwsh' }
-    : { id: 'tool-bash', name: '@deepseek-ai/dsh-tool-bash' };
-}
-
-/** The native plugin list every Steward specialist preset composes. */
-function presetPlugins(persona) {
-  return [
-    { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: persona } },
-    { id: 'agent-instructions', name: '@deepseek-ai/dsh-agent-instructions', config: { maxBytes: 65536 } },
-    { id: 'time-context', name: '@deepseek-ai/dsh-time-context' },
-    shellToolEntry(),
-    { id: 'tool-fs', name: '@deepseek-ai/dsh-tool-fs', config: { applyPatch: false } },
-    { id: 'tool-fs-search', name: '@deepseek-ai/dsh-tool-fs-search', config: { sampleOverCapGlobResults: false } },
-    { id: 'tool-todo', name: '@deepseek-ai/dsh-tool-todo', config: { allowParallelInProgress: true } },
-    { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web', config: { fetch: true, searchTimeoutMs: 60000 } },
-    { id: 'skill-filesystem', name: '@deepseek-ai/dsh-skill-filesystem' },
-    { id: 'tool-skill', name: '@deepseek-ai/dsh-tool-skill' },
-    { id: 'present', name: '@deepseek-ai/dsh-tool-present' },
-    {
-      id: 'compaction',
-      name: 'cordis:group',
-      group: true,
-      isolate: { compaction: true, toolResultPruner: true },
-      config: [
-        { id: 'compaction-basic', name: '@deepseek-ai/dsh-compaction-basic' },
-        { id: 'command-compact', name: '@deepseek-ai/dsh-command-compact' },
-        { id: 'tool-result-pruner', name: '@deepseek-ai/dsh-compaction-tool-result-pruner', config: { thresholdChars: 8192, headChars: 4096, tailChars: 1024 } },
-      ],
-    },
-  ];
-}
-
-function buildPreset(role, index) {
-  return {
-    id: presetIdFor(role.id),
-    name: `Steward · ${role.name ?? role.id}`,
-    description: `Steward ${role.name ?? role.id}（${role.id}）：${role.description ?? ''}`.trim(),
-    order: 100 + index,
-    plugins: presetPlugins(rolePersona(role.id)),
-  };
-}
-
-function registerPresets(ctx) {
-  ctx.inject(['agentPresets'], (sctx) => {
-    for (const [index, role] of ROLES.entries()) {
-      const definition = buildPreset(role, index);
-      let cancelled = false;
-      let dispose = null;
-      sctx.effect(() => {
-        Promise.resolve(sctx.agentPresets.register(definition)).then((disposer) => {
-          if (cancelled) {
-            Promise.resolve(disposer()).catch(() => {});
-            return;
-          }
-          dispose = disposer;
-        }).catch((error) => {
-          sctx.logger?.warn?.(`steward: could not register agent preset ${definition.id}: ${errorMessage(error)}`);
-        });
-        return async () => {
-          cancelled = true;
-          const disposer = dispose;
-          dispose = null;
-          if (typeof disposer === 'function') {
-            try {
-              await disposer();
-            } catch {
-              // preset disposal is best effort
-            }
-          }
-        };
-      }, `steward: preset ${definition.id}`);
-    }
-  });
-}
-
-async function assertPresetReady(ctx, presetId) {
-  const presets = ctx.get('agentPresets');
-  if (presets === undefined || typeof presets.resolve !== 'function') return;
-  let preset;
-  try {
-    preset = await presets.resolve(presetId);
-  } catch (error) {
-    throw new Error(`Steward role preset ${presetId} is not available: ${errorMessage(error)}`);
-  }
-  if (preset === undefined || preset === null) {
-    throw new Error(`Steward role preset ${presetId} is not registered (the plugin may still be loading)`);
-  }
-  if (typeof preset.broken === 'string' && preset.broken !== '') {
-    throw new Error(`Steward role preset ${presetId} failed to activate: ${preset.broken}`);
-  }
-}
-
-// --- Subagent model catalog ------------------------------------------------------
-
-function withTimeout(promise, ms) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
-    Promise.resolve(promise).then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (error) => { clearTimeout(timer); reject(error); },
-    );
-  });
-}
-
-const CATALOG_TTL_MS = 5 * 60 * 1000;
-const catalogCache = { at: 0, value: null, building: null };
-
-async function buildCatalog(llm) {
-  const providers = [];
-  let listed = [];
-  try {
-    listed = llm.listProviders();
-  } catch (error) {
-    throw new Error(`cannot list model providers: ${errorMessage(error)}`);
-  }
-  await Promise.all(listed.map(async (provider) => {
-    let models = [];
-    try {
-      models = await withTimeout(llm.listModels(provider.id), 2500);
-    } catch {
-      models = [];
-    }
-    if (!Array.isArray(models) || models.length === 0) return;
-    const entries = await Promise.all(models.slice(0, 80).map(async (model) => {
-      let info = null;
-      try {
-        info = await withTimeout(llm.resolveModelInfo(provider.id, model.id), 2000);
-      } catch {
-        info = null;
-      }
-      const efforts = Array.isArray(info?.reasoning?.efforts)
-        ? info.reasoning.efforts.map((effort) => ({ id: String(effort.id), name: String(effort.name ?? effort.id) }))
-        : [];
-      const defaultEffort = info?.reasoning?.defaultEffort === undefined ? '' : String(info.reasoning.defaultEffort);
-      return { id: String(model.id), name: String(model.name ?? model.id), efforts, defaultEffort };
-    }));
-    providers.push({ id: String(provider.id), name: String(provider.name ?? provider.id), models: entries });
-  }));
-  providers.sort((a, b) => a.name.localeCompare(b.name));
-  return providers;
-}
-
-async function getCatalog(llm, refresh) {
-  if (!refresh && catalogCache.value !== null && Date.now() - catalogCache.at < CATALOG_TTL_MS) return catalogCache.value;
-  if (catalogCache.building !== null) return catalogCache.building;
-  catalogCache.building = buildCatalog(llm)
-    .then((providers) => {
-      catalogCache.value = providers;
-      catalogCache.at = Date.now();
-      return providers;
-    })
-    .finally(() => { catalogCache.building = null; });
-  return catalogCache.building;
-}
-
-function findModel(providers, providerId, modelId) {
-  const provider = providers.find((entry) => entry.id === providerId);
-  if (provider === undefined) return null;
-  return provider.models.find((entry) => entry.id === modelId) ?? null;
-}
-
-/** Validate every configured route against the live catalog; returns an error string or null. */
-function validateConfig(config, providers) {
-  const check = (label, selection) => {
-    if (selection.provider === '' && selection.model === '') {
-      if (selection.effort !== '') return `${label}：模型为空时不能单独设置思考强度`;
-      return null;
-    }
-    const model = findModel(providers, selection.provider, selection.model);
-    if (model === null) return `${label}：模型 ${selection.provider}/${selection.model} 不在当前模型目录中`;
-    if (selection.effort !== '' && !model.efforts.some((effort) => effort.id === selection.effort)) {
-      return `${label}：模型 ${selection.provider}/${selection.model} 不支持思考强度 "${selection.effort}"（支持：${model.efforts.map((effort) => effort.id).join(', ') || '无'}）`;
-    }
-    return null;
-  };
-  const defaultsError = check('默认配置', config.defaults);
-  if (defaultsError !== null) return defaultsError;
-  for (const id of ROLE_IDS) {
-    const error = check(`角色 ${id}`, config.roles[id] ?? emptySelection());
-    if (error !== null) return error;
-  }
-  return null;
-}
-
-function publicProviders(providers) {
-  return providers.map((provider) => ({
-    id: provider.id,
-    name: provider.name,
-    models: provider.models.map((model) => ({
-      id: model.id,
-      name: model.name,
-      efforts: model.efforts.map((effort) => effort.id),
-      defaultEffort: model.defaultEffort,
-    })),
-  }));
-}
-
-function roleState(config) {
-  return ROLES.map((role) => {
-    const effective = effectiveFor(config, role.id);
-    return {
-      id: role.id,
-      name: role.name ?? role.id,
-      description: role.description ?? '',
-      preset: presetIdFor(role.id),
-      provider: effective.provider,
-      model: effective.model,
-      effort: effective.effort,
-      source: effective.source,
-    };
-  });
-}
-
-function routeText(role) {
-  return role.provider === '' ? '继承主代理' : `${role.provider}/${role.model}${role.effort === '' ? '' : ` @ ${role.effort}`}`;
-}
-
-function sourceText(source) {
-  if (source === 'role') return '角色配置';
-  if (source === 'defaults') return '默认配置';
-  return '继承主代理';
-}
-
-// --- Project-level routing override ---------------------------------------------
+// --- Routing: <project>/steward.config.json ---------------------------------------
+// One source of truth, in the repository. A route is `{ model: "provider/model",
+// effort?: "..." }`; anything malformed is ignored so a typo degrades to
+// "inherit the parent" instead of dispatching a half-applied route.
 
 function findProjectRoot(startDir) {
   let current = path.resolve(startDir);
@@ -469,6 +229,13 @@ function projectRouteFor(roleId, startDir) {
   }
 }
 
+/** The route a role actually dispatches with: project config, then the panel. */
+function resolveRoute(ctx, config, roleId, startDir) {
+  const project = projectRouteFor(roleId, startDir);
+  if (project !== null) return project;
+  return effectiveFor(normalizeConfig(currentConfig(ctx, config)), roleId);
+}
+
 async function resolveBaseDirectory(ctx, parent, args) {
   if (typeof args?.cwd === 'string' && args.cwd !== '') return path.resolve(args.cwd);
   try {
@@ -482,6 +249,59 @@ async function resolveBaseDirectory(ctx, parent, args) {
   return process.cwd();
 }
 
+// --- Roles → dispatch-time charters ----------------------------------------------
+
+const roleCharters = new Map();
+
+/** The role body with frontmatter and build banner stripped: a dispatch payload. */
+function roleCharter(roleId) {
+  if (roleCharters.has(roleId)) return roleCharters.get(roleId);
+  const role = ROLE_BY_ID.get(roleId);
+  let text = '';
+  if (role !== undefined) {
+    try {
+      text = stripFrontmatter(fs.readFileSync(path.join(HERE, role.path), 'utf8')).replace(BANNER, '').trim();
+    } catch {
+      text = '';
+    }
+  }
+  roleCharters.set(roleId, text);
+  return text;
+}
+
+/**
+ * The dispatch prompt: charter first, assigned task last, so the work being
+ * requested is the most recent instruction the child reads. A missing charter
+ * degrades to the bare task instead of failing the dispatch.
+ */
+function dispatchPrompt(roleId, task) {
+  const charter = roleCharter(roleId);
+  if (charter === '') return task;
+  return `${charter}\n\n---\n\n# 本次任务（派单正文）\n\n${task}`;
+}
+
+/**
+ * The shipped `standard` composition must resolve before a child is started;
+ * otherwise the activation fails with an opaque provider error. Resolution is
+ * best effort: profiles without the preset service still dispatch.
+ */
+async function assertChildPresetReady(ctx) {
+  const presets = ctx.get('agentPresets');
+  if (presets === undefined || typeof presets.resolve !== 'function') return;
+  let preset;
+  try {
+    preset = await presets.resolve(CHILD_PRESET);
+  } catch (error) {
+    throw new Error(`subagent composition "${CHILD_PRESET}" is not available: ${errorMessage(error)}`);
+  }
+  if (preset === undefined || preset === null) {
+    throw new Error(`subagent composition "${CHILD_PRESET}" is not registered (it may still be loading)`);
+  }
+  if (typeof preset.broken === 'string' && preset.broken !== '') {
+    throw new Error(`subagent composition "${CHILD_PRESET}" failed to activate: ${preset.broken}`);
+  }
+}
+
 // --- Tools -----------------------------------------------------------------------
 
 function toolError(message) {
@@ -492,26 +312,157 @@ function textBlocks(text) {
   return [{ type: 'text', text }];
 }
 
-function identifierSchema(description) {
-  return { type: 'string', description };
+// --- Agent Teams board ------------------------------------------------------------
+// With the host's Agent Teams bundle enabled, the shared task board *is* Steward's
+// live dashboard: gates and work items are native tasks, so readiness, ownership,
+// file scopes and blockers are rendered by the native Team panel instead of a
+// bespoke UI. Without that bundle the board actions fail loudly and the solo
+// `steward_dispatch` path stays in charge.
+
+const BOARD_KEY = { gate: 'steward:gate', plan: 'steward:plan' };
+const GATES = [
+  { id: 'G1', subject: 'G1 · 计划批准', description: 'Plan Critic + 用户批准完成后关闭这张门：所有工作单都在等它。' },
+  { id: 'G2', subject: 'G2 · QA 门禁', description: '全部工作单完成后派 qa-engineer 独立复跑 verify.mjs，出 QA 报告。' },
+  { id: 'G3', subject: 'G3 · 终审', description: 'QA 通过后派 reviewer 终审 diff：越界 / 正确性 / 测试 / 残留 / 安全 / 风格 / 文档。' },
+];
+
+function boardKey(kind, id) {
+  return `${BOARD_KEY[kind]}=${id}`;
+}
+
+function taskLabel(taskId) {
+  const id = String(taskId ?? '');
+  return id.startsWith('T') ? id : `T${id}`;
+}
+
+function shorten(text, max) {
+  const value = String(text ?? '').trim();
+  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+}
+
+function sameList(left, right) {
+  const a = Array.isArray(left) ? left : [];
+  const b = Array.isArray(right) ? right : [];
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function ownedFilesOf(task) {
+  return [...(task.files ?? []), ...(task.newFiles ?? [])].map((file) => String(file));
+}
+
+/** Dependency-first ordering; throws on a cycle instead of looping forever. */
+function orderPlanTasks(tasks) {
+  const byId = new Map(tasks.map((task) => [task.id, task]));
+  const ordered = [];
+  const state = new Map();
+  const visit = (task) => {
+    const mark = state.get(task.id);
+    if (mark === 'done') return;
+    if (mark === 'visiting') throw toolError(`计划依赖成环：${task.id}`);
+    state.set(task.id, 'visiting');
+    for (const dep of task.dependsOn ?? []) {
+      const upstream = byId.get(dep);
+      if (upstream !== undefined) visit(upstream);
+    }
+    state.set(task.id, 'done');
+    ordered.push(task);
+  };
+  for (const task of tasks) visit(task);
+  return ordered;
+}
+
+function reportPath(task) {
+  return `reports/t${String(task.id).replace(/^T/i, '')}-${task.role}.md`;
+}
+
+function planTaskBlock(task, planLabel, plan) {
+  const acs = (plan.acceptanceCriteria ?? [])
+    .filter((ac) => (ac.coveredBy ?? []).includes(task.id))
+    .map((ac) => `${ac.id} ${ac.text}`);
+  return [
+    `目标：${task.title}`,
+    `完成标准：${task.doneWhen}`,
+    `所有权：${ownedFilesOf(task).join('、') || '（未声明）'}`,
+    `报告：${reportPath(task)}`,
+    ...(acs.length === 0 ? [] : [`验收：${acs.join('；')}`]),
+    '',
+    boardKey('plan', task.id),
+    `steward:role=${task.role}`,
+    `steward:plan=${planLabel}`,
+  ].join('\n');
+}
+
+function findBoardTask(boardTasks, key) {
+  return (boardTasks ?? []).find((task) => task.status !== 'deleted' && String(task.description ?? '').includes(key)) ?? null;
+}
+
+function renderBoard(level, planLabel, plan, boardTasks) {
+  const labelOf = new Map((boardTasks ?? []).map((task) => [task.id, task.subject]));
+  const statusGlyph = (task) => {
+    if (task.status === 'completed') return '✅ 完成';
+    if (task.status === 'in_progress') return '▶ 进行中';
+    if (task.status === 'pending' && task.ready === false) return '⛔ 被阻塞';
+    return '⚪ 待开始';
+  };
+  const gateRow = (gateId) => findBoardTask(boardTasks, boardKey('gate', gateId));
+  const planRows = (plan.tasks ?? []).map((task) => ({ task, board: findBoardTask(boardTasks, boardKey('plan', task.id)) }));
+
+  const lines = [`## 共享任务板 · ${planLabel}（${level} 级）`, ''];
+  const gateText = GATES
+    .map((gate) => {
+      const board = gateRow(gate.id);
+      if (board === null) return null;
+      return `${gate.subject.split(' · ')[0]} ${board.status === 'completed' ? '✅' : board.status === 'in_progress' ? '▶' : '⏸'}`;
+    })
+    .filter((value) => value !== null);
+  if (gateText.length > 0) lines.push(`门禁：${gateText.join(' / ')}`);
+
+  const done = planRows.filter((row) => row.board?.status === 'completed').length;
+  const ready = planRows.filter((row) => row.board !== null && row.board.status === 'pending' && row.board.ready === true);
+  lines.push(`进度：${done}/${planRows.length} 工作单完成${ready.length === 0 ? '' : `；可开始：${ready.map((row) => taskLabel(row.task.id)).join('、')}`}`);
+  lines.push('');
+  lines.push('| 任务 | 状态 | 负责人 | 依赖 |');
+  lines.push('|---|---|---|---|');
+  for (const gate of GATES) {
+    const board = gateRow(gate.id);
+    if (board === null) continue;
+    lines.push(`| ${gate.subject} | ${statusGlyph(board)} | ${board.ownerName ?? '—'} | ${board.blockedBy.length === 0 ? '—' : board.blockedBy.map((id) => labelOf.get(id) ?? id).join('、')} |`);
+  }
+  for (const row of planRows) {
+    const subject = `${taskLabel(row.task.id)} · ${row.task.role} · ${shorten(row.task.title, 40)}`;
+    if (row.board === null) {
+      lines.push(`| ${subject} | （未建板） | — | — |`);
+      continue;
+    }
+    const blockers = row.board.blockedBy.length === 0 ? '—' : row.board.blockedBy.map((id) => labelOf.get(id) ?? id).join('、');
+    lines.push(`| ${subject} | ${statusGlyph(row.board)} | ${row.board.ownerName ?? '未分配'} | ${blockers} |`);
+  }
+
+  const warnings = (boardTasks ?? []).flatMap((task) => (Array.isArray(task.writeScopeWarnings) ? task.writeScopeWarnings : []));
+  const uniqueWarnings = [...new Set(warnings)];
+  if (uniqueWarnings.length > 0) {
+    lines.push('', `⚠ 文件重叠：${uniqueWarnings.join('；')}`);
+  }
+  lines.push('', '状态口径：pending=未开始，in_progress=有人在做，completed=报告已落盘且该任务所有权内验证通过；被依赖阻塞的任务 claim 不上。');
+  return lines.join('\n');
 }
 
 function defineStewardTools(ctx, config) {
   const tools = ctx.get('tools');
   if (tools === undefined) return;
 
-  const configTool = {
-    name: 'steward_config',
-    description: 'Read or change the Steward subagent model routes (per-role provider/model/reasoning effort) and inspect the live model catalog. This is the same DSH-native settings section (`steward`) edited on the Settings → Steward page; changes apply to the next steward_dispatch call. Use action="list" to show the roster, action="set" to change one role or the defaults, action="reset" to clear one role or everything.',
+  const boardTool = {
+    name: 'steward_board',
+    description: 'Agent Teams shared task board — Steward\'s live dashboard. action="sync" turns <plan>/03-plan.json into board tasks (G1 plan gate, one work task per plan task with file scopes and dependencies, G2 QA gate, G3 final review) idempotently, matched through the steward:plan= / steward:gate= markers in each description; action="status" returns the same board state the native Team panel renders (gate progress, per-task status/owner/blockers/readiness); action="brief" composes the self-contained task text to hand to spawn_teammate (role charter + plan task + board task id + completion protocol). Requires the host Agent Teams bundle; sync/status fail loudly without it and the solo steward_dispatch path stays in charge.',
     parameters: {
       type: 'object',
       additionalProperties: false,
       properties: {
-        action: { type: 'string', enum: ['list', 'set', 'reset'], description: 'Operation to perform.' },
-        role: { type: 'string', enum: ROLE_IDS.slice(), description: 'Role id for set/reset. Omit to edit the defaults (set) or reset everything (reset).' },
-        provider: identifierSchema('LLM provider id (with model). Empty string clears the selection.'),
-        model: identifierSchema('Model id within the provider (with provider).'),
-        effort: identifierSchema('Reasoning effort id supported by the model; empty string uses the model default.'),
+        action: { type: 'string', enum: ['sync', 'status', 'brief'], description: 'Operation to perform.' },
+        plan: { type: 'string', description: 'Path to 03-plan.json (absolute, or relative to the working directory).' },
+        level: { type: 'string', enum: ['S', 'M', 'L'], description: 'Run sizing for sync/status: M/L create the G1/G2/G3 gates, S creates none. Defaults to M.' },
+        role: { type: 'string', enum: ROLE_IDS.slice(), description: 'Steward role for action="brief".' },
+        task: { type: 'string', description: 'Plan task id (e.g. "T1") for action="brief".' },
       },
       required: ['action'],
     },
@@ -519,128 +470,149 @@ function defineStewardTools(ctx, config) {
       schema: {
         type: 'object',
         additionalProperties: false,
-        properties: {
-          action: { type: 'string' },
-          namespace: { type: 'string' },
-          documentPath: { type: 'string' },
-          defaults: {
-            type: 'object',
-            additionalProperties: false,
-            properties: { provider: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' } },
-            required: ['provider', 'model', 'effort'],
-          },
-          roles: {
-            type: 'array',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                id: { type: 'string' },
-                name: { type: 'string' },
-                description: { type: 'string' },
-                preset: { type: 'string' },
-                provider: { type: 'string' },
-                model: { type: 'string' },
-                effort: { type: 'string' },
-                source: { type: 'string' },
-              },
-              required: ['id', 'name', 'description', 'preset', 'provider', 'model', 'effort', 'source'],
-            },
-          },
-          providers: {
-            type: 'array',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                id: { type: 'string' },
-                name: { type: 'string' },
-                models: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    additionalProperties: false,
-                    properties: {
-                      id: { type: 'string' },
-                      name: { type: 'string' },
-                      efforts: { type: 'array', items: { type: 'string' } },
-                      defaultEffort: { type: 'string' },
-                    },
-                    required: ['id', 'name', 'efforts', 'defaultEffort'],
-                  },
-                },
-              },
-              required: ['id', 'name', 'models'],
-            },
-          },
-        },
-        required: ['action', 'namespace', 'documentPath', 'defaults', 'roles', 'providers'],
+        properties: { action: { type: 'string' }, text: { type: 'string' } },
+        required: ['action', 'text'],
       },
-      render: (_args, value) => textBlocks(
-        `${value.action === 'list' ? '当前 Steward 子代理路由' : value.action === 'set' ? '已更新 Steward 子代理路由' : '已重置 Steward 子代理路由'}（DSH 设置命名空间：${value.namespace}${value.documentPath === '' ? '' : `，${value.documentPath}`}）\n`
-        + value.roles.map((role) => `- ${role.id}（${role.name}）：${role.provider === '' ? '继承主代理' : `${role.provider}/${role.model}${role.effort === '' ? '' : ` @ ${role.effort}`}`}（${role.source === 'inherit' ? '' : `${sourceText(role.source)}；`}preset ${role.preset}）`).join('\n'),
-      ),
+      render: (_args, value) => textBlocks(value.text),
     },
     isConcurrencySafe: () => false,
-    async execute(args) {
+    async execute(args, exec) {
       const action = String(args?.action ?? '');
-      const llm = ctx.get('llm');
-      if (llm === undefined) throw toolError('cannot read or validate the model catalog: the llm service is unavailable');
-      const providers = await getCatalog(llm, args?.refresh === true);
-      let snapshot = normalizeConfig(currentConfig(ctx, config));
-      if (action === 'list') {
-        // read-only
-      } else if (action === 'set') {
-        const rawProvider = String(args?.provider ?? '').trim();
-        const rawModel = String(args?.model ?? '').trim();
-        const rawEffort = String(args?.effort ?? '').trim();
-        const selection = normalizeSelection({ provider: rawProvider, model: rawModel, effort: rawEffort });
-        if (selection.provider === '' && (rawProvider !== '' || rawModel !== '')) {
-          throw toolError('provider and model must be supplied together (or both empty to inherit)');
-        }
-        if (selection.provider === '' && rawEffort !== '') {
-          throw toolError('reasoning effort requires a provider and model; clear the effort or supply the route');
-        }
-        if (args?.role !== undefined) {
-          if (!ROLE_IDS.includes(args.role)) throw toolError(`unknown role "${args.role}"`);
-          snapshot.roles[args.role] = selection;
-        } else {
-          snapshot.defaults = selection;
-        }
-        const invalid = validateConfig(snapshot, providers);
-        if (invalid !== null) throw toolError(invalid);
-        await saveConfig(ctx, args?.role === undefined ? { defaults: selection } : { roles: { [args.role]: selection } });
-        snapshot = normalizeConfig(currentConfig(ctx, config));
-      } else if (action === 'reset') {
-        if (args?.role !== undefined && !ROLE_IDS.includes(args.role)) throw toolError(`unknown role "${args.role}"`);
-        const empty = emptySelection();
-        if (args?.role !== undefined) {
-          snapshot.roles[args.role] = empty;
-          await saveConfig(ctx, { roles: { [args.role]: empty } });
-        } else {
-          snapshot = normalizeConfig({ defaults: empty, roles: Object.fromEntries(ROLE_IDS.map((id) => [id, empty])) });
-          await saveConfig(ctx, { defaults: empty, roles: snapshot.roles });
-        }
-        snapshot = normalizeConfig(currentConfig(ctx, config));
-      } else {
-        throw toolError(`unknown action "${action}" (expected list/set/reset)`);
+      const planPath = String(args?.plan ?? '').trim();
+      if (planPath === '') throw toolError('steward_board 需要 plan 参数：03-plan.json 的路径');
+      const baseDir = await resolveBaseDirectory(ctx, exec.agent, {});
+      const resolvedPlan = path.isAbsolute(planPath) ? planPath : path.resolve(baseDir, planPath);
+      const plan = readJson(resolvedPlan, null);
+      if (plan === null || !Array.isArray(plan.tasks) || plan.tasks.length === 0) {
+        throw toolError(`读不到计划文件或计划里没有 tasks：${resolvedPlan}`);
       }
-      return {
-        action: action === 'reset' ? 'reset' : action === 'set' ? 'set' : 'list',
-        namespace: CONFIG_NS,
-        documentPath: settingsDocumentPath(ctx),
-        defaults: snapshot.defaults,
-        roles: roleState(snapshot),
-        providers: publicProviders(providers),
+      const planLabel = path.basename(path.dirname(resolvedPlan)) || 'run';
+
+      if (action === 'brief') {
+        const roleId = String(args?.role ?? '');
+        if (!ROLE_IDS.includes(roleId)) throw toolError(`unknown steward role "${roleId}"`);
+        const taskId = String(args?.task ?? '');
+        const task = plan.tasks.find((entry) => String(entry.id) === taskId);
+        if (task === undefined) {
+          throw toolError(`计划里没有任务 "${taskId}"（可用：${plan.tasks.map((entry) => entry.id).join('、')}）`);
+        }
+        const teams = ctx.get('agentTeams');
+        const boardTask = teams !== undefined && exec.agent !== undefined && typeof teams.listTasks === 'function'
+          ? findBoardTask(teams.listTasks(exec.agent), boardKey('plan', task.id))
+          : null;
+        const brief = [
+          boardTask === null ? '任务板：未建板（单人模式，按报告落点交付）' : `任务板：${boardTask.id}（先 claim 再动手；做完 complete）`,
+          planTaskBlock(task, planLabel, plan),
+          '',
+          '完成协议：只改「所有权」里的文件；把实施报告写到「报告」路径并附真实命令输出；验证通过后再把板上任务标记 complete。做不动、要越权或发现规格冲突 → send_message 给 Lead，不要自行扩权。',
+        ].join('\n');
+        return { action, text: dispatchPrompt(roleId, brief) };
+      }
+
+      const teams = ctx.get('agentTeams');
+      if (teams === undefined || typeof teams.listTasks !== 'function') {
+        throw toolError('Agent Teams 未启用：本会话没有 agentTeams 服务。单人模式请继续用 steward_dispatch + run.json；要用共享看板，请在插件页启用「智能体团队」后刷新页面。');
+      }
+      const agent = exec.agent;
+      if (agent === undefined) throw toolError('steward_board requires a calling agent');
+      const level = String(args?.level ?? 'M').toUpperCase();
+
+      if (action === 'status') {
+        return { action, text: renderBoard(level, planLabel, plan, teams.listTasks(agent)) };
+      }
+      if (action !== 'sync') throw toolError(`unknown action "${action}" (expected sync/status/brief)`);
+
+      const wantGates = level === 'M' || level === 'L';
+      const upsert = async (spec) => {
+        const key = boardKey(spec.kind, spec.id);
+        const existing = findBoardTask(teams.listTasks(agent), key);
+        if (existing === null) {
+          return await teams.createTask(agent, {
+            subject: spec.subject,
+            description: spec.description,
+            blockedBy: spec.blockedBy,
+            writeScopes: spec.writeScopes,
+          });
+        }
+        let current = existing;
+        const contentChanged = current.subject !== spec.subject
+          || current.description !== spec.description
+          || !sameList(current.writeScopes, spec.writeScopes);
+        if (contentChanged && current.status !== 'completed') {
+          current = await teams.updateTask(agent, {
+            taskId: current.id,
+            expectedRevision: current.revision,
+            action: 'edit',
+            subject: spec.subject,
+            description: spec.description,
+            writeScopes: spec.writeScopes,
+          });
+        }
+        if (!sameList(current.blockedBy, spec.blockedBy)) {
+          current = await teams.updateTask(agent, {
+            taskId: current.id,
+            expectedRevision: current.revision,
+            action: 'set_dependencies',
+            blockedBy: spec.blockedBy,
+          });
+        }
+        return current;
       };
+
+      const gateIds = new Map();
+      const planIdToBoard = new Map();
+      let touched = 0;
+      const gateSpec = (gate, blockedBy) => ({
+        kind: 'gate',
+        id: gate.id,
+        subject: gate.subject,
+        description: `${gate.description}\n\n${boardKey('gate', gate.id)}`,
+        writeScopes: [],
+        blockedBy,
+      });
+
+      if (wantGates) {
+        const task = await upsert(gateSpec(GATES[0], []));
+        gateIds.set(GATES[0].id, task.id);
+        touched += 1;
+      }
+      for (const task of orderPlanTasks(plan.tasks)) {
+        const blockedBy = [];
+        if (wantGates && gateIds.has('G1')) blockedBy.push(gateIds.get('G1'));
+        for (const dep of task.dependsOn ?? []) {
+          const boardId = planIdToBoard.get(dep);
+          if (boardId !== undefined) blockedBy.push(boardId);
+        }
+        const board = await upsert({
+          kind: 'plan',
+          id: task.id,
+          subject: `${taskLabel(task.id)} · ${task.role} · ${shorten(task.title, 48)}`,
+          description: planTaskBlock(task, planLabel, plan),
+          writeScopes: ownedFilesOf(task),
+          blockedBy,
+        });
+        planIdToBoard.set(task.id, board.id);
+        touched += 1;
+      }
+      if (wantGates) {
+        const workIds = [...planIdToBoard.values()];
+        for (const gate of GATES.slice(1)) {
+          const blockedBy = gate.id === 'G2' ? workIds : [gateIds.get('G2')].filter((id) => id !== undefined);
+          const task = await upsert(gateSpec(gate, blockedBy));
+          gateIds.set(gate.id, task.id);
+          touched += 1;
+        }
+      }
+      const text = `已同步 ${touched} 个任务到共享任务板（门禁 ${wantGates ? 'G1/G2/G3' : '无'}）。\n\n${renderBoard(level, planLabel, plan, teams.listTasks(agent))}`;
+      return { action: 'sync', text };
     },
   };
 
-  ctx.effect(() => tools.register(configTool), 'steward: steward_config tool');
+  ctx.effect(() => tools.register(boardTool), 'steward: steward_board tool');
 
   const dispatchTool = {
     name: 'steward_dispatch',
-    description: 'Dispatch one Steward specialist subagent by role (pm, architect, backend-dev, frontend-dev, qa-engineer, browser-tester, reviewer). The child runs the DSH agent preset `steward-<role>` (its persona and tool composition), with the model and reasoning effort configured for that role on Settings → Steward, falling back to the Steward defaults and then to the parent route; a project `steward.config.json` modelRouting entry overrides the settings page. Returns the child session id immediately; the child sends its final result back as a completion notice. The prompt must be self-contained because the child does not see this conversation. Use one call per task.',
+    description: 'Dispatch one Steward specialist subagent by role (pm, architect, backend-dev, frontend-dev, qa-engineer, browser-tester, reviewer). The child starts on the DSH built-in `standard` composition and this tool prepends the role charter to the task prompt, so roles never become user-selectable session modes. A `modelRouting.<role>` entry in the project root `steward.config.json` sets the child provider/model/reasoning effort (resolved from the dispatch cwd); without one the child inherits the parent route. Returns the child session id immediately; the child sends its final result back as a completion notice. The prompt must be self-contained because the child does not see this conversation. Use one call per task.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -648,7 +620,7 @@ function defineStewardTools(ctx, config) {
         role: { type: 'string', enum: ROLE_IDS.slice(), description: 'Steward role to dispatch.' },
         description: { type: 'string', description: 'A short (3-5 word) description of the delegated task, for display.' },
         prompt: { type: 'string', description: 'The complete, self-contained task: goal, repository root, artifact paths, file ownership, acceptance criteria and report destination.' },
-        cwd: { type: 'string', description: 'Initial child working directory; relative paths resolve against the current directory. Omit to inherit.' },
+        cwd: { type: 'string', description: 'Initial child working directory; relative paths resolve against the current directory. Omit to inherit. Also selects the project whose steward.config.json supplies the route.' },
       },
       required: ['role', 'description', 'prompt'],
     },
@@ -660,16 +632,16 @@ function defineStewardTools(ctx, config) {
           kind: { type: 'string', const: 'activation' },
           childId: { type: 'string' },
           role: { type: 'string' },
-          preset: { type: 'string' },
+          childPreset: { type: 'string' },
           provider: { type: 'string' },
           model: { type: 'string' },
           effort: { type: 'string' },
           source: { type: 'string' },
         },
-        required: ['kind', 'childId', 'role', 'preset', 'provider', 'model', 'effort', 'source'],
+        required: ['kind', 'childId', 'role', 'childPreset', 'provider', 'model', 'effort', 'source'],
       },
       render: (_args, value) => textBlocks(
-        `started steward subagent ${value.childId} (role ${value.role}, preset ${value.preset}; ${value.provider === '' ? 'inherited parent model' : `${value.provider}/${value.model}${value.effort === '' ? '' : ` @ ${value.effort}`}`})`,
+        `started steward subagent ${value.childId} (role ${value.role}, composition ${value.childPreset}; ${value.provider === '' ? 'inherited parent model' : `${value.provider}/${value.model}${value.effort === '' ? '' : ` @ ${value.effort}`}`}${value.source === 'project' ? ' from steward.config.json' : value.source === 'role' || value.source === 'defaults' ? ' from the Steward panel' : ''})`,
       ),
     },
     isConcurrencySafe: () => true,
@@ -685,13 +657,10 @@ function defineStewardTools(ctx, config) {
       if (provider.capabilities?.agentPreset !== true) {
         throw toolError(`the "${SUBAGENT_PROVIDER}" subagent provider does not support independent agent preset selection`);
       }
-      const presetId = presetIdFor(roleId);
-      await assertPresetReady(ctx, presetId);
+      await assertChildPresetReady(ctx);
 
-      const snapshot = normalizeConfig(currentConfig(ctx, config));
       const baseDir = await resolveBaseDirectory(ctx, parent, args);
-      const projectRoute = projectRouteFor(roleId, baseDir);
-      const effective = projectRoute === null ? effectiveFor(snapshot, roleId) : projectRoute;
+      const effective = resolveRoute(ctx, config, roleId, baseDir);
       let agentOptions;
       if (effective.provider !== '' && effective.model !== '') {
         const llm = ctx.get('llm');
@@ -715,9 +684,9 @@ function defineStewardTools(ctx, config) {
         provider: SUBAGENT_PROVIDER,
         label: String(args?.description ?? roleId),
         request: {
-          prompt: [{ type: 'text', text: String(args?.prompt) }],
+          prompt: [{ type: 'text', text: dispatchPrompt(roleId, String(args?.prompt ?? '')) }],
           parent,
-          agentPreset: presetId,
+          agentPreset: CHILD_PRESET,
           ...(typeof args?.cwd === 'string' && args.cwd !== '' ? { cwd: args.cwd } : {}),
           ...(agentOptions === undefined ? {} : { agentOptions }),
         },
@@ -728,7 +697,7 @@ function defineStewardTools(ctx, config) {
         kind: 'activation',
         childId: String(activation.childId),
         role: roleId,
-        preset: presetId,
+        childPreset: CHILD_PRESET,
         provider: effective.provider,
         model: effective.model,
         effort: effective.effort,
@@ -742,32 +711,29 @@ function defineStewardTools(ctx, config) {
 
 // --- Human command ---------------------------------------------------------------
 
-function renderRoster(ctx, config, topic) {
-  const snapshot = normalizeConfig(currentConfig(ctx, config));
-  const routes = roleState(snapshot);
-  const header = 'Steward 团队（DSH 原生 Agent Presets + 原生 Settings）';
-  const lines = [header, ''];
+function renderRoster(topic) {
+  const lines = ['Steward 团队（DSH 原生 Skills + 子代理 seam；本插件不注册 Agent Preset）', ''];
   if (topic === 'models' || topic === 'roles' || topic === '') {
-    for (const role of routes) {
-      const source = role.source === 'inherit' ? '' : ` · ${sourceText(role.source)}`;
-      lines.push(`- ${role.id}（${role.name}）→ preset \`${role.preset}\` · ${routeText(role)}${source}`);
+    for (const role of ROLES) {
+      lines.push(`- ${role.id}（${role.name ?? role.id}）：${role.description ?? ''} → 组合 \`${CHILD_PRESET}\``);
     }
     lines.push('');
   }
-  lines.push(`模型路由：设置 → Steward（命名空间 \`${CONFIG_NS}\`${settingsDocumentPath(ctx) === '' ? '' : `，${settingsDocumentPath(ctx)}`}）或 \`steward_config\` 工具`);
-  lines.push('派发：主代理调用 `steward_dispatch(role=..., description=..., prompt=...)`；子代理以对应 preset 启动，prompt 必须自包含。');
+  lines.push('路由：项目根 `steward.config.json` 的 `modelRouting.<role>`（形如 `{ "model": "provider/model", "effort": "…" }`）优先；仓库里没写的角色落到 **Steward 面板**（设置 → Steward）里的该角色 / 默认配置；两处都没有就继承主代理。派发结果的括号里会回显本次实际生效的路由与来源。');
+  lines.push('派发：主代理调用 `steward_dispatch(role=..., description=..., prompt=...)`；子代理以 DSH 内置 `standard` 组合启动，角色章程由派单正文注入，prompt 必须自包含。');
+  lines.push('模式：本插件不注册 Agent Preset——7 个角色不会出现在模式选择器里；Steward 是一套流程（技能 + 工具 + 门禁脚本），不是一个会话模式。');
   return lines.join('\n');
 }
 
-function registerCommands(ctx, config) {
+function registerCommands(ctx) {
   ctx.inject(['commands'], (sctx) => {
     const definition = {
       name: 'steward',
-      description: '显示 Steward 团队名册、角色预设与子代理模型路由（DSH 原生 Settings / Agent Presets）',
+      description: '显示 Steward 团队名册、子代理组合与路由口径（DSH 原生 Skills；不注册 Agent Preset）',
       input: { hint: '[roles|models|help]' },
       handler: (invocation) => {
         try {
-          return { kind: 'success', text: renderRoster(ctx, config, String(invocation?.rawInput ?? '').trim().toLowerCase()) };
+          return { kind: 'success', text: renderRoster(String(invocation?.rawInput ?? '').trim().toLowerCase()) };
         } catch (error) {
           return { kind: 'error', text: `无法读取 Steward 配置：${errorMessage(error)}` };
         }
@@ -812,11 +778,10 @@ export const inject = ['tools'];
 
 export function apply(ctx, config) {
   registerSkills(ctx);
-  registerPresets(ctx);
   defineStewardTools(ctx, config);
-  registerCommands(ctx, config);
+  registerCommands(ctx);
   try {
-    ctx.logger?.info?.(`steward: ${SKILL_MANIFEST.skills?.length ?? 0} skills, ${ROLES.length} role presets, settings namespace ${CONFIG_NS}`);
+    ctx.logger?.info?.(`steward: ${SKILL_MANIFEST.skills?.length ?? 0} skills, ${ROLES.length} dispatchable roles (charter-injected, composition ${CHILD_PRESET}); routes: <project>/steward.config.json > panel (${CONFIG_NS}) > parent`);
   } catch {
     // logging is best effort
   }

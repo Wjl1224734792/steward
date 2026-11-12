@@ -3,13 +3,25 @@
   "skills": [
     {
       "name": "agent-settings",
-      "description": "Steward 子代理模型与思考强度配置（DSH）。读宿主实时模型目录，展示 7 个角色当前使用的模型与思考强度及生效来源，按角色改模型/档位或设默认配置；提供「设置 → Steward」可视化配置页与 steward_config 工具两种入口。Use when the user asks which model or thinking effort a Steward subagent uses, wants to change a role's model/effort, or wants to open the subagent model configuration page.",
+      "description": "Steward 子代理模型与思考强度配置（DSH）。入口是 Web GUI 里的「Steward 团队」面板（侧栏「Steward 团队」或设置 → Steward）——面板显示每个 Agent 的实时状态与任务、可点击进子会话，并可逐角色设置 provider / model / 思考强度；项目根 steward.config.json 的 modelRouting 对该角色优先。Use when the user asks which model or thinking effort a Steward subagent uses, wants to change a role's model/effort, or wants to look at the Steward panel.",
       "path": "skills/agent-settings/SKILL.md",
       "dir": "skills/agent-settings"
     },
     {
+      "name": "docs",
+      "description": "Steward 文档流水线（docTier=3，DSH）。当需求属 L 级、涉及契约/多端/合规、或用户在项目 steward.config.json 设了 docTier: 3 时加载：七阶段文档树（需求/架构/契约/专项/页面/测试/治理）、模板索引、变更联动表与本地门禁（doc-init / doc-check / guard-naming），以及 PRD/FRD 验收条目如何收敛进 02-spec.md 的 AC。Use when a Steward run needs the full seven-phase documentation pipeline rather than the default thin project memory.",
+      "path": "skills/docs/SKILL.md",
+      "dir": "skills/docs"
+    },
+    {
+      "name": "inline",
+      "description": "Steward 直接执行（inline）模式（DSH）。当用户明确说「你直接做 / 别派子代理」、或项目 steward.config.json 的 execution.mode 为 inline 时加载：允许范围（S 级 / B3 / 维护小修；M 需显式要求；L 与 B0/B1/B2 禁止）、六个不可省的硬动作（迷你方案、baseline record/check、失败测试、verify 真实输出、落报告与 05-record、不越文件所有权）与常见反模式。Use when the lead agent must carry out a Steward task itself instead of dispatching a subagent.",
+      "path": "skills/inline/SKILL.md",
+      "dir": "skills/inline"
+    },
+    {
       "name": "steward",
-      "description": "Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当用户提出要开发/修改一个软件功能、修复 Bug、只出实施方案、做维护扫描或接手存量仓库时加载。流程：受理定级（S/M/L）→ 需求澄清（第一性原理，M/L 条件启用）→ 任务 DAG + 文件所有权 → 用 `steward_dispatch` 按角色派子代理（pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer，模型与思考强度在「设置 → Steward」页配置）→ QA → 浏览器验收 → 终审 → 汇报；含 Bug 通道（B0–B3）、可信变更门禁脚本、文档流水线（docTier=3）、学习循环与 inline 执行模式。Use when the user asks the Steward team to develop a feature, fix a bug, produce a plan, run maintenance, or take over an existing repository.",
+      "description": "Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当用户提出要开发/修改一个软件功能、修复 Bug、只出实施方案、做维护扫描或接手存量仓库时加载。流程：受理定级（S/M/L）→ 需求澄清（第一性原理，M/L 条件启用）→ 任务 DAG + 文件所有权 → 用 `steward_dispatch` 按角色派子代理（pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer，角色章程随派单注入，模型与思考强度按项目根 steward.config.json 的 modelRouting 解析）→ QA → 浏览器验收 → 终审 → 汇报；含 Bug 通道（B0–B3）、可信变更门禁脚本、文档流水线（docTier=3）、学习循环与 inline 执行模式。Use when the user asks the Steward team to develop a feature, fix a bug, produce a plan, run maintenance, or take over an existing repository.",
       "path": "skills/steward/SKILL.md",
       "dir": "skills/steward"
     },

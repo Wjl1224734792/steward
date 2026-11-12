@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Steward · long-lived engineering team",
-    "description": "Multi-role engineering team for DSH: the lead agent acts as Tech Lead, decomposes the request into a task DAG and dispatches specialist subagents (pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer), with a plan approval gate, bug track, maintenance loop and trusted-change gates; the seven roles are DSH Agent Presets, with model and reasoning effort configured in Settings → Steward.",
+    "description": "Multi-role engineering team for DSH: the lead agent acts as Tech Lead, decomposes the request into a task DAG and dispatches specialist subagents (pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer), with a plan approval gate, bug track, maintenance loop and trusted-change gates; roles are charters injected at dispatch time (no agent presets, so the mode picker stays clean), per-role model routes live in the project's steward.config.json (editable in the panel; the project file wins), and the board is the Agent Teams shared board. Ships a Steward team panel: run summary, team switcher, lead/member cards that open sub-sessions, a gate phase rail with work-item rows, and the per-role model + effort table (also in Settings → Steward).",
     "detail": "README.en.md"
   }
 }

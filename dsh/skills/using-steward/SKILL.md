@@ -18,9 +18,10 @@ description: Steward 技能路由（DSH）。当用户不知道用 Steward 的�
 | 只要方案、先别写代码 | 主技能 `steward`（只出计划模式） | 到批准门停止，不派 dev/qa |
 | 依赖升级、安全扫描、文档漂移、flaky | 主技能 `steward`（维护循环） | 跑 `maintain.mjs` 出排序 backlog |
 | 接手一个不熟的存量仓库 | 主技能 `steward`（接手存量） | 先用 `take-over.mjs` 生成 T1 再动手 |
-| 需要 PRD/FRD/契约/页面/测试/部署全套文档 | 主技能 `steward`（docTier=3 文档流水线） | 先设 `steward.config.json` 的 `docTier: 3` |
-| 小改动、让主代理自己干 | 主技能 `steward`（inline 执行模式） | S / B3 / 维护小修；M 需显式要求；L 与 B0/B1/B2 禁止 |
-| 改子代理用的模型 / 思考强度 | `agent-settings` | 打开「设置 → Steward」，或 `steward_config` |
+| 需要 PRD/FRD/契约/页面/测试/部署全套文档 | 主技能 `steward` + `docs` | 先设 `steward.config.json` 的 `docTier: 3`，再加载 `docs` 技能 |
+| 小改动、让主代理自己干 | 主技能 `steward` + `inline` | 加载 `inline` 技能；S / B3 / 维护小修可直接用，M 需显式要求，L 与 B0/B1/B2 禁止 |
+| 想看团队进度 / 用共享任务板 | 主技能 `steward`（共享任务板） | 加载 `steward`，用 `steward_board(action="sync"/"status")`，看 Web Team 面板 |
+| 改子代理用的模型 / 思考强度 | `agent-settings` | 改项目根 `steward.config.json` 的 `modelRouting`，跑 `validate-config.mjs` |
 
 ## 轻量技能什么时候加载
 
@@ -30,13 +31,15 @@ description: Steward 技能路由（DSH）。当用户不知道用 Steward 的�
 | 实现或修 Bug 要测试先行 | `tdd` |
 | 准备说「完成 / 修好了 / 全绿」 | `verification-before-completion` |
 | 想改子代理用的模型 / 思考强度 | `agent-settings` |
+| 主代理要自己动手改代码（不派子代理） | `inline` |
+| 要建七阶段文档树（docTier=3） | `docs` |
 
 派单时在 prompt 里点名「加载 `xxx` 技能并遵守」；不要默认塞给所有任务。
 
 ## 三条纪律
 
-1. **不新造角色/流程**：只用 7 个角色 + 5 个轻量技能（含本路由与子代理模型配置）+ 主技能；需要新角色先给方案，不直接加。
-2. **S 级直接做**：≤3 文件、单层、无 UI / 无 schema，可走 inline（主技能「执行模式」节；用户要求或配置 `execution.mode: "inline"`），不派全员、不建深文档；计划与 verify 仍不可省。
+1. **不新造角色/流程**：只用 7 个角色 + 6 个轻量技能（含本路由、子代理模型配置、按需拆出的 `inline` / `docs`）+ 主技能；需要新角色先给方案，不直接加。
+2. **S 级直接做**：≤3 文件、单层、无 UI / 无 schema，可走 inline（加载 `inline` 技能；用户要求或配置 `execution.mode: "inline"`），不派全员、不建深文档；计划与 verify 仍不可省。
 3. **不确定就先走只出计划模式**：先把方案 / 影响面 / 风险摆出来，再决定做不做；不要猜着写。
 
 ## 反例

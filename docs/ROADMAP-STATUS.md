@@ -2,6 +2,42 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
+## DSH 0.6.0（Steward 团队面板）— 2026-11-12
+
+> 用户要求：能在 Web 里**看图看 agent 情况**、**点进去看每个子代理会话**、**自己配子代理模型与思考强度**；并拍板配置走原生设置（B 方案），仓库值优先、没写就往下落。0.6.0 用原生 `main` slot 做整页 + `sidebar.panellist` 入口，跳转用 `ctx.uiWorkspace.openSession`，配置用 `ctx.configForms`，数据用原生 `agentTeam` 投影——不自建 HTTP 桥、不写私有文件。
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| D12 | Steward 团队面板（整页 + 侧栏 + 设置分区） | 已实现 | `node host/dsh/build.mjs` / `--check` exit 0；`node --test host/dsh/tests/` **16 pass / 0 fail**（含客户端 bundle 冒烟：假 `__ModuleLoader__` + 假 react 执行 `factory`/`apply`，断言 `main`(key steward) / `sidebar.panellist`(id steward) / `settings.section` 注册成功，并渲染「无团队数据」文案不含异常）；`node --check dsh/client.js` exit 0；热重载 `application: applied` | 图 = Lead + 成员卡（状态点/模型/当前任务），点击走 `openSession({parentSessionId, childSessionId, mode:'continuable'})`；任务板读 `projectionsBySession[*].values.agentTeam`；配置表单复用 0.2.0 的 configForms 逻辑（目录 `remote.session.modelCatalog()`） |
+| D13 | 路由两层（项目优先 + 面板） | 已实现 | 单测「panel route applies when the project has no entry, and the project still wins」：面板 role → `source: role`；面板 defaults → `source: defaults`；项目 `modelRouting` → `source: project`（且 project 覆盖面板） | 回执文案标来源（`from steward.config.json` / `from the Steward panel`）；`/steward` 口径同步 |
+
+## DSH 0.5.0（按需技能 + Agent Teams 任务板）— 2026-11-12
+
+> 0.4.0 之后主技能仍是 20KB 一坨，且任务状态只活在 `run.json` 与 Lead 脑子里。0.5.0 把两件事补上：① inline 与文档流水线按需拆出（正文仍来自 `shared/`，拆分只在 DSH 生成物里，不碰共享源）；② 任务板交给 **Agent Teams 共享任务板**，Web 原生 Team 面板即看板，`steward_board` 只负责把计划变成板上的门禁 + 工作单。
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| D10 | 技能按需拆分（`inline` / `docs`） | 已实现 | `node host/dsh/build.mjs` exit 0、`--check` exit 0；技能清单 6→8；`node --test host/dsh/tests/` 中「主技能指针 + 拆出小节」用例 PASS；热重载后会话技能列表出现 `inline` / `docs` | 拆分规则在 `build.mjs` 的 `SPLIT_RULES`（按 `## ` 标题锚点）；共享正文标题若改，构建会 FAIL 提示同步 |
+| D11 | Agent Teams 共享任务板（`steward_board`） | 已实现 | `node --test host/dsh/tests/` **14 pass / 0 fail**（建板依赖与写范围 / 幂等 / S 级不建门禁 / status 表格 / brief 含章程与板上任务号 / 无 team 服务时报错）；真实 host 实建板：`steward_board(sync, level=M)` → 「已同步 6 个任务」+ 门禁 G1/G2/G3 + 3 张工作单（初始全 `⛔ 被阻塞`，T2/T3 依赖 T1，G2 依赖全部工作单） | 门禁/工作单靠描述里的 `steward:gate=` / `steward:plan=` 标记幂等匹配；任务板是只读视图（原生面板不提供编辑），改动一律走工具；未做 teammate 实派（`spawn_teammate` → claim → complete）的端到端演练 |
+
+## DSH 0.4.0（host-only 收敛）— 2026-11-12
+
+> 0.3.0 把角色从 preset 上摘了下来，留了两个「自建机制」的尾巴：原生 Config/Settings 路由与配套设置页。0.4.0 一并收掉：**配置只能有一个来源**——项目根 `steward.config.json` 的 `modelRouting.<role>`，跟代码一起进仓库、进同一个 diff、可评审可回滚，并用随包的 `validate-config.mjs` 机检。插件因此变成 host-only：删 `client.js`、删 `steward_config`、删 Config。**D1–D3 行是 0.2.0 的历史记录，其「原生 Settings」口径已被本版取代。**
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| D8 | 删浏览器半 + `steward_config` + 原生 Config，路由只走项目配置 | 已实现 | `node host/dsh/build.mjs` exit 0 / `--check` exit 0；`node --test host/dsh/tests/` **8 pass / 0 fail**；`node --check dsh/index.js` exit 0；`Test-Path dsh/client.js` → `False`；热重载 `set_plugin(include:steward, false→true)` → `application: applied`；实派 `steward_dispatch(role=reviewer, cwd=<临时项目含 modelRouting>)` → `started steward subagent dec081f5-… (role reviewer, composition standard; ctaigw/glm-5.3-flash from steward.config.json)` | index.js 766 → 326 行；host 只注册 1 个工具 + 1 个命令 + 6 技能；坏配置（`model` 缺 `provider/`）降级为继承主代理（单测覆盖）；未在真实浏览器核对（本版已无设置页可核对） |
+| D9 | 构建器 host-only 契约 | 已实现 | `--check` 对反向断言生效：`agentPresets.register` / `export const Config` / `settings.update` / `steward_config` / `webServer` / 存在 `dsh/client.js` 任一出现即 FAIL；`package.json` 契约同步检查「无 `dsh.client`、无 `./client` 导出、无 schemastery peer」 | 同步清单删掉 `client.js`；`dsh/client.js` 已从生成物删除 |
+
+## DSH 0.3.0（角色去模式化）— 2026-11-12
+
+> 0.2.0 把 7 个角色注册成 Agent Preset。DSH 里 preset 就是用户可选的会话模式（`PresetDefinition` 只有 id/name/description/order/plugins，没有 hidden 字段），而子代理人设只能来自 preset —— 所以「工人有系统提示级人设」与「模式选择器干净」不可兼得。0.3.0 选后者：角色章程改由 `steward_dispatch` 注入派单正文，子代理固定跑内置 `standard` 组合。**D1 / D3 行是 0.2.0 的历史记录，其「Agent Presets」口径已被本版取代。**
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| D6 | 角色去预设化（章程注入 + `standard` 组合） | 已实现 | `node host/dsh/build.mjs` exit 0 / `--check` exit 0；`node --test host/dsh/tests/` **9 pass / 0 fail**；`node --check dsh/index.js`、`node --check dsh/client.js` exit 0；热重载 `plugin_manager set_plugin(include:steward, false→true)` → `application: applied`，重载后技能描述已变新口径；实派 `steward_dispatch(role=reviewer)` → `started steward subagent 3b1f1340-… (role reviewer, composition standard; qoder/qmodel_latest @ xhigh)`；子会话 JSONL：`{"origin":"subagent","delegationDepth":1,"agentPreset":"standard"}`、`agent-preset/selected {"agentPreset":"standard"}`，首条 inbox 以「你是软件开发团队的代码评审员（终审门）」开头；子代理回 `CHARTER_SMOKE_OK` + 章程首句 | 工人跑 `standard` 组合 → 拥有全套原生工具；「单写者」靠派单正文约束，不再靠缺工具硬挡（委派深度默认 1 仍挡住工人再派工）。未在真实浏览器里核对模式选择器（单测断言预设注册数为 0；roster 由宿主提供，不再含 Steward 条目） |
+| D7 | 构建器单趟一致（技能清单） | 已实现 | 改技能 `description` 后首次 `--check` 会假失败（清单读的是上一轮磁盘产物）：`✗ [render] dsh/skills/manifest.json 与生成结果不一致`；把清单来源改为优先读本轮内存渲染结果后，`build` → `--check` 单趟 exit 0 | 只改清单取数来源，其余生成逻辑不变 |
+
 ## DSH 0.2.0（DSH 原生机制重写）— 2026-11-11
 
 > 上一版（DSH 0.1.0）是在 DSH 里重做 ZCode/MiniMax 的一套形状：角色提示词拼进 prompt、私有 `~/.dsh/steward/subagent-config.json`、自建 `/api/dsh-steward/*` 桥 + 自绘配置页、斜杠命令缺失。0.2.0 按「功能对齐、机制原生」重写：用 DSH 自己的 Agent Presets / Config+Settings / configForms / commands / skills 实现同样能力。

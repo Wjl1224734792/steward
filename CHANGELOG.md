@@ -21,6 +21,180 @@
 - `dsh/README.zh.md`、`dsh/README.en.md` 与 `host/dsh/` 源逐字节一致；`locale/{zh,en}.json` 的 `meta.detail` 目标文件均存在。
 - 未执行 `plugin_manager install_bundle` / 插件更新：本机 DSH 由用户手动更新。
 
+## [DSH 0.8.0] - 2026-11-12
+
+> 面板从「排整齐的卡片」改成**以依赖图为核心的可视化驾驶舱**：任务板是「分叉再汇合」的 DAG，列表/树无法表达汇合，所以主视图改为分层依赖图，并补上文件 × 代理的归属矩阵。只改渲染层与样式，数据来源、会话跳转、`configForms` 保存逻辑与构建契约不变；只动 DSH 侧。
+
+### Changed
+
+- **依赖图成为主视图**（手写 SVG，无第三方依赖）：按最长路径分层、同层用两轮 barycenter 降交叉、正交折线 + 箭头、阻塞目标用虚线；悬停/选中高亮整条上下游路径，其余节点淡出；深板自适应收窄节点（下限 148px）避免横向溢出，超过容器才滚动；>40 个任务默认回落列表。
+- **归属矩阵（文件 × 代理）**：真 `<table>`（可读屏），一行一个写入路径、一列一个代理；**重叠由任务数据自己算**（同一文件 ≥2 个不同 owner），不解析本地化告警字符串；重叠行置顶并标「重叠」，超过 30 行截断提示。
+- **运行总览**：完成环（SVG `stroke-dasharray`）+ 每任务一段的分段进度（门禁位置带刻度）+ 成员/进行中/阻塞计数；替换 0.7.0 的摘要行。
+- **视图形状**：视图切换（依赖图 / 归属矩阵 / 列表，`aria-pressed` 按钮组）、图例（四态，文字 + 点）、选中详情卡（状态 / 负责人 / 依赖可点跳转 / 写入范围 / 重叠告警 / 描述 / 打开负责人会话）、右栏（Lead + 成员头像行点击进子会话 + 需要你知道的告警）。
+- **文本呈现**：节点标题去掉与负责人重复的角色前缀（`T1 · backend-dev · 实现导出` → `实现导出`），按 6px/单位估算宽度并在词边界换行，截断才加 `…`；依赖与写入范围用等宽小胶囊。
+- **无障碍**：图 `role="group"` + 每个节点 `role="button" tabindex=0 aria-pressed` 且 `aria-label` 含任务、状态、负责人；方向键空间导航、Enter 选中、Esc 取消；焦点环用独立 `rect` 描边（不依赖 SVG outline）；列表是完整文本替代；状态不靠颜色（图例 + 节点虚线 + 详情/列表文字）；`prefers-reduced-motion` 关闭呼吸动效。
+- **空态/降级**：环状依赖 → 告警（列出环上 id）并自动切列表；断链依赖 → 告警计数 + 详情卡标注；未启用团队 → 三步引导 + 复制建板指令。
+- 版本：`dsh/package.json` 0.7.0 → **0.8.0**。
+
+### 验证
+
+- `node host/dsh/build.mjs` → exit 0；`node host/dsh/build.mjs --check` → exit 0；`node --check dsh/client.js` → exit 0。
+- `node --test host/dsh/tests/` → **20 pass / 0 fail**（新增：三层视图切换——点真 `onClick` 后矩阵出现真 `<table>` 且重叠行只 1 行、列表 4 行；图的节点/边计数与分层左右顺序；节点 `aria-label` 含状态与负责人；环状依赖回落列表并给出告警；token 白名单新增 `--dsw-focus-ring-color`）。
+- 几何复核：真实组件对 6 任务 5 层板输出 `960×144` 画布、5 列 x=10/203/396/589/782、标题单行不截断（`实现订单导出接口`），无横向溢出。
+- **未做真实浏览器截图验收**：浏览器扩展未连接（`visual: unverified`）；刷新 GUI 后需人工确认浅/深色首屏与窄屏表现。
+
+## [DSH 0.7.0] - 2026-11-12
+
+> 面板 UI 重设计：把「一堆等权卡片」改成宿主页面尺度的运行驾驶舱（总览 → 团队 → 任务板 → 单人派发 → 模型表格）。**只改渲染层与样式**：数据来源、会话跳转、`configForms` 保存逻辑与构建契约不变；只动 DSH 侧。
+
+### Changed
+
+- **页面骨架对齐宿主**：标题 20px/500、节标题 14px/500、正文 13px、元信息 11px，`.5px` 发丝线、8/12px 圆角、960px 内容列、28px 顶距、32px 节间距——取自宿主自身页面（插件管理页、原生 Agent Teams 面板）。
+- **团队总览 + 团队切换**：页头右侧显示成员数 / 完成比 / 阻塞数与进度条；多个 Agent Teams 会话改为 `role="tablist"` 切换条（方向键可切），一次只展开一个团队，不再整页重复看板。
+- **Lead 不再居中悬浮**：原「320px 居中卡片 + 14px 短竖线 + 全宽网格」改为「Lead 整行（徽标 / 会话短 id / 模型 / 状态 / 打开会话）+ 成员卡网格（minmax 232px）」。
+- **门禁阶段条 + 工作单行**：G1→G2→G3 改为阶段条（点 + id + 名称 + 状态文字）；工作单改为行列表（状态点 / 标题 / 负责人 · 依赖 · 写入范围 / 状态胶囊 / 跳转箭头），长串折叠为等宽小胶囊并以 `+N` 收尾，完整值进 `title`。
+- **状态去 emoji**：移除 `⛔ ▶ ○ ✓` 字形，改为「状态点 + 文字」；阻塞用 `state-warn`（琥珀），红色只留给真正的失败。
+- **团队标签修正**：原 `teamSessionId.slice(0, 8)` 会渲染出 `session-`；改为去掉 `session-` 前缀后取可读尾部（≤12 字符，不再切断单词）。
+- **配置区表格化**：8 张竖卡 → 一张表（角色 / 提供方 / 模型 / 思考强度 / 来源），首行「默认（兜底）」高亮；工具栏（未保存 · 刷新目录 · 撤销 · 保存）吸底；`<760px` 降级为逐角色卡片并显示字段标签。
+- **空态与加载态**：无任务板时给三步引导 + 复制建板指令；模型目录加载改为骨架行；错误/告警统一成带色带的 `Alert`。
+- **侧栏图标**：`◆` 字符 → 内联 SVG（使用 slot 提供的 `size`、`currentColor`、16 viewBox）。
+- **无障碍**：卡片与行是 `<button>`；团队切换走 tablist 语义并支持方向键；状态不只靠颜色；`:focus-visible` 2px 焦点环；动效尊重 `prefers-reduced-motion`。
+- **Token 兜底 + 机检**：`--dsw-*` 引用统一为「Theme 目录内 token 直用、目录外 token 必带 fallback」；新增测试防 token 拼写漂移、字面色和样式越界。
+- 版本：`dsh/package.json` 0.6.2 → **0.7.0**。
+
+### 验证
+
+- `node host/dsh/build.mjs` → exit 0；`node host/dsh/build.mjs --check` → exit 0；`node --check dsh/client.js` → exit 0。
+- `node --test host/dsh/tests/` → **18 pass / 0 fail**（新增：样式 token/作用域/尺度契约、多团队 tab、门禁顺序与状态文字、无 emoji 状态、团队标签无 `session-` 残留、配置表格结构 + 工具栏状态、中文/英文双语渲染）。
+- 结构复核：假 React 逐层展开渲染树，确认首屏顺序为「页头总览 → 团队切换 → Lead/成员 → 阶段条/工作单 → 单人派发 → 模型表格」，配置区为 8 行（默认 + 7 角色）× 3 个下拉，窄屏断点存在。
+- **未做真实浏览器截图验收**：浏览器扩展未连接（`visual: unverified`）；刷新 GUI 后需人工确认浅/深色首屏与窄屏表现。
+
+## [DSH 0.6.2] - 2026-11-12
+
+> 修用户实测白屏：面板整页崩溃（`slot entry crashed in 'main'`）。
+
+### Fixed
+
+- **`TypeError: Cannot read properties of null (reading 'provider')`**：真实的 `modelSelection.next` 对没选过模型的成员是 **`null`**（不是 `undefined`），`MemberCard` 直接把 `null` 当对象读字段。改为 `memberModelLabel()`：投影缺失 / `next` 为空 / 字段非字符串一律降级为「继承主代理」，外层 `try/catch` 兜底。
+- **整页白屏**：新增 `PanelBoundary`（错误边界）包住面板动态区与设置分区——任何一段渲染报错只在原地显示「这一段渲染失败（其余部分仍然可用）」，不再卸载整个 slot；成员数组里的空元素也跳过。
+- **测试补真渲染**：客户端冒烟改成迷你渲染器（展开函数/类组件到宿主元素），并新增回归用例——成员 `modelSelection.next = null` 时必须渲染出「继承主代理」而不是抛错；同时覆盖单人子代理（`subagentCatalog`）与任务板行。
+- 版本：`dsh/package.json` 0.6.1 → **0.6.2**。
+
+### 验证
+
+- `node host/dsh/build.mjs` / `--check` → exit 0；`node --test host/dsh/tests/` → **16 pass / 0 fail**；`node --check dsh/client.js` → exit 0。
+
+## [DSH 0.6.1] - 2026-11-12
+
+> 面板补两块：**单人模式的子代理也上图**（读原生 `subagentCatalog` 投影，点卡进会话），以及**没有任务板时的建板引导 + 一键复制指令**。
+
+### Changed
+
+- **子代理区**：遍历 `projectionsBySession[*].values.subagentCatalog`，把 `steward_dispatch` 派出的子代理列成卡片（运行中 / 空闲、来源会话、`mode`），点击走同一条 `openSession({ parentSessionId, childSessionId, mode: 'continuable' })`——不启用 Agent Teams 也能看到派过谁。
+- **空态引导**：没有 Team 任务板时，页面顶部给出「让 Lead 用 `steward_board` 建板」的说明与「复制建板指令」按钮（`navigator.clipboard`，失败静默，文字仍可读）。
+- 版本：`dsh/package.json` 0.6.0 → **0.6.1**。
+
+### 验证
+
+- `node host/dsh/build.mjs` → exit 0；`node --test host/dsh/tests/` → **16 pass / 0 fail**；`node --check dsh/client.js` → exit 0。
+- 未做真实浏览器点击验收（扩展未连接）。
+
+## [DSH 0.6.0] - 2026-11-12
+
+> DSH 侧补上 **Steward 团队面板**：Web 整页（侧栏 ◆「Steward 团队」）展示 Agent 关系图与共享任务板、点成员卡直接进子会话，并把这些子代理的模型与思考强度做成可改的表单（原生 `configForms`，写 profile 的 `- id: steward`）。路由分两层：**项目根 `steward.config.json` 优先**，其次面板（该角色 → 默认），最后继承主代理。**只改 DSH 侧**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff。
+
+### Changed
+
+- **团队面板（client 半回归，纯原生）**：`client.js` 用 `ctx.slots` 注册 `main`（整页，key `steward`）+ `sidebar.panellist`（侧栏入口）+ `settings.section`（同一表单的设置分区）。
+  - **Agent 关系图**：Lead 节点 + 成员卡（运行中 / 空闲 / 创建中 / 失败状态点、模型、当前任务），数据来自原生 `agentTeam` 投影；**点成员卡**用 `ctx.uiWorkspace.openSession({ parentSessionId, childSessionId, mode: 'continuable' })` 打开子会话（与原生 Team 面板同一套跳转）。
+  - **共享任务板**：读同一投影，显示门禁 / 工作单状态、负责人、依赖、写入范围与文件重叠告警。
+  - **模型与档位表单**：逐角色 provider / model / effort（目录来自 `remote.session.modelCatalog()`），保存走 `ctx.configForms` 的 `mutate`（原生设置，不写私有文件、无自建 HTTP 桥）。
+- **路由分层**：`steward_dispatch` 先读项目根 `steward.config.json` 的 `modelRouting.<role>`，没有再读面板（该角色 → 默认）→ 最后继承主代理；结果回执标出来源（`from steward.config.json` / `from the Steward panel` / `inherited parent model`）。
+- **host 半恢复原生 Config**：`export const Config`（7 角色 + defaults × provider/model/effort，volatile）与 schemastery 解析回填；`/steward` 的路由口径同步为两层优先级。
+- **构建契约**：重新要求 `export const Config` / `settings.describe` / `client.js` / `configForms` / `settings.section`，并新增 `main`、`sidebar.panellist`、`uiWorkspace` 断言；`package.json` 恢复 `./client` 导出、`dsh.client`（inject `dsh-client-ui-settings`）与 schemastery peer。仍禁止 `agentPresets.register`、`steward_config`、`/api/dsh-steward`。
+- **技能**：`agent-settings` 重写为「面板入口 + 路由优先级 + 看板口径」；主技能 banner 升到 0.6.0（①④条改为两层路由 + 面板入口）。
+- 版本：`dsh/package.json` 0.5.0 → **0.6.0**。
+
+### 验证
+
+- `node host/dsh/build.mjs` → exit 0；`--check` → exit 0。
+- `node --test host/dsh/tests/` → **16 pass / 0 fail**（新增：面板路由（角色 / 默认 / 项目优先）、客户端 bundle 冒烟——用假 `window.__ModuleLoader__` + 假 react 执行 `factory`/`apply`，断言注册 `main`(key `steward`) / `sidebar.panellist`(id `steward`) / `settings.section`，并渲染无团队数据时的页面文案）。
+- `node --check dsh/index.js`、`node --check dsh/client.js` → exit 0。
+- 热重载 `set_plugin(include:steward, false→true)` → `application: applied`。
+- **未做**：真实浏览器里点开面板的截图/点击验收（浏览器扩展当前未连接）；要求用户刷新页面后自检。
+
+## [DSH 0.5.0] - 2026-11-12
+
+> DSH 侧两件事：① 主技能按需拆分（`inline` / `docs`）；② 接入 **Agent Teams 共享任务板**——Web 原生 Team 面板就是看板，不再自建 UI。**只改 DSH 侧**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff（拆分发生在生成物里，正文仍单一来源）。
+
+### Changed
+
+- **技能按需拆分**：`host/dsh/build.mjs` 按标题锚点把共享正文里的「执行模式（subagent / inline）」拆成 `inline` 技能、「T3 文档按需升级 + 文档流水线」拆成 `docs` 技能，主技能里只留一行指针；技能目录 6 → 8，构建契约同步；`using-steward` 路由表补两行与「加载信号」两行。
+- **共享任务板（`steward_board`）**：新工具，三个动作，全部经 `ctx.agentTeams` 操作原生任务板：
+  - `sync`：读 `03-plan.json` 幂等建板——`G1 · 计划批准` → 工作单 `T<id> · <role> · <标题>`（依赖 = G1 + `dependsOn`；`writeScopes` = `files` + `newFiles`；描述是固定块：目标 / 完成标准 / 所有权 / 报告落点 / 覆盖的 AC，加 `steward:plan=` 标记）→ `G2 · QA 门禁`（依赖全部工作单）→ `G3 · 终审`（依赖 G2）。M/L 建门禁，S 不建。
+  - `status`：回读板面，输出与 Web Team 面板一致的文本快照（门禁进度、`n/m 完成`、可开始任务、每单状态/负责人/依赖、文件重叠告警）。
+  - `brief`：生成可直接交给 `spawn_teammate` 的自包含任务书（角色章程 + 计划任务块 + 板上任务号 + 完成协议）。
+  - 未启用 Agent Teams 时 `sync`/`status` 明确报错，回落到 `steward_dispatch` + `run.json` 单人模式。
+- **技能正文**：主技能新增「共享任务板」一节（建板 / 派活 / 状态口径 / 回派 / 自检）并把 banner 升到 0.5.0；`using-steward` 增补任务板与按需技能路由。
+- **构建契约**：新增 `agentTeams` 断言与「技能清单 8 项」；技能枚举改为「磁盘 ∪ 本轮渲染目标」，支持新拆出的技能目录。
+- 版本：`dsh/package.json` 0.4.0 → **0.5.0**。
+
+### 验证
+
+- `node host/dsh/build.mjs` → exit 0；`node host/dsh/build.mjs --check` → exit 0。
+- `node --test host/dsh/tests/` → **14 pass / 0 fail**（新增技能拆分、建板 / 幂等 / 分级、status、brief、无团队时报错）。
+- `node --check dsh/index.js` → exit 0。
+- 热重载后技能目录出现 `inline` / `docs`（会话技能列表已含两项）。
+- **实建板**（真实 host，非 mock）：`steward_board(action="sync", plan=…/03-plan.json, level="M")` → 「已同步 6 个任务到共享任务板」，返回门禁 G1/G2/G3 + 三张工作单的状态表；工作单初始全部 `⛔ 被阻塞`（等 G1），T2/T3 依赖 T1，G2 依赖全部工作单。
+- 浏览器扩展未连接，未截取 Team 面板截图；面板可见性由用户侧确认。
+
+## [DSH 0.4.0] - 2026-11-12
+
+> DSH 侧**第二轮减法：host-only**。删掉原生 Config、`steward_config` 工具和整个浏览器半（设置页），模型路由只留项目根 `steward.config.json` 的 `modelRouting`。理由与角色去模式化同源：配置也只能有一个来源——跟代码一起进仓库、进同一个 diff、可评审可回滚，并用随包的 `validate-config.mjs` 机检；per-machine 的模型设置会让「这个仓库里 QA 用哪个模型」变成查不到的历史。**只改 DSH 侧**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff。
+
+### Changed
+
+- **删除浏览器半**：`host/dsh/client.js`（原 526 行）与 `dsh/client.js` 移除；`package.json` 去掉 `./client` 导出、`files` 里的 `client.js`、整个 `dsh.client` 段，以及 `@deepseek-ai/schemastery` peer 依赖。「设置 → Steward」页不再存在。
+- **删除 `steward_config` 工具**：`list/set/reset` 与整套模型目录读取（`buildCatalog` / `getCatalog` / `validateConfig`）一并删除；`/steward` 改为只回显名册 + 路由口径。
+- **路由只来自项目**：`steward_dispatch` 按派单 `cwd` 上溯找项目根、读 `steward.config.json` 的 `modelRouting.<role>`；没有该角色的条目或格式错误（`model` 缺 `provider/` 前缀）一律降级为继承主代理；派发回执写明 `from steward.config.json`。
+- **index.js 766 → 326 行**：去掉 Config schema、设置读写、模型目录与重复脚手架。
+- **构建契约改为 host-only**：`host/dsh/build.mjs` 要求含 `commands.register` / `skills.register` / `agentPreset` / `startActivation` / `dispatchPrompt` / `steward.config.json`；出现 `agentPresets.register` / `export const Config` / `settings.update` / `steward_config` / `webServer`，或存在 `dsh/client.js`，任意一项直接判失败；同步清单不再复制 `client.js`。
+- **技能正文**：主技能 banner 升到 0.4.0（①④条改为项目路由）、`agent-settings` 改写为「读/改项目 `modelRouting` + `validate-config.mjs`」、`roster` / `entry-points` / `model-routing-dispatch` / `model-default-line` / `using-steward` 同步；`build.mjs` 的 DSH 行替换同改。
+- **README / locale**：中英 README 删掉设置页与 `steward_config`，新增「为什么把路由放在项目里」与路由示例；仓库根 README 同步；`locale/{zh,en}.json` 的 `meta.description` 改为 host-only 口径。
+- 版本：`dsh/package.json` 0.3.0 → **0.4.0**。
+
+### 验证
+
+- `node host/dsh/build.mjs` → exit 0；`node host/dsh/build.mjs --check` → exit 0（README / locale / 技能清单与源一致）。
+- `node --test host/dsh/tests/` → **8 pass / 0 fail**（只注册一个工具 / 每个角色章程都是派单载荷 / 无路由时继承 / 项目 `modelRouting` 生效 / 坏配置降级 / 组合缺失拒绝派发 / 命令口径 / 产物无设置与客户端残留）。
+- `node --check dsh/index.js` → exit 0；`Test-Path dsh/client.js` → `False`。
+- 热重载：`plugin_manager set_plugin(include:steward, false→true)` → `application: applied`。
+- 实派（带项目路由）：临时项目写 `steward.config.json` 的 `modelRouting.reviewer = { "model": "ctaigw/glm-5.3-flash" }`，`steward_dispatch(role=reviewer, cwd=<临时项目>)` → `started steward subagent dec081f5-… (role reviewer, composition standard; ctaigw/glm-5.3-flash from steward.config.json)`。
+- 已知现象：本会话的技能目录是会话级快照，`steward` 那条描述仍显示上一版文案（`agent-settings` 已刷新）；新会话 / 重启后即为新文案，包内文件与源逐字节一致（`--check` 通过）。
+
+## [DSH 0.3.0] - 2026-11-12
+
+> DSH 侧**角色去模式化**（用户拍板方案 A）：不再把 7 个角色注册成 Agent Preset。理由：DSH 里 preset 就是用户可选的会话模式，没有「内部 preset」；可写的专员模式一旦摆进选择器，用户切过去改代码就绕开了计划门 / 基线守卫 / QA / 终审，等于把 Steward 唯一的价值绕掉。**只改 DSH 侧**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff。
+
+### Changed
+
+- **角色 → 派单时注入的章程**：删除 `ctx.agentPresets.register` 与整套 preset 组合（persona + 11 行原生工具子集）。`steward_dispatch` 改为把 `roles/<role>.md` 正文（去 frontmatter 与生成 banner）拼在任务正文前，子代理固定以内置 `standard` 组合启动（`agentPreset: 'standard'`）。派单正文结构：章程 → `---` → `# 本次任务（派单正文）` → 任务（任务在最后，是模型最近读到的指令）。
+- **组合可用性预检**：派发前解析 `standard`，未注册 / 激活失败时给出可读原因（不再只靠 provider 的隐晦错误）；spawn 后端仍需 `capabilities.agentPreset`，仍「不静默降级」。
+- **工具输出字段**：`steward_config` / `steward_dispatch` 的 `preset` 改为 `childPreset`（固定 `standard`）；`/steward` 输出改为「名册 + 组合 `standard` + 生效路由」，并明示「本插件不注册 Agent Preset，7 个角色不会出现在模式选择器里」。
+- **设置页文案**：副标题与「角色（Agent Presets）」分组改为「角色」，元信息显示「子代理组合：standard」，不再展示 `steward-*` 预设 id（`client.js` + 中英 `STRINGS`）。
+- **技能正文**：主技能 banner 升到 DSH 侧 0.3.0（①条与版本行改为「章程随派单注入，子代理跑 `standard` 组合」）、名册片段补「角色不是模式」说明、`agent-settings` 边界同步。
+- **包契约机检**：`host/dsh/build.mjs` 的「原生机制契约」删掉 `agentPresets` 必含项，新增反向断言——`index.js` 出现 `agentPresets.register` 直接判失败；并要求存在 `dispatchPrompt`、`startActivation`。技能清单改为优先读本轮内存渲染结果，修掉「改技能 `description` 后 `--check` 假失败」的单趟不一致。
+- **版本与口径**：`dsh/package.json` 0.2.0 → **0.3.0**；`host/dsh/README.{zh,en}.md`、仓库根 README、`locale/{zh,en}.json` 的 `meta.description` 全部改为「角色是派单注入的章程，不注册 Agent Preset」，DSH README 新增「为什么不注册模式」一节说明取舍（工人跑 `standard` 组合、委派深度默认 1 挡住工人再派工）。
+
+### 验证
+
+- `node host/dsh/build.mjs` → exit 0；`node host/dsh/build.mjs --check` → exit 0（幂等）。
+- `node --test host/dsh/tests/` → **9 pass / 0 fail**（不注册预设 / 章程是派单载荷 / 章程注入到 prompt 首部且任务在尾部 / 组合缺失或损坏时拒绝派发 / Config / 原生设置持久化 / 项目级路由 / 设置不可用回退 / `/steward` 不暴露预设 id）。
+- `node --check dsh/index.js`、`node --check dsh/client.js` → exit 0。
+- 热重载：`plugin_manager set_plugin(include:steward, false→true)` → `application: applied`；重载后技能目录里的 `steward` 描述已是新口径（「角色章程随派单注入」）。
+- 实派：`steward_dispatch(role=reviewer)` → `started steward subagent 3b1f1340-… (role reviewer, composition standard; qoder/qmodel_latest @ xhigh)`；子会话 `session.v4.jsonl` 头部 `"agentPreset":"standard"`、`agent-preset/selected {"agentPreset":"standard"}`，首条 inbox 消息以「你是软件开发团队的代码评审员（终审门）」开头（章程在前），子代理回传 `CHARTER_SMOKE_OK` + 原样引用章程首句。
+- 未触碰 `zcode/`、`minimax/`、`shared/`、`zcode/scripts/`（`git status` 仅 `host/dsh/`、`dsh/` 与根 README/CHANGELOG/ROADMAP-STATUS）。
+
 ## [DSH 0.2.0] - 2026-11-11
 
 > DSH 侧按「功能对齐、机制原生」重写：不再把 ZCode/MiniMax 的角色与配置形状搬进 DSH，而是用 DSH 自己的扩展点实现同样能力。**只改 DSH 侧**：`zcode/`、`minimax/`、`shared/`、`zcode/scripts/` 无 diff。
