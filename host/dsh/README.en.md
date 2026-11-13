@@ -62,7 +62,7 @@ So the DSH side registers no Agent Preset at all. Steward is a *process* (skills
 
 ## Why routing lives in the project
 
-Same argument, applied to configuration: **one source of truth**. Per-role models and reasoning efforts live in `modelRouting.<role>` in the project's `steward.config.json` — versioned with the code, reviewed in the same diff, revertible, and machine-checked by the bundled `validate-config.mjs`. That is why this plugin **declares no native Config, ships no Settings → Steward page, has no `steward_config` tool and no browser half**: a per-machine route store turns "which model does QA use in this repo?" into unsearchable history.
+Same argument, applied to configuration: **the project is the first source of truth**. Per-role models and reasoning efforts live in `modelRouting.<role>` in the project's `steward.config.json` — versioned with the code, reviewed in the same diff, revertible, and machine-checked by the bundled `validate-config.mjs`. Only roles the project omits fall back to the team panel's native Config (namespace `steward`), then to the parent route. That way "which model does QA use in this repo?" always has a definite answer instead of becoming unsearchable per-machine history. The plugin ships **no** `steward_config` tool and **builds no** private config file or HTTP bridge of its own.
 
 ## The shared task board *is* the dashboard (Agent Teams)
 

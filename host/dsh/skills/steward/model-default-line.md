@@ -1,1 +1,1 @@
-- 角色未单独配置时继承主代理当前模型；要单独指定，在项目根 `steward.config.json` 写 `modelRouting.<role>`（`{ "model": "provider/model", "effort": "…" }`，改完跑 `scripts/validate-config.mjs`，**下一次派单即生效**）。DSH 侧没有设置页、也没有 `steward_config` 工具——路由只有一个来源：项目配置文件。
+- 角色未单独配置时继承主代理当前模型；要单独指定有两个入口：**Steward 团队面板**（侧栏「Steward 团队」，或「设置 → Steward」）里逐角色选 provider / model / effort，或项目根 `steward.config.json` 写 `modelRouting.<role>`（`{ "model": "provider/model", "effort": "…" }`，改完跑 `scripts/validate-config.mjs`，**下一次派单即生效**）。生效优先级：**项目配置文件 > 面板该角色 > 面板默认（兜底） > 继承主代理**。本插件不带 `steward_config` 工具。

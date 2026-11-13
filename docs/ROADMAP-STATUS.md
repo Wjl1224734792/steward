@@ -67,6 +67,8 @@
 
 ## DSH 0.4.0（host-only 收敛）— 2026-11-12
 
+> **本节为历史记录**：0.4.0 当时确实删掉了浏览器半、`steward_config` 工具与原生 Config。**0.6.0 起团队面板（client 半）与原生 Config 已重新引入**，1.1.0 起 `steward_config` 工具仍不存在、但原生 Config（namespace `steward`）是「项目配置 > 面板 > 继承主代理」链路的第二层。读当前实现请以 `host/dsh/index.js` 顶部注释、`README.md` 与 `AGENTS.md` 为准。
+
 > 0.3.0 把角色从 preset 上摘了下来，留了两个「自建机制」的尾巴：原生 Config/Settings 路由与配套设置页。0.4.0 一并收掉：**配置只能有一个来源**——项目根 `steward.config.json` 的 `modelRouting.<role>`，跟代码一起进仓库、进同一个 diff、可评审可回滚，并用随包的 `validate-config.mjs` 机检。插件因此变成 host-only：删 `client.js`、删 `steward_config`、删 Config。**D1–D3 行是 0.2.0 的历史记录，其「原生 Settings」口径已被本版取代。**
 
 | # | 交付 | 状态 | 证据 | 备注 |

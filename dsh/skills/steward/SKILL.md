@@ -193,10 +193,10 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 - `steward.config.json` 可配 `modelRouting`（角色 → 模型/effort + fallback 模型）与 `budget`（`maxTotalAttempts`：整个 run 允许的任务失败重试总次数）。`validate-config.mjs` 会校验结构。
 - **生效优先级（唯一事实链）**：用户当次指定 > 项目级 `modelRouting`（**下次派单即生效**）> 插件 frontmatter 默认（`model` + `effort`，build + 安装后**新会话**生效）。
-- **配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能——DSH 侧没有设置页，也没有 `steward_config` 工具，改的是项目根 `steward.config.json` 的 `modelRouting.<role>`（改完跑 `scripts/validate-config.mjs`）；**不要凭记忆写模型名**（模型不存在会在派发时直接失败）。
+- **配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能。两个入口：① **Steward 团队面板**（侧栏「Steward 团队」，或「设置 → Steward」）逐角色选 provider / model / effort——写的是原生 Config（namespace `steward`）；② 项目根 `steward.config.json` 的 `modelRouting.<role>`（**优先级更高**，跟代码一起进仓库），改完跑 `scripts/validate-config.mjs` 校验。本插件不带 `steward_config` 工具。**不要凭记忆写模型名**（模型不存在会在派发时直接失败）。
 - **派发时**：`steward_dispatch` 从项目根 `steward.config.json` 的 `modelRouting.<role>` 解析该角色的模型与思考强度（没有配置就继承主代理）；用户当次点名模型/档位时，按用户当次指令执行，并提示这与项目配置不一致。派发失败若是模型不存在 / 档位不支持 / 限流类错误 → 改项目配置或如实报告，不硬刷；模型名先在宿主模型目录里核对，不凭记忆写。
 - **预算**：`run-state.mjs init --budget-attempts N` 写入 run.json；每次 fail 消耗一次，超限 → run 停摆（reason=budget-exhausted），如实向用户报告花费与卡点。
-- 角色未单独配置时继承主代理当前模型；要单独指定，在项目根 `steward.config.json` 写 `modelRouting.<role>`（`{ "model": "provider/model", "effort": "…" }`，改完跑 `scripts/validate-config.mjs`，**下一次派单即生效**）。DSH 侧没有设置页、也没有 `steward_config` 工具——路由只有一个来源：项目配置文件。
+- 角色未单独配置时继承主代理当前模型；要单独指定有两个入口：**Steward 团队面板**（侧栏「Steward 团队」，或「设置 → Steward」）里逐角色选 provider / model / effort，或项目根 `steward.config.json` 写 `modelRouting.<role>`（`{ "model": "provider/model", "effort": "…" }`，改完跑 `scripts/validate-config.mjs`，**下一次派单即生效**）。生效优先级：**项目配置文件 > 面板该角色 > 面板默认（兜底） > 继承主代理**。本插件不带 `steward_config` 工具。
 
 ## 学习循环（05-record，v0.6）
 

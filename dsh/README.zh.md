@@ -46,7 +46,7 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 
 ## 为什么把路由放在项目里
 
-同样的道理：**配置也只有一个来源**。子代理的模型与思考强度写在项目根 `steward.config.json` 的 `modelRouting.<role>`——它跟代码一起进仓库、进同一个 diff、可评审可回滚，并且能用随包的 `validate-config.mjs` 机检。因此本插件**不声明原生 Config、不提供「设置 → Steward」页、不带 `steward_config` 工具，也没有浏览器半**：per-machine 的模型设置只会让「这个仓库里 QA 用哪个模型」变成查不到的历史。
+同样的道理：**配置的第一来源是项目本身**。子代理的模型与思考强度写在项目根 `steward.config.json` 的 `modelRouting.<role>`——它跟代码一起进仓库、进同一个 diff、可评审可回滚，并且能用随包的 `validate-config.mjs` 机检。项目里没写的角色才落到**团队面板**里的原生 Config（namespace `steward`），再没有就继承主代理。这样「这个仓库里 QA 用哪个模型」永远有确定答案，不会被某台机器的临时设置盖掉。插件**不带** `steward_config` 工具，也**不自建**私有配置文件或 HTTP 桥。
 
 ## 共享任务板就是看板（Agent Teams）
 
