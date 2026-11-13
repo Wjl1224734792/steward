@@ -5,11 +5,14 @@
  * 输入（只读）：
  *   - shared/skills/、shared/agents/            技能与角色共享正文（含 @@SLOT@@）
  *   - host/dsh/                                 DSH 宿主片段、插件代码、清单、locale、icon、roles.json
- *   - zcode/scripts/                            门禁脚本 / 模板 / 文档流水线参考库（只读复制）
+ *   - shared/scripts/                           门禁脚本 / 模板 / 文档流水线（只读复制；单一正文源）
+ *   - zcode/skills/steward/references/          技能参考库（只读复制；不随脚本单源迁移）
  * 输出（唯一写入目标）：
  *   - dsh/                                      DSH 插件包（提交到仓库）
  *
  * 本脚本**不修改** zcode/、minimax/、shared/、zcode/scripts/：DSH 侧任务与另外两个宿主完全隔离。
+ * 门禁脚本的单一正文源在 shared/scripts/（v1.1.0 起），本脚本自 v1.1.0 起**不再读取** zcode/scripts/；
+ * 仍从 zcode/skills/steward/references/ 复制文档流水线参考库。参考库保留在 ZCode 侧，本次未迁。
  * 共享正文里少数 ZCode/MiniMax 事实（agent-config.mjs / build.mjs 脚本行、MCP 检索栈、
  * 可视化配置入口）在 DSH 输出里由本脚本按行替换，不改共享源。
  *
@@ -283,17 +286,17 @@ for (const name of existsSync(join(hostDir, 'locale')) ? readdirSync(join(hostDi
   if (!name.endsWith('.json')) continue;
   syncFile(join(hostDir, 'locale', name), join(outDir, 'locale', name), `locale/${name}`);
 }
-for (const f of readdirSync(join(zc, 'scripts')).filter((name) => name.endsWith('.mjs'))) {
+for (const f of readdirSync(join(shared, 'scripts')).filter((name) => name.endsWith('.mjs'))) {
   if (SKIP_SCRIPTS.has(f)) continue;
-  syncFile(join(zc, 'scripts', f), join(outDir, 'scripts', f), `scripts/${f}`);
+  syncFile(join(shared, 'scripts', f), join(outDir, 'scripts', f), `scripts/${f}`);
 }
-syncDir(join(zc, 'scripts', 'templates'), join(outDir, 'scripts', 'templates'), 'scripts/templates');
-syncDir(join(zc, 'scripts', 'doc'), join(outDir, 'scripts', 'doc'), 'scripts/doc');
-// DSH 自有门禁脚本（文档治理）：与 zcode/scripts 同名即为冲突，必须显式报错
+syncDir(join(shared, 'scripts', 'templates'), join(outDir, 'scripts', 'templates'), 'scripts/templates');
+syncDir(join(shared, 'scripts', 'doc'), join(outDir, 'scripts', 'doc'), 'scripts/doc');
+// DSH 自有门禁脚本（文档治理）：与 shared/scripts 同名即为冲突，必须显式报错
 if (existsSync(join(hostDir, 'scripts'))) {
-  const zcNames = new Set(readdirSync(join(zc, 'scripts')).filter((n) => n.endsWith('.mjs')));
+  const sharedNames = new Set(readdirSync(join(shared, 'scripts')).filter((n) => n.endsWith('.mjs')));
   for (const n of readdirSync(join(hostDir, 'scripts')).filter((x) => x.endsWith('.mjs'))) {
-    if (zcNames.has(n)) errors.push(`[sync] host/dsh/scripts/${n} 与 zcode/scripts/${n} 同名，会覆盖共享脚本`);
+    if (sharedNames.has(n)) errors.push(`[sync] host/dsh/scripts/${n} 与 shared/scripts/${n} 同名，会覆盖共享脚本`);
   }
   syncDir(join(hostDir, 'scripts'), join(outDir, 'scripts'), 'scripts');
 }

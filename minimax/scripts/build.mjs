@@ -2,8 +2,10 @@
 /**
  * build.mjs — Steward 双宿主构建与校验（本地脚本，不做 CI）。
  *
- * 单一正文源（v0.7.1）：
- *   - 脚本 / 模板 / 文档流水线参考库：`zcode/` 侧是唯一正文源，`minimax/` 由本脚本同步。
+ * 单一正文源（v1.1.0 迁移）：
+ *   - 门禁脚本 / 模板 / 文档流水线：`shared/scripts/` 是唯一正文源；`zcode/scripts/` 与
+ *     `minimax/scripts/` 的同名文件都是生成物（回写边）。`zcode/scripts/` 保留 4 个宿主专有脚本
+ *     （build.mjs / agent-config.mjs / agent-config-core.mjs / trigger.mjs）作为它们的正文源。
  *   - 技能 / agent 正文：`shared/` 是唯一正文；宿主差异（frontmatter、派发机制、工具名、
  *     模型表、浏览器操作方式等）放 `host/<host>/` 片段；本脚本渲染出两版并校验一致性。
  *   - Mini App 载荷（v0.9.0）：`host/minimax/miniapp/` 是唯一正文源，整体同步到 `minimax/miniapp/`；
@@ -77,12 +79,39 @@ function readText(p) {
 const sameContent = (a, b) => a.replace(/\r\n/g, '\n') === b.replace(/\r\n/g, '\n');
 
 // --- 1. 脚本与模板：单一正文源同步 ---
-const scriptFiles = readdirSync(join(zc, 'scripts')).filter((f) => f.endsWith('.mjs'));
-for (const f of scriptFiles) {
+// v1.1.0 起门禁脚本单一源在 shared/scripts/（6 个共享脚本 + templates/ + doc/），四条同步链：
+//   ① shared/scripts/*.mjs → zcode/scripts/（回写边，ZCode 包内同名文件变生成物）+ → minimax/scripts/
+//   ② shared/scripts/templates|doc → zcode/scripts/templates|doc（回写）+ → minimax/scripts/templates|doc
+//   ③ zcode/scripts/ 的 4 个宿主专有脚本（build.mjs / agent-config*.mjs / trigger.mjs）仍以
+//     zcode/scripts/ 为源 → minimax/scripts/——这些名字不在 shared/scripts/ 里，必须显式遍历，
+//     否则切源后会静默丢失（旧版由「全量遍历 zcode/scripts」隐式承担）。
+//   ④ references/ 同步链不变（下方 syncDir(references)）。
+// 未分类脚本（既不在 shared/scripts/ 也不在专有清单里）直接报错：杜绝「加了脚本哪侧都没同步/被错当共享」。
+const sharedScripts = join(shared, 'scripts');
+if (!existsSync(sharedScripts)) errors.push('[scripts] 缺单一源目录 shared/scripts/（v1.1.0 起门禁脚本的唯一正文源）');
+const sharedScriptNames = existsSync(sharedScripts) ? new Set(readdirSync(sharedScripts).filter((f) => f.endsWith('.mjs'))) : new Set();
+const PROPRIETARY_SCRIPTS = new Set(['build.mjs', 'agent-config.mjs', 'agent-config-core.mjs', 'trigger.mjs']);
+// ① 共享脚本：shared/scripts/*.mjs → zcode/scripts/（回写边）与 minimax/scripts/
+for (const f of sharedScriptNames) {
+  const src = join(sharedScripts, f);
+  for (const [pkgDir, pkg] of [[zc, 'zcode'], [mx, 'minimax']]) {
+    const dst = join(pkgDir, 'scripts', f);
+    if (!existsSync(dst) || !sameContent(readFileSync(src, 'utf8'), readFileSync(dst, 'utf8'))) {
+      if (checkOnly) errors.push(`[scripts] ${pkg}/scripts/${f} 与 shared/scripts 版不一致（单一正文源被破坏，跑 node zcode/scripts/build.mjs 同步）`);
+      else { copyFileSync(src, dst); synced.push(`${pkg}/scripts/${f}`); }
+    }
+  }
+}
+// ③ 宿主专有脚本：zcode/scripts/（排除已归 shared 的名字）→ minimax/scripts/
+for (const f of existsSync(join(zc, 'scripts')) ? readdirSync(join(zc, 'scripts')).filter((n) => n.endsWith('.mjs') && !sharedScriptNames.has(n)) : []) {
+  if (!PROPRIETARY_SCRIPTS.has(f)) {
+    errors.push(`[scripts] zcode/scripts/${f} 未分类：不在 shared/scripts/（共享单源）也不在专有清单（${[...PROPRIETARY_SCRIPTS].join(' / ')}）；请移入 shared/scripts/ 或显式归类，避免哪一侧都不同步`);
+    continue;
+  }
   const src = join(zc, 'scripts', f);
   const dst = join(mx, 'scripts', f);
   if (!existsSync(dst) || !sameContent(readFileSync(src, 'utf8'), readFileSync(dst, 'utf8'))) {
-    if (checkOnly) errors.push(`[scripts] minimax/scripts/${f} 与 zcode 版不一致（单一正文源被破坏，跑 node zcode/scripts/build.mjs 同步）`);
+    if (checkOnly) errors.push(`[scripts] minimax/scripts/${f} 与 zcode 专有版不一致（单一正文源被破坏，跑 node zcode/scripts/build.mjs 同步）`);
     else { copyFileSync(src, dst); synced.push(`minimax/scripts/${f}`); }
   }
 }
@@ -99,7 +128,7 @@ for (const f of scriptFiles) {
     }
   }
 }
-const tplSrc = join(zc, 'scripts', 'templates');
+const tplSrc = join(sharedScripts, 'templates');
 const tplDst = join(mx, 'scripts', 'templates');
 function syncDir(src, dst, label) {
   if (!existsSync(dst)) { if (checkOnly) errors.push(`[templates] ${label} 缺失`); else mkdirSync(dst, { recursive: true }); }
@@ -107,14 +136,14 @@ function syncDir(src, dst, label) {
     const s = join(src, e.name); const d = join(dst, e.name);
     if (e.isDirectory()) { syncDir(s, d, `${label}/${e.name}`); continue; }
     if (!existsSync(d) || !sameContent(readFileSync(s, 'utf8'), readFileSync(d, 'utf8'))) {
-      if (checkOnly) errors.push(`[templates] ${label}/${e.name} 与 zcode 版不一致`);
+      if (checkOnly) errors.push(`[templates] ${label}/${e.name} 与源不一致`);
       else { copyFileSync(s, d); synced.push(`${label}/${e.name}`); }
     }
   }
 }
 
-// shared 技能的附属目录（references/ assets/ 等）随包同步：措辞与 syncDir 区分开，
-// 免得把「与 shared 源不一致」报成「与 zcode 版不一致」。
+// shared 技能的附属目录（references/ assets/ 等）随包同步：报错带 [skills] 前缀与「与 shared 源不一致」措辞，
+// 与脚本/模板的「与源不一致」区分开（脚本/模板的源在 shared/scripts，技能附属的源在 shared/skills）。
 function syncSkillDir(src, dst, label) {
   if (!existsSync(dst)) { if (checkOnly) errors.push(`[skills] ${label} 缺失（跑 node zcode/scripts/build.mjs 同步）`); else mkdirSync(dst, { recursive: true }); }
   for (const e of readdirSync(src, { withFileTypes: true })) {
@@ -126,19 +155,23 @@ function syncSkillDir(src, dst, label) {
     }
   }
 }
+// ② templates/ 与 doc/：shared/scripts 为源 → zcode/scripts/（回写边）+ → minimax/scripts/
+syncDir(tplSrc, join(zc, 'scripts', 'templates'), 'zcode/scripts/templates');
+syncDir(join(sharedScripts, 'doc'), join(zc, 'scripts', 'doc'), 'zcode/scripts/doc');
 syncDir(tplSrc, tplDst, 'minimax/scripts/templates');
 // 文档流水线的本地脚本与参考库同样纳入单一正文源（v0.8.0 起双宿主共享）
-syncDir(join(zc, 'scripts', 'doc'), join(mx, 'scripts', 'doc'), 'minimax/scripts/doc');
+syncDir(join(sharedScripts, 'doc'), join(mx, 'scripts', 'doc'), 'minimax/scripts/doc');
+// ④ references/ 同步链不变：它属于技能资源而非门禁脚本，仍以 zcode/skills/steward/references/ 为源
 syncDir(join(zc, 'skills', 'steward', 'references'), join(mx, 'skills', 'steward', 'references'), 'minimax/skills/steward/references');
 
 // --- 1.1 宿主自有脚本目录（v1.0.0）：host/<host>/scripts/ → <宿主包>/scripts/ ---
-// 宿主自有的门禁脚本（如 host/minimax/scripts/ 的文档治理门禁）**不进** zcode/scripts/ 共享单源，
-// 免得灌进另一侧的包；语义与「zcode/scripts 单一正文源 → minimax/scripts」一致。
-// 宿主目录不存在 → 该宿主行为不变；与 zcode/scripts 同名视为冲突（会静默覆盖共享单源），直接报错。
+// 宿主自有的门禁脚本（如 host/minimax/scripts/ 的文档治理门禁）**不进** shared/scripts/ 共享单源，
+// 免得灌进另一侧的包；语义与「shared/scripts 单一正文源 → 各宿主包 scripts/」一致。
+// 宿主目录不存在 → 该宿主行为不变；与 shared/scripts 同名视为冲突（会静默覆盖共享单源），直接报错。
 for (const [host, pkgDir] of [['zcode', zc], ['minimax', mx]]) {
   const hostScripts = join(hostsRoot, host, 'scripts');
   if (!existsSync(hostScripts)) continue;
-  const sharedNames = new Set(readdirSync(join(zc, 'scripts')).filter((n) => n.endsWith('.mjs')));
+  const sharedNames = sharedScriptNames;
   const walkHostScripts = (srcDir, dstDir, rel) => {
     for (const e of readdirSync(srcDir, { withFileTypes: true })) {
       const s = join(srcDir, e.name);
@@ -146,7 +179,7 @@ for (const [host, pkgDir] of [['zcode', zc], ['minimax', mx]]) {
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) { walkHostScripts(s, d, r); continue; }
       if (rel === '' && e.name.endsWith('.mjs') && sharedNames.has(e.name)) {
-        errors.push(`[scripts] host/${host}/scripts/${e.name} 与 zcode/scripts/${e.name} 同名，会覆盖共享脚本`);
+        errors.push(`[scripts] host/${host}/scripts/${e.name} 与 shared/scripts/${e.name} 同名，会覆盖共享脚本`);
         continue;
       }
       if (!existsSync(d) || !sameContent(readFileSync(s, 'utf8'), readFileSync(d, 'utf8'))) {
@@ -577,7 +610,7 @@ const result = { ok: errors.length === 0, errors, warnings, synced, generated };
 if (asJson) {
   console.log(JSON.stringify(result, null, 2));
 } else {
-  if (synced.length && !checkOnly) console.log(`[build] 已同步 ${synced.length} 个脚本/模板文件到 minimax/scripts/：\n  ${synced.join('\n  ')}`);
+  if (synced.length && !checkOnly) console.log(`[build] 已同步 ${synced.length} 个脚本/模板/参考库文件（含 zcode/scripts 回写与 minimax/scripts 同步）：\n  ${synced.join('\n  ')}`);
   if (generated.length) console.log(`[build] 已生成 ${generated.length} 个技能/agent 文件：\n  ${generated.join('\n  ')}`);
   for (const w of warnings) console.log(`[build] ⚠ ${w}`);
   if (errors.length) {

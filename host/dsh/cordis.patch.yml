@@ -2,7 +2,7 @@
 #
 # One Host row. The plugin registers, through DSH-native extension points:
 #   - the `steward_dispatch` tool (one role per call, over ctx.subagents);
-#   - the `/steward` human command;
+#   - the `/steward-roster` human command;
 #   - the bundled Steward skills on ctx.skills.
 #
 # Two deliberate omissions:

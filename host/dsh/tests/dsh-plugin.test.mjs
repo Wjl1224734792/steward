@@ -2,7 +2,7 @@
  * DSH 侧 Steward 插件（生成物 dsh/）的宿主契约测试。
  *
  * 覆盖 DSH 原生机制：
- *  - host-only：一个 `steward_dispatch` 工具 + `/steward` 命令 + 6 个技能，没有 Config、没有浏览器半
+ *  - host-only：两个工具（`steward_dispatch` / `steward_board`）+ `/steward-roster` 名册命令 + 9 个技能，没有 Config、没有浏览器半
  *  - 角色是派单时注入的章程，**不注册 Agent Preset**（模式选择器必须保持干净）
  *  - 模型路由只来自项目 `steward.config.json` 的 `modelRouting.<role>`，缺失则继承主代理
  *  - 子代理固定以内置 `standard` 组合启动；缺失/损坏时拒绝派发
@@ -216,7 +216,7 @@ function execFor() {
 test('apply registers the two tools, one command and the bundled skills — nothing else', async () => {
   const bucket = await boot();
   assert.deepEqual(bucket.state.tools.map((tool) => tool.name).sort(), ['steward_board', 'steward_dispatch']);
-  assert.deepEqual(bucket.state.commands.map((command) => command.name), ['steward']);
+  assert.deepEqual(bucket.state.commands.map((command) => command.name), ['steward-roster']);
   assert.deepEqual(bucket.state.skills.map((skill) => skill.name).sort(), [
     'agent-settings',
     'docs',
@@ -427,9 +427,9 @@ test('dispatch fails loudly when the child composition or preset support is miss
   await assert.rejects(() => tool.execute({ role: 'ghost', description: 'x', prompt: 'y' }, exec), /unknown steward role/);
 });
 
-test('/steward reports the roster and the routing rule without publishing modes', async () => {
+test('/steward-roster reports the roster and the routing rule without publishing modes', async () => {
   const bucket = await boot();
-  const command = bucket.state.commands.find((entry) => entry.name === 'steward');
+  const command = bucket.state.commands.find((entry) => entry.name === 'steward-roster');
   const result = command.handler({ rawInput: 'roles' });
   assert.equal(result.kind, 'success');
   assert.match(result.text, /architect（架构师）/);
@@ -438,6 +438,24 @@ test('/steward reports the roster and the routing rule without publishing modes'
   assert.match(result.text, /steward_dispatch/);
   assert.match(result.text, /不注册 Agent Preset/);
   assert.doesNotMatch(result.text, /steward-architect/);
+});
+
+test('registered command names never shadow a skill name (client-side token claim)', async () => {
+  const bucket = await boot();
+  // 数据源必须是生成物：命令名取自 dsh/index.js 的运行时注册（本文件 :19 的导入先例），
+  // 技能名取自 dsh/skills/manifest.json —— 这样能同时防住「改了源忘了重建」。
+  // host/dsh/skills/manifest.json 并不存在，技能清单只有构建产物这一份。
+  const commandNames = bucket.state.commands.map((command) => command.name);
+  const skillManifest = JSON.parse(readFileSync(new URL('../../../dsh/skills/manifest.json', import.meta.url), 'utf8'));
+  const skillNames = skillManifest.skills.map((skill) => skill.name);
+  const collision = commandNames.filter((name) => skillNames.includes(name));
+  assert.deepEqual(
+    collision,
+    [],
+    '命令名与技能名同名时，client 侧会把同名 token claim 给 command，该行永远不会变成 prompt，'
+    + `技能正文注入不了（遮蔽根因）。冲突命令名：[${collision.join(', ')}]；技能名集合：[${skillNames.join(', ')}]。`
+    + '修法是给命令改名（先例：/steward → /steward-roster），不要动技能名；改完重跑 node host/dsh/build.mjs 刷新生成物。',
+  );
 });
 
 test('the shipped host half keeps its native-mechanism shape', () => {

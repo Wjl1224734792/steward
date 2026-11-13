@@ -6,6 +6,32 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [ZCode 1.1.0 / MiniMax 1.1.0 / DSH 1.1.0] - 2026-11-13
+
+> 结构性解耦与文档收口：DSH 命令改名解除对同名技能的斜杠遮蔽（**破坏性变更**）、门禁脚本单一源迁至 `shared/scripts/`、新增通用 harness 技能投放路径、文档职责重排与版本号统一。三宿主同号升 **1.1.0**。
+
+### Breaking
+
+- **DSH 原生命令 `/steward` → `/steward-roster`**：命令与 `steward` 技能同名时，client 侧把同名 token claim 给命令，`/steward` 永远变成命令回显、技能正文注入不了（遮蔽根因）。改名后 `/steward-roster` 只回显名册与路由口径；`/steward` 恢复为触发 `steward` 技能的斜杠手势（手势后接空格或直接回车）。不保留别名（DSH 命令注册表无别名机制，两者共存即回到冲突）。回归不变量「命令名集合 ∩ 技能名集合 = ∅」进 `host/dsh/tests/dsh-plugin.test.mjs`，数据源为生成物 `dsh/index.js` 与 `dsh/skills/manifest.json`。**ZCode/MiniMax 的 `/steward`、`/steward:inline`、`/steward:fix|plan|maintain|take-over` 斜杠命令不受影响。**
+
+### Changed
+
+- **门禁脚本单一源迁移（解除 DSH 对 ZCode 目录的结构性依赖）**：6 个门禁脚本（`maintain` / `run-state` / `take-over` / `validate-config` / `validate-plan` / `verify`）+ `templates/`（14）+ `doc/`（4）的唯一正文源从 `zcode/scripts/` 迁至 **`shared/scripts/`**；`zcode/scripts/`、`minimax/scripts/`、`dsh/scripts/` 同名文件降级为生成物（回写/同步由两个构建器承担）；`zcode/scripts/` 仅保留 ZCode/MiniMax 专有工具（`build.mjs`、`agent-config*.mjs`、`trigger.mjs`）与 `hooks/`、`docs-gov/`、`tests/`。`host/dsh/build.mjs` 三处读取源改指 `shared/scripts/`，不再 `readdirSync(join(zc,'scripts'))`。
+- **文档职责重排**：根 `README.md` / `README.en.md` 收敛为项目介绍 + 三侧安装导航（各侧安装细节归位到侧包 README）；`zcode/README.md`、`minimax/README.md`、`host/dsh/README.zh.md` / `README.en.md` 各自补齐「安装 → 使用 → 排障」（DSH README 新增独立「安装」章节：`install_bundle` 目标目录 + 构建前置 + 重启 DSH + 新会话）；`AGENTS.md` 目录归属表按单一源新语义更新（`shared/` = 三宿主共享、含 `shared/scripts/`；`zcode/scripts/` 收窄为「ZCode/MiniMax 专有工具 + 生成物」），并校正失真表述（DSH 构建器读取源、`steward_config` 工具已移除等）。
+- **版本号统一 1.1.0**：`zcode/.zcode-plugin/plugin.json`、`minimax/.minimax-plugin/plugin.json`、`host/dsh/package.json` 的 `version`；三处 banner 首行（`host/zcode` / `host/minimax` 为 1.0.1 → 1.1.0；`host/dsh` 原为 **0.7.0**，严重滞后，一并修正并补文档治理 / project-lifecycle 能力句）；`host/dsh/package.json` 的 `description` 同步 `/steward-roster`；根 `README.md` / `README.en.md` 版本描述；`zcode/README.md` marketplace 示例（原 **0.11.0**，最陈旧）；`minimax/README.md` 版本引用。
+
+### Added
+
+- **通用 harness 技能投放路径**：根与四份侧 README 新增「通用 harness 安装」节——不装整包即可投放 4 个宿主无关的纯指令技能：`systematic-debugging`、`tdd`、`verification-before-completion`、`project-lifecycle`（都在 `shared/skills/` 下，含 `references/` / `assets/` 者随目录整体复制）。两条路径：项目级 `<repo>/.agents/skills/<skill>/`、用户级 `~/.agents/skills/<skill>/`（DSH 原生发现根），附一条可复制的 PowerShell 目录复制命令；**不涉及任何 npm/npx 安装器**。
+
+### 验证
+
+- `node host/dsh/build.mjs` → PASS（同步 `dsh/package.json` / `dsh/README.{zh,en}.md`，渲染 `dsh/skills/steward/SKILL.md`），exit 0。
+- `node host/dsh/build.mjs --check` → `PASS — DSH 包校验完成…（未触碰 ZCode / MiniMax / shared）`，exit 0，零 warning。
+- `node zcode/scripts/build.mjs` → PASS（渲染 `zcode/skills/steward/SKILL.md` 与 `minimax/skills/steward/SKILL.md`），exit 0。
+- `node zcode/scripts/build.mjs --check` → `PASS — 单一正文源校验完成…`，exit 0，零 warning。
+- `node --test host/dsh/tests/` → **43 pass / 0 fail**（41 存量 + T1 命名不变量与改名断言），exit 0。
+
 ## [ZCode 1.0.1 / MiniMax 1.0.1 / DSH 1.0.1] - 2026-11-12
 
 > 补齐 1.0.0 收口时明确留给他侧的两项偏差：**ZCode 侧** `project-lifecycle` 只随包了 SKILL.md（`references/` `assets/` 缺失 → 包内相对链接断链）；**DSH 侧** 运行时读角色章程不归一换行（Windows `core.autocrlf=true` 检出态下章程注入与宿主契约失配）。两宿主同号升 **1.0.1**，DSH 独立升 **1.0.1**；除这两处修复外，三宿主功能零改动。

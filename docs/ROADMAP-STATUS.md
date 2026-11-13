@@ -1,5 +1,8 @@
 # 路线图交付状态（ROADMAP-STATUS）
 
+> **v1.1.0 变更提示（2026-11-13）**：门禁脚本的单一正文源已从 `zcode/scripts/` 迁至 **`shared/scripts/`**（6 个脚本 + `templates/` + `doc/`），三侧包内 `scripts/` 的同名文件改为生成物；`zcode/scripts/` 现仅保留 ZCode/MiniMax 专有工具（`build.mjs`、`agent-config*.mjs`、`trigger.mjs`）与 `hooks/`、`docs-gov/`、`tests/`；DSH 构建器自 v1.1.0 起不再读取 `zcode/scripts/`。
+> **本文以下各节是历史交付记录**（按当时的语境表述，未回改）。读当前架构请以根 `AGENTS.md` 与 `README.md` 为准。
+
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
 ## 三宿主 1.0.1（收口 1.0.0 留给他侧的两项偏差）— 2026-11-12

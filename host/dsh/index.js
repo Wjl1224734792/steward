@@ -17,7 +17,7 @@
  *    `startActivation` on the `standard` composition.
  *  - `steward_board` mirrors `03-plan.json` onto the Agent Teams shared task
  *    board, so the native Team panel is the live dashboard.
- *  - `/steward` is registered on the native human-command registry.
+ *  - `/steward-roster` is registered on the native human-command registry.
  *  - Skills are registered on the native `ctx.skills` registry.
  *
  * `@deepseek-ai/schemastery` is resolved from the installed package or the
@@ -740,7 +740,7 @@ function renderRoster(topic) {
 function registerCommands(ctx) {
   ctx.inject(['commands'], (sctx) => {
     const definition = {
-      name: 'steward',
+      name: 'steward-roster',
       description: '显示 Steward 团队名册、子代理组合与路由口径（DSH 原生 Skills；不注册 Agent Preset）',
       input: { hint: '[roles|models|help]' },
       handler: (invocation) => {
@@ -751,7 +751,7 @@ function registerCommands(ctx) {
         }
       },
     };
-    sctx.effect(() => sctx.commands.register(definition), 'steward: /steward command');
+    sctx.effect(() => sctx.commands.register(definition), 'steward: /steward-roster command');
   });
 }
 

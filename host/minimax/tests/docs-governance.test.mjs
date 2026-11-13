@@ -175,12 +175,17 @@ test('docs-governance 技能正文覆盖 0–12 小节、脚本路径与 MiniMax
 });
 // --- 3. 构建产物契约（防回归） -------------------------------------------------
 
-test('minimax 包含 inline / docs / docs-governance / project-lifecycle 四技能，清单恰好 11 项、路径都存在、两宿主同版本 1.0.1', () => {
+test('minimax 包含 inline / docs / docs-governance / project-lifecycle 四技能，清单恰好 11 项、路径都存在、三宿主同版本', () => {
   for (const skill of ['inline', 'docs', 'docs-governance']) {
     assert.ok(existsSync(join(MX, 'skills', skill, 'SKILL.md')), `缺 minimax/skills/${skill}/SKILL.md`);
   }
   const pkg = JSON.parse(readFileSync(join(MX, '.minimax-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(pkg.version, '1.0.1', 'MiniMax 清单 version 应为 1.0.1');
+  // 版本口径 = AC8「三侧 manifest/package.json 的 version 均一致」，不钉死具体发版号：
+  // 钉死会在每次发版时变成过期断言（1.0.1 → 1.1.0 已经这样红过一次）。
+  // 基准取 host/dsh/package.json 的 version，并顺带把 DSH 侧纳入同号校验（原用例只比两宿主）。
+  const dshVersion = JSON.parse(readFileSync(join(ROOT, 'host', 'dsh', 'package.json'), 'utf8')).version;
+  assert.match(dshVersion, /^\d+\.\d+\.\d+$/, `DSH package.json version 应是语义化版本号，实际 "${dshVersion}"`);
+  assert.equal(pkg.version, dshVersion, `MiniMax 清单 version 应与 DSH 包一致（基准 ${dshVersion}）`);
   assert.equal(pkg.skills.length, 11, 'MiniMax 清单 skills 应恰好 11 项（7 基础 + inline / docs / docs-governance / project-lifecycle）');
   // project-lifecycle 的 references/ assets/ 必须随包，否则技能正文里的相对链接在包内断链
   for (const res of ['references', 'assets']) {
@@ -192,7 +197,7 @@ test('minimax 包含 inline / docs / docs-governance / project-lifecycle 四技�
     assert.ok(existsSync(join(MX, rel)), `清单列出的 ${rel} 不存在`);
   }
   const zc = JSON.parse(readFileSync(join(ROOT, 'zcode', '.zcode-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(zc.version, '1.0.1', 'ZCode 清单 version 应为 1.0.1（两宿主同号）');
+  assert.equal(zc.version, dshVersion, `ZCode 清单 version 应与 DSH 包一致（三宿主同号，基准 ${dshVersion}）`);
 });
 
 test('主技能三节已拆走只留指针，拆出技能正文承接原节', () => {

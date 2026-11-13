@@ -4,7 +4,24 @@ Steward 是给 DeepSeek Harness 用的多角色研发团队插件：主对话代
 
 目标不是「一次把代码写完」，而是让项目在每次变更后仍然**可理解、可验证、可回滚、可继续演进**。
 
-插件只用 DSH 原生扩展点：角色 = **派单时注入的章程**（`roles/*.md`，**不注册 Agent Preset**，因此不占模式选择器），模型路由 = 项目根 `steward.config.json` 优先、其次**面板设置**，派发 = `steward_dispatch` over `ctx.subagents`（子代理跑内置 `standard` 组合），人类入口 = `/steward` 原生命令，技能 = `ctx.skills`，界面 = **Steward 团队面板**（侧栏整页 + 设置页分区，只用原生 slot / configForms / 原生会话跳转，无自建 HTTP 桥）。
+插件只用 DSH 原生扩展点：角色 = **派单时注入的章程**（`roles/*.md`，**不注册 Agent Preset**，因此不占模式选择器），模型路由 = 项目根 `steward.config.json` 优先、其次**面板设置**，派发 = `steward_dispatch` over `ctx.subagents`（子代理跑内置 `standard` 组合），人类入口 = `/steward-roster` 原生命令（`/steward` 是触发 `steward` 技能的斜杠手势，手势后接空格或直接回车），技能 = `ctx.skills`，界面 = **Steward 团队面板**（侧栏整页 + 设置页分区，只用原生 slot / configForms / 原生会话跳转，无自建 HTTP 桥）。
+
+## 安装
+
+前置：本机装有 Node.js。`dsh/` 是 `host/dsh/build.mjs` 的生成物，**安装前先在源码仓库重建**：
+
+```powershell
+node host/dsh/build.mjs            # 重建 dsh/（只写 dsh/，不碰 ZCode / MiniMax / shared）
+node host/dsh/build.mjs --check    # 期望 PASS 且零 warning
+```
+
+然后在 DSH 里用插件管理器安装本地 bundle 目录：
+
+```text
+plugin_manager(action="install_bundle", target="<repo>/dsh")
+```
+
+装完**重启 DSH**（Host 代码在重启后加载），再开**新会话**使用——技能目录是会话级快照，旧会话可能仍显示上一版文案。升级 = 对同一目录重新 `install_bundle` 并重启；开发期热重载可用插件管理器的禁用 / 启用。插件安装目录不需要也不应运行构建器。
 
 ## 安装后你会得到
 
@@ -18,7 +35,7 @@ Steward 是给 DeepSeek Harness 用的多角色研发团队插件：主对话代
 | 按需技能 | `inline`（主代理自己动手时的硬动作与范围）、`docs`（docTier=3 七阶段文档流水线）、`docs-governance`（文档拆分 / 归档 / 版本快照与 `docs-gate` / `doc-snapshot` 门禁的增量层）——从主技能拆出，只在需要时加载 |
 | 配套技能 | `using-steward`（路由）、`agent-settings`（模型配置）、`systematic-debugging`、`tdd`、`verification-before-completion` |
 | 共享任务板 | `steward_board(action="sync"/"status"/"brief")`：把 `03-plan.json` 变成 Agent Teams 板上的门禁 + 工作单，状态在 Web Team 面板里直接看 |
-| 命令 | `/steward`：回显名册与路由口径（不负责派活） |
+| 命令 | `/steward-roster`：回显名册与路由口径（不负责派活）；`/steward` 是触发 `steward` 技能的斜杠手势 |
 | 门禁脚本 | `scripts/`：`validate-plan.mjs`、`verify.mjs`（含 `baseline record/check`）、`run-state.mjs`、`maintain.mjs`、`take-over.mjs`、`validate-config.mjs`、`docs-gate.mjs` / `doc-snapshot.mjs`（文档治理），以及 `doc/` 文档流水线工具 |
 
 ## 为什么不注册模式（Agent Preset）
@@ -83,11 +100,7 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 
 ## 快速开始
 
-1. **安装**：在 DSH 里用插件管理器安装本地包目录（源码仓库先 `node host/dsh/build.mjs` 重建 `dsh/`）：
-
-   ```text
-   plugin_manager(action="install_bundle", target="<repo>/dsh")
-   ```
+1. **安装**：按上文「安装」一节执行——重建 `dsh/` → `install_bundle` 指向 `<repo>/dsh` → 重启 DSH。
 
 2. **新开一个会话**，直接用自然语言提需求，例如：
 
@@ -109,7 +122,7 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 | 只出计划 | 「只出方案，先别写代码」→ 到批准门停止，不实施 |
 | 维护循环 | 「做一次维护扫描」→ 八类扫描 + 评分 backlog + 小修 |
 | 接手存量 | 「接手这个仓库，先盘点再动手」→ T1 项目记忆 + 首轮健康扫描 |
-| 文档流水线 | `docTier: 3`（随 `/steward`）→ 七阶段文档树 + 全量模板 |
+| 文档流水线 | `docTier: 3`（随 `steward` 技能）→ 七阶段文档树 + 全量模板 |
 | 文档治理 | 「文档太长了 / 评审堆在 07 / 需求文档要留版本」→ `docs-governance`：拆分、归档、`history/` 快照、`docs-gate` / `doc-snapshot` |
 | 改模型 / 档位 | 「配置子代理模型」→ `agent-settings`：改项目根 `steward.config.json` 的 `modelRouting` 并跑 `validate-config.mjs` |
 | 不知道用哪个入口 | 加载 `using-steward` 做路由 |
@@ -150,7 +163,34 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 - 可信变更门禁：计划机检、独立复跑测试 / lint / typecheck、基线守卫、断点恢复与失败重试预算。
 - 三道质量门：QA → 浏览器验收（有 UI）→ 评审；缺陷按归属回派，最多 2 轮。
 - 真实输出：不美化、不编造，失败就是失败。
-- DSH 侧 0.6.0 的范围：技能（主技能 + 按需 `inline` / `docs`）、角色（派单注入章程，不注册模式）、模型路由（项目配置优先 + 面板）、派发、**团队面板**（整页 + 设置分区）、共享任务板（Agent Teams）、`/steward` 与门禁脚本已对齐。ZCode/MiniMax 的 `PreToolUse` 守卫 hooks 尚未移植（DSH 的工具守卫是宿主内另一套机制）。浏览器验收按「仓库自带 Playwright → DSH 侧栏人工驱动 → 人工兜底」三级。
+- DSH 侧 0.6.0 的范围：技能（主技能 + 按需 `inline` / `docs`）、角色（派单注入章程，不注册模式）、模型路由（项目配置优先 + 面板）、派发、**团队面板**（整页 + 设置分区）、共享任务板（Agent Teams）、`/steward-roster` 名册命令与门禁脚本已对齐。ZCode/MiniMax 的 `PreToolUse` 守卫 hooks 尚未移植（DSH 的工具守卫是宿主内另一套机制）。浏览器验收按「仓库自带 Playwright → DSH 侧栏人工驱动 → 人工兜底」三级。
+
+## 通用 harness 技能投放（不装整包，只投 4 个技能）
+
+Steward 有 4 个**宿主无关**的纯指令技能——不依赖子代理 / 命令注册 / hooks，正文都在本仓库 `shared/skills/` 下，任何支持「技能目录」的 harness 都可以不装整包、直接投放：`systematic-debugging`（系统化调试纪律）、`tdd`（测试先行纪律）、`verification-before-completion`（完成前验证纪律）、`project-lifecycle`（项目全生命周期规范，随包带 `references/` 与 `assets/`）。
+
+- **项目级**（只对该仓库生效）：复制到 `<目标仓库>/.agents/skills/<技能名>/`；
+- **用户级**（该机器所有项目生效）：复制到 `~/.agents/skills/<技能名>/`。DSH 原生按这两条路径发现技能（`dsh-skill-filesystem` 的 project-agents / user-agents 两个发现根）；其它 harness 按各自的技能目录约定放置即可。
+
+可复制的命令（PowerShell，项目级；`<repo>` 换成本仓库检出位置，`<目标仓库>` 换成要投放的项目）：
+
+```powershell
+$src = "<repo>\shared\skills"; $dst = "<目标仓库>\.agents\skills"
+New-Item -ItemType Directory -Force "$dst" | Out-Null
+'systematic-debugging','tdd','verification-before-completion','project-lifecycle' |
+  ForEach-Object { Copy-Item -Path "$src\$_" -Destination "$dst\$_" -Recurse -Force }
+```
+
+用户级把 `$dst` 换成 `"$env:USERPROFILE\.agents\skills"`（或设 `DSH_AGENTS_HOME` 指向自定义目录）即可。纯目录复制（SKILL.md + references/assets），**不需要任何 npm/npx 安装器**，新会话起生效。
+
+## 排障
+
+- **输入 `/steward` 回显的是名册而不是技能正文**：1.1.0 起名册命令已改名 `/steward-roster`，`/steward` 恢复为触发 `steward` 技能的斜杠手势——若仍回显名册，说明装的是旧版本，重新 `install_bundle` 并重启 DSH。
+- **`/steward` 手势没触发技能**：手势要求 `/steward` 后接空格（或直接回车），连写（如 `/steward做个X`）不识别为手势；用自然语言「用 Steward 做 <需求>」最稳。
+- **装完没变化**：Host 代码在 DSH 重启后才加载；技能目录是会话级快照，开**新会话**；开发期可用插件管理器的禁用 / 启用热重载。
+- **手改 `dsh/` 被 `--check` 拦下**：`dsh/` 是生成物，改正文（`shared/` 或 `host/dsh/`）后重跑 `node host/dsh/build.mjs`。
+- **模型路由不生效**：`steward.config.json` 的 `modelRouting.<role>` 格式错误（如 `model` 缺 `provider/` 前缀）按「没配置」处理、降级继承主代理；跑 `node <包>/scripts/validate-config.mjs <项目根>/steward.config.json` 校验结构。
+- **已知限制**：包内 `scripts/validate-config.mjs` 直接运行会因缺宿主专有模块 `agent-config-core.mjs` 报错（该模块不随 DSH 包分发；不影响 `steward_dispatch` 的项目级路由读取——那是插件运行时自己解析的）；需要机检时到源码仓库对同源脚本运行。
 
 ## 更多
 

@@ -11,12 +11,18 @@
  *   - effort 必须属于该模型的 effortOptions。
  * 读不到本机模型配置时（catalog.ok === false）以上检查降级为警告；`--skip-catalog` 可完全跳过
  * （用于跨机器共享的配置）。
+ * 容错加载（v1.1.1）：宿主专有的 agent-config-core.mjs 不随包分发时（DSH 包经 SKIP_SCRIPTS 排除），
+ * 模型存在性校验明确降级为警告并跳过，结构校验照常执行；模块存在时行为不变。
  * 执行模式（v0.10.0）：execution.mode = subagent | inline（默认 subagent；inline 仅限 S / B3 /
  * 维护小修，M 需显式开启；L 与 B0/B1/B2 禁止）。
  */
-import { readFileSync } from 'node:fs';
-// 同目录模块：build.mjs 会把 zcode/scripts/*.mjs 整体同步到 minimax/scripts/，两处路径都成立。
-import { loadCatalog, findModel } from './agent-config-core.mjs';
+import { existsSync, readFileSync } from 'node:fs';
+// 同目录模块容错加载：agent-config-core.mjs 属宿主专有脚本（不进本单一源，build.mjs 的 SKIP_SCRIPTS
+// 会把它排除在 DSH 等包之外）。缺失 → main 里明确警告并跳过模型存在性校验；存在（zcode/minimax 包内）
+// → 在此动态导入，行为与静态导入完全一致（模块存在但自身加载失败时保留原有崩溃语义）。
+const CORE_SPECIFIER = './agent-config-core.mjs';
+const CORE_EXISTS = existsSync(new URL(CORE_SPECIFIER, import.meta.url));
+const coreModule = CORE_EXISTS ? await import(CORE_SPECIFIER) : null;
 
 const SCHEMA_VERSION = 1;
 
@@ -71,7 +77,7 @@ function checkAgainstCatalog(label, model, effort, source) {
     warn(`${label}.model：跳过目录校验（${why}），无法确认模型「${model}」是否存在`);
     return;
   }
-  const hit = findModel(catalogState.catalog, model);
+  const hit = coreModule.findModel(catalogState.catalog, model);
   if (!hit) {
     err(`${label}.model：模型「${model}」不在本机模型目录中（运行时派发会失败 MODEL_SELECTION_INVALID；如需跨机器共享配置可加 --skip-catalog）`);
     return;
@@ -220,19 +226,27 @@ try {
 }
 
 // 目录加载放在配置解析之后：配置文件本身坏了要先报那个错，不必白读模型目录。
+// 宿主专有的 agent-config-core.mjs 不随包分发时（DSH 包经 SKIP_SCRIPTS 排除）：明确警告并跳过
+// 模型存在性校验——结构校验照常执行，不静默、不因此判 FAIL。
 if (!skipCatalog) {
   catalogState.checked = true;
-  try {
-    const catalog = loadCatalog();
-    catalogState.catalog = catalog;
-    catalogState.ok = catalog && catalog.ok === true;
-    catalogState.reason = catalogState.ok ? '' : String((catalog && catalog.reason) || '模型目录不可用');
-  } catch (e) {
-    // loadCatalog 内部已做探测与降级，走到这里说明是意料外异常：同样降级为警告，不阻断。
+  if (!CORE_EXISTS) {
     catalogState.ok = false;
-    catalogState.reason = `读取模型目录失败：${e.message}`;
+    catalogState.reason = '本包未随带 agent-config-core.mjs（宿主专有模块），跳过模型存在性校验';
+    warn('未找到 agent-config-core.mjs（宿主专有模块，本包不随带）：跳过模型存在性校验，结构校验照常执行');
+  } else {
+    try {
+      const catalog = coreModule.loadCatalog();
+      catalogState.catalog = catalog;
+      catalogState.ok = catalog && catalog.ok === true;
+      catalogState.reason = catalogState.ok ? '' : String((catalog && catalog.reason) || '模型目录不可用');
+    } catch (e) {
+      // loadCatalog 内部已做探测与降级，走到这里说明是意料外异常：同样降级为警告，不阻断。
+      catalogState.ok = false;
+      catalogState.reason = `读取模型目录失败：${e.message}`;
+    }
+    if (!catalogState.ok) warn(`模型目录不可用（${catalogState.reason}），modelRouting 的模型/档位检查已降级为警告`);
   }
-  if (!catalogState.ok) warn(`模型目录不可用（${catalogState.reason}），modelRouting 的模型/档位检查已降级为警告`);
 }
 
 validate(cfg);
