@@ -652,7 +652,7 @@ function defineStewardTools(ctx, config) {
         required: ['kind', 'childId', 'role', 'childPreset', 'provider', 'model', 'effort', 'source'],
       },
       render: (_args, value) => textBlocks(
-        `started steward subagent ${value.childId} (role ${value.role}, composition ${value.childPreset}; ${value.provider === '' ? 'inherited parent model' : `${value.provider}/${value.model}${value.effort === '' ? '' : ` @ ${value.effort}`}`}${value.source === 'project' ? ' from steward.config.json' : value.source === 'role' || value.source === 'defaults' ? ' from the Steward panel' : ''})`,
+        `started steward subagent ${value.childId} (role ${value.role}, composition ${value.childPreset}; ${value.provider === '' ? 'inherited parent model' : `${value.provider}/${value.model}${value.effort === '' ? '' : ` @ ${value.effort}`}`}${value.source === 'project' ? ' from steward.config.json' : value.source === 'role' || value.source === 'defaults' ? ' from Settings → Steward' : ''})`,
       ),
     },
     isConcurrencySafe: () => true,
@@ -696,7 +696,10 @@ function defineStewardTools(ctx, config) {
       // `startActivation` fail before the child exists.
       const activation = await subagents.startActivation({
         provider: SUBAGENT_PROVIDER,
-        label: String(args?.description ?? roleId),
+        // The label is what the Steward board (and the host's subagent menus)
+        // show for this child. Prefixing the role lets the board tell a Steward
+        // dispatch apart from a plain `subagent` call and name the specialist.
+        label: `${roleId} · ${String(args?.description ?? roleId)}`,
         prompt: [{ type: 'text', text: dispatchPrompt(roleId, String(args?.prompt ?? '')) }],
         parent,
         agentPreset: CHILD_PRESET,

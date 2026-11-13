@@ -4,7 +4,7 @@ Steward 是给 DeepSeek Harness 用的多角色研发团队插件：主对话代
 
 目标不是「一次把代码写完」，而是让项目在每次变更后仍然**可理解、可验证、可回滚、可继续演进**。
 
-插件只用 DSH 原生扩展点：角色 = **派单时注入的章程**（`roles/*.md`，**不注册 Agent Preset**，因此不占模式选择器），模型路由 = 项目根 `steward.config.json` 优先、其次**面板设置**，派发 = `steward_dispatch` over `ctx.subagents`（子代理跑内置 `standard` 组合），人类入口 = `/steward-roster` 原生命令（`/steward` 是触发 `steward` 技能的斜杠手势，手势后接空格或直接回车），技能 = `ctx.skills`，界面 = **Steward 团队面板**（侧栏整页 + 设置页分区，只用原生 slot / configForms / 原生会话跳转，无自建 HTTP 桥）。
+插件只用 DSH 原生扩展点：角色 = **派单时注入的章程**（`roles/*.md`，**不注册 Agent Preset**，因此不占模式选择器），模型路由 = 项目根 `steward.config.json` 优先、其次**设置页**，派发 = `steward_dispatch` over `ctx.subagents`（子代理跑内置 `standard` 组合），人类入口 = `/steward-roster` 原生命令（`/steward` 是触发 `steward` 技能的斜杠手势，手势后接空格或直接回车），技能 = `ctx.skills`，界面 = **每会话一份的右侧栏看板**（依赖图 / 子代理 / 产物）+ **设置 → Steward 的模型表格**，只用原生 slot / configForms / 原生会话跳转，无自建 HTTP 桥。
 
 ## 安装
 
@@ -29,12 +29,12 @@ plugin_manager(action="install_bundle", target="<repo>/dsh")
 |---|---|
 | 7 个角色 | 派单时注入的角色章程（`roles/*.md`）：pm、architect、backend-dev、frontend-dev、qa-engineer、browser-tester、reviewer。**不注册 Agent Preset**——角色不会出现在模式选择器里 |
 | 派发 | `steward_dispatch(role, description, prompt, cwd?)`：一个角色一次调用，章程自动拼进派单正文，返回子会话 id，结果自动回传 |
-| 模型与档位 | 项目根 `steward.config.json` 的 `modelRouting.<role>`（仓库优先，跑 `scripts/validate-config.mjs`）；没写的角色用**面板**里的该角色 / 默认配置；都没有则继承主代理 |
-| **团队面板** | 侧栏「Steward 团队」整页（`main` slot）：运行总览（成员 / 完成比 / 阻塞 + 进度条）、多团队切换条、Lead 行 + 成员卡（**点卡进子会话**）、门禁阶段条 + 工作单行列表、逐角色模型与思考强度表格；同一表格也在「设置 → Steward」 |
+| 模型与档位 | 项目根 `steward.config.json` 的 `modelRouting.<role>`（仓库优先，跑 `scripts/validate-config.mjs`）；没写的角色用**设置 → Steward** 里的该角色 / 默认配置；都没有则继承主代理 |
+| **右侧栏看板** | 每会话一份，三种打开方式（会话标题栏的 Steward 图标 / 右侧栏引导页 / 首次派发自动打开）：运行卡片（完成环 + 分段进度 + `完成/总数` + 任务数 / 依赖数 + 子代理数 + run 状态徽标 + 运行目录）、任务区（依赖图 / 列表 / 归属矩阵切换 + 点节点看详情）、子代理区（**点一行打开子会话**）、产物区（`tmp/steward/<run>/`，**点一行打开文件**）；任务来源按 `共享任务板 > run.json > 待办清单` 回落。只配模型的逐角色表格在「设置 → Steward」 |
 | 主技能 | `steward`：Tech Lead 调度手册（定级 / DAG / 派单 / 门禁 / 收尾） |
 | 按需技能 | `inline`（主代理自己动手时的硬动作与范围）、`docs`（docTier=3 七阶段文档流水线）、`docs-governance`（文档拆分 / 归档 / 版本快照与 `docs-gate` / `doc-snapshot` 门禁的增量层）——从主技能拆出，只在需要时加载 |
 | 配套技能 | `using-steward`（路由）、`agent-settings`（模型配置）、`systematic-debugging`、`tdd`、`verification-before-completion` |
-| 共享任务板 | `steward_board(action="sync"/"status"/"brief")`：把 `03-plan.json` 变成 Agent Teams 板上的门禁 + 工作单，状态在 Web Team 面板里直接看 |
+| 共享任务板 | `steward_board(action="sync"/"status"/"brief")`：把 `03-plan.json` 变成 Agent Teams 板上的门禁 + 工作单，状态在原生 Team 面板与右侧栏看板里直接看 |
 | 命令 | `/steward-roster`：回显名册与路由口径（不负责派活）；`/steward` 是触发 `steward` 技能的斜杠手势 |
 | 门禁脚本 | `scripts/`：`validate-plan.mjs`、`verify.mjs`（含 `baseline record/check`）、`run-state.mjs`、`maintain.mjs`、`take-over.mjs`、`validate-config.mjs`、`docs-gate.mjs` / `doc-snapshot.mjs`（文档治理），以及 `doc/` 文档流水线工具 |
 
@@ -46,22 +46,22 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 
 ## 为什么把路由放在项目里
 
-同样的道理：**配置的第一来源是项目本身**。子代理的模型与思考强度写在项目根 `steward.config.json` 的 `modelRouting.<role>`——它跟代码一起进仓库、进同一个 diff、可评审可回滚，并且能用随包的 `validate-config.mjs` 机检。项目里没写的角色才落到**团队面板**里的原生 Config（namespace `steward`），再没有就继承主代理。这样「这个仓库里 QA 用哪个模型」永远有确定答案，不会被某台机器的临时设置盖掉。插件**不带** `steward_config` 工具，也**不自建**私有配置文件或 HTTP 桥。
+同样的道理：**配置的第一来源是项目本身**。子代理的模型与思考强度写在项目根 `steward.config.json` 的 `modelRouting.<role>`——它跟代码一起进仓库、进同一个 diff、可评审可回滚，并且能用随包的 `validate-config.mjs` 机检。项目里没写的角色才落到**设置 → Steward** 里的原生 Config（namespace `steward`），再没有就继承主代理。这样「这个仓库里 QA 用哪个模型」永远有确定答案，不会被某台机器的临时设置盖掉。插件**不带** `steward_config` 工具，也**不自建**私有配置文件或 HTTP 桥。
 
-## 共享任务板就是看板（Agent Teams）
+## 共享任务板与右侧栏看板（Agent Teams）
 
-宿主启用「智能体团队」后，**Web 会话页头的 Team 面板就是 Steward 的运行看板**，不再另做一套 UI。`steward_board(action="sync", plan="<工件>/03-plan.json", level="M")` 把计划变成板上的原生任务（幂等，按描述里的 `steward:plan=` / `steward:gate=` 标记匹配）：
+宿主启用「智能体团队」后，共享任务板是任务状态的**权威来源**；**会话页头的原生 Team 面板**照旧存在，而 Steward 自己的**右侧栏看板**把「共享任务板 / `run.json` / 待办清单」三种来源统一成同一张图（来源优先级 `共享任务板 > run.json > 待办清单`，看板头部徽标标出当前来源）。`steward_board(action="sync", plan="<工件>/03-plan.json", level="M")` 把计划变成板上的原生任务（幂等，按描述里的 `steward:plan=` / `steward:gate=` 标记匹配）：
 
-| 板上任务 | 来源 | 在面板里能看出什么 |
+| 板上任务 | 来源 | 在 Team 面板 / 右侧栏看板里能看出什么 |
 |---|---|---|
 | `G1 · 计划批准` | 门禁 | 未完成时所有工作单 claim 不上（原生依赖闸门，绕不过去） |
 | `T<id> · <role> · <标题>` | `03-plan.json` 的 tasks | 状态点、负责人、依赖、就绪态；写范围来自文件所有权，重叠会出告警 |
 | `G2 · QA 门禁` / `G3 · 终审` | 门禁 | 依赖全部工作单 / 依赖 QA，流程顺序在板上一目了然 |
 
-- 任务描述是固定块：目标、完成标准、所有权、报告落点、覆盖的 AC，外加 `steward:plan=` / `steward:role=` 标记（面板两行摘要 + 展开可读全文）。
+- 任务描述是固定块：目标、完成标准、所有权、报告落点、覆盖的 AC，外加 `steward:plan=` / `steward:role=` 标记（Team 面板里两行摘要 + 展开可读全文）。
 - 状态口径：`pending` 未开始 / `in_progress` 有人在做 / `completed` 报告已落盘且该任务所有权内验证通过。**被依赖阻塞的任务 claim 不上**——Steward 的 DAG 与门禁在原生层执行。
 - 派活：`steward_board(action="brief", role="backend-dev", task="T1")` 取自包含任务书 → `spawn_teammate` → `team_task_update(action="reassign", owner=<teammate>)`；teammate 先 claim 再动手。
-- 没启用团队时没有 `agentTeams` 服务，`steward_board` 直接报错，回到 `steward_dispatch` + `run.json` 的单人模式。
+- 没启用团队时没有 `agentTeams` 服务，`steward_board` 直接报错，回到 `steward_dispatch` + `run.json` 的单人模式；右侧栏看板此时回落到 `run.json` / 待办清单，仍然有内容。
 
 ## 文档治理（`docs-governance`，增量层）
 
@@ -83,20 +83,36 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 
 预算与基线可在项目 `steward.config.json` 的 `docsGovernance` 覆盖；存量项目先 `--baseline-write` 记基线，此后只减不增。与 `doc-check.mjs` 并存不互替。
 
-## Steward 团队面板（Web 整页）
+## Steward 右侧栏看板（每会话一份）
 
-侧栏点 **Steward 团队**（`sidebar.panellist` 入口 → `main` 整页）。页面骨架、字号与边线沿用宿主自己的页面尺度（20px 页标题 / 14px 节标题 / `.5px` 发丝线 / 960px 内容列），深浅色全部由 `--dsw-alias-*` 主题 token 驱动，不写死颜色。
+看板在会话的**右侧栏**里。DSH 的右侧栏本身按会话保存布局，所以**每个会话各开各的看板，切换会话就是切换看板**。打开方式三种：
 
-**这一步卡在哪，看一张图就够了。** 任务板是一个「分叉再汇合」的 DAG（G1 → T1/T2/T3 → G2 → G3），所以主视图是**依赖图**而不是列表：
+1. 会话标题栏的 **Steward 图标**（`conversation.session.header.utilities`）；
+2. **右侧栏引导页**（guide）里的「Steward 看板」入口；
+3. **自动打开**：该会话第一次出现 Steward 派发（`steward_dispatch` 派出的子代理，label 形如 `backend-dev · T1 导出接口`）时自动打开一次；用户手动关掉后不再抢回。
 
-1. **运行总览**：页头右侧是完成环 + 分段进度（每格一个任务，门禁位置带刻度）+ 成员/进行中/阻塞计数。有多个 Agent Teams 会话时上方出现**团队切换条**（`role="tablist"`，方向键可切），一次只展开一个团队。
-2. **依赖图（默认视图）**：按依赖分层从左到右排布，正交折线 + 箭头；节点显示任务短号、标题（去掉重复的角色前缀）、负责人首字母与写入文件数；状态用左侧色条 + 虚线（阻塞）+ 图例表达。**悬停/选中会高亮整条上下游路径**，其余节点淡出。键盘：Tab 进入，方向键在任务间移动，Enter 看详情，Esc 取消。深板会自动收窄节点保证不横向溢出；超过 40 个任务时默认回落列表。
-3. **归属矩阵**：一行一个写入路径、一列一个代理（真 `<table>`，可读屏），同一文件被两个代理写入的那一行标「重叠」并变色——Steward 的文件所有权纪律一眼可查。
-4. **列表**：与图联动的完整文本视图（点行高亮图上节点，反之亦然），也是图的无障碍替代。
-5. **详情与右栏**：选中任务后在左下方显示详情（状态 / 负责人 / 依赖（可点跳到前置）/ 写入范围 / 重叠告警 / 任务描述 + 「打开负责人会话」）；右栏是 Lead 与成员（头像 + 状态 + 模型 + 当前任务，点击进子会话）以及**需要你知道**的告警（成员失败、文件重叠、断链依赖、环状依赖）。
-6. **底部两块（tab 切换，默认模型设置）**：`模型与思考强度` 是紧凑表格（角色 / 提供方 / 模型 / 思考强度 / 来源），首行「默认（兜底）」；目录来自宿主实时模型目录，保存走原生 `configForms`，写入 profile 的 `- id: steward` 行。**项目根 `steward.config.json` 的 `modelRouting` 对该角色优先**，每行标出实际来源；窄屏（<760px）降级为逐角色卡片。另一块是 `子代理（steward_dispatch）` 列表：默认 6 行，点「显示更多（还有 N 个）」每次 +12，「收起」回到首页——不会随派发次数无限撑长页面。两个面板都常驻，切 tab 不会丢未保存的模型改动。
+**这一步卡在哪，看一张图就够了。** 任务板是一个「分叉再汇合」的 DAG（G1 → T1/T2/T3 → G2 → G3），所以任务区默认给依赖图而不是列表。自上而下四块：
 
-没有团队任务板时，页面给出建板引导（三步）与「复制建板指令」按钮（粘给 Lead 即可）。面板不会出现在模式选择器里，也不做任何文件写入或自定义 HTTP 桥。
+1. **运行卡片**：完成环 + 分段进度条（每格一个任务，门禁位置带刻度）+ `完成/总数` + 任务数 / 依赖数 + 子代理数 + run 状态徽标（运行中 / 已完成 / 已停摆）+ 运行目录。
+2. **任务区**：依赖图 / 列表 / 归属矩阵三个视图切换，点节点或行看任务详情（状态 / 负责人 / 依赖（可点跳到前置）/ 写入范围 / 文件重叠 / 任务描述 + 「打开负责人会话」）。**依赖图最左边是一个 `Lead（本会话）` 根节点**：没有前置条件的任务从它这里拉一条「派发」箭头出去，任务之间按依赖再连线（门禁 G1 → 工作单 → G2 → G3 自然成一条流水线）；纯待办清单没有依赖时也画成 `Lead → 各项` 的派发树，不会是一摞没有连线的卡片。节点显示任务短号、标题（去掉重复的角色前缀）、负责人与写入文件数，选中会高亮整条上下游路径；键盘：Tab 进入，方向键在任务间移动，Enter 看详情，Esc 取消。归属矩阵一行一个写入路径、一列一个代理（真 `<table>`，可读屏），同一文件被两个代理写入的那一行标「重叠」——Steward 的文件所有权纪律一眼可查。检测到环状依赖时自动回落列表；任务超过 14 个时默认列表（图仍可一键切换）。头部徽标标出当前任务来源。
+3. **子代理区**：每个派发一行——子代理会话标题、角色 chip、运行中 / 空闲；**点一行在右侧栏打开它的子会话**。
+4. **产物区**：`tmp/steward/<run>/` 下的文件（`run.json`、`03-plan.json`，以及 `reports/`、`evidence/` 里的报告与证据），**点一行在右侧栏打开文件**。
+
+**任务来源三级优先**（头部徽标标出当前来源）：
+
+| 来源 | 何时生效 |
+|---|---|
+| `共享任务板` | 宿主启用 Agent Teams，且用 `steward_board(action="sync")` 建过板（`agentTeam` 投影） |
+| `run.json` | 读 `tmp/steward/<run>/03-plan.json` 的文件所有权 + `run.json` 的状态；`run-state.mjs init` 之后就有 |
+| `待办清单` | `todo_write` 的 `todos` 投影，上面两者都没有时的兜底 |
+
+三者都没有时，任务区显示空状态与三步引导（派单 / 建板 / 点标题栏图标）。**不再要求宿主启用 Agent Teams** 才有内容。
+
+产物区只在宿主提供**文件服务**（workspace-files Remote）时才能读 `tmp/steward/`；读不到时产物区显示一行说明，其余照常。
+
+**设置页只留模型**：「设置 → Steward」分区只渲染逐角色模型与思考强度表格（角色 / 提供方 / 模型 / 思考强度 / 来源 + 默认兜底行 + 保存 / 撤销），运行看板不再出现在设置页。优先级口径不变：项目根 `steward.config.json` 的 `modelRouting.<role>` 优先 > 设置页该角色 > 设置页默认 > 继承主代理。
+
+左侧导航里**不再有 Steward 页面**：看板只存在于右侧栏，不注册 Agent Preset、不写文件、不自建 HTTP 桥。
 
 ## 快速开始
 
@@ -163,7 +179,7 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 - 可信变更门禁：计划机检、独立复跑测试 / lint / typecheck、基线守卫、断点恢复与失败重试预算。
 - 三道质量门：QA → 浏览器验收（有 UI）→ 评审；缺陷按归属回派，最多 2 轮。
 - 真实输出：不美化、不编造，失败就是失败。
-- DSH 侧 0.6.0 的范围：技能（主技能 + 按需 `inline` / `docs`）、角色（派单注入章程，不注册模式）、模型路由（项目配置优先 + 面板）、派发、**团队面板**（整页 + 设置分区）、共享任务板（Agent Teams）、`/steward-roster` 名册命令与门禁脚本已对齐。ZCode/MiniMax 的 `PreToolUse` 守卫 hooks 尚未移植（DSH 的工具守卫是宿主内另一套机制）。浏览器验收按「仓库自带 Playwright → DSH 侧栏人工驱动 → 人工兜底」三级。
+- DSH 侧 0.6.0 的范围：技能（主技能 + 按需 `inline` / `docs`）、角色（派单注入章程，不注册模式）、模型路由（项目配置优先 + 设置页）、派发、**右侧栏看板**（每会话一份，任务来源按共享任务板 > run.json > 待办清单回落）与设置页模型表格、共享任务板（Agent Teams）、`/steward-roster` 名册命令与门禁脚本已对齐。ZCode/MiniMax 的 `PreToolUse` 守卫 hooks 尚未移植（DSH 的工具守卫是宿主内另一套机制）。浏览器验收按「仓库自带 Playwright → DSH 侧栏人工驱动 → 人工兜底」三级。
 
 ## 通用 harness 技能投放（不装整包，只投 4 个技能）
 

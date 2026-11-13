@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Steward · 长期维护型研发团队",
-    "description": "多角色研发团队插件：主代理当 Tech Lead，把需求拆成任务 DAG 并按角色派发子代理（pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer），带计划批准门、Bug 通道、维护循环与可信变更门禁；角色是派单时注入的章程（不注册 Agent Preset、不占模式选择器），子代理模型路由写在项目根 steward.config.json（面板可改，仓库优先），任务板走 Agent Teams 共享任务板。自带「Steward 团队」整页面板：运行总览、团队切换、Lead/成员卡点击进子会话、门禁阶段条与工作单、逐角色模型与思考强度表格；同一表格也在「设置 → Steward」。",
+    "description": "多角色研发团队插件：主代理当 Tech Lead，把需求拆成任务 DAG 并按角色派发子代理（pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer），带计划批准门、Bug 通道、维护循环与可信变更门禁；角色是派单时注入的章程（不注册 Agent Preset、不占模式选择器），子代理模型路由写在项目根 steward.config.json（设置页可改，仓库优先），任务板走 Agent Teams 共享任务板。界面是每会话一份的右侧栏看板：依赖图 / 任务列表 / 归属矩阵、子代理实时状态（点一行进子会话）、tmp/steward/ 产物；任务来源按 共享任务板 > run.json > 待办清单 回落，会话标题栏图标打开、首次派发自动打开。逐角色模型与思考强度表格在「设置 → Steward」。",
     "detail": "README.zh.md"
   }
 }

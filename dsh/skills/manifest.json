@@ -3,7 +3,7 @@
   "skills": [
     {
       "name": "agent-settings",
-      "description": "Steward 子代理模型与思考强度配置（DSH）。入口是 Web GUI 里的「Steward 团队」面板（侧栏「Steward 团队」或设置 → Steward）——面板显示每个 Agent 的实时状态与任务、可点击进子会话，并可逐角色设置 provider / model / 思考强度；项目根 steward.config.json 的 modelRouting 对该角色优先。Use when the user asks which model or thinking effort a Steward subagent uses, wants to change a role's model/effort, or wants to look at the Steward panel.",
+      "description": "Steward 子代理模型与思考强度配置（DSH）。模型在「设置 → Steward」里逐角色配置（provider / model / 思考强度）；会话标题栏的 Steward 图标打开该会话的右侧栏看板，看子代理实时状态、点一行进子会话、看任务与产物。项目根 steward.config.json 的 modelRouting 对该角色优先。Use when the user asks which model or thinking effort a Steward subagent uses, wants to change a role's model/effort, or wants to watch a Steward run on the right-sidebar board.",
       "path": "skills/agent-settings/SKILL.md",
       "dir": "skills/agent-settings"
     },

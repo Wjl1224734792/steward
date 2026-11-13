@@ -4,23 +4,38 @@ Steward is a multi-role engineering team plugin for DeepSeek Harness. The lead a
 
 The goal is not to write the code once, but to keep the project **understandable, verifiable, reversible, and evolvable** after every change.
 
-The plugin uses DSH-native extension points only: roles are **charters injected at dispatch time** (`roles/*.md`; no Agent Preset is registered, so roles never occupy the mode picker), model routes prefer the project's `steward.config.json` and fall back to the **Steward panel** settings, dispatch goes through `steward_dispatch` over `ctx.subagents` (children run the built-in `standard` composition), `/steward-roster` is a native human command (`/steward` is the slash gesture that triggers the `steward` skill — type a space after it, or just press Enter), skills register through `ctx.skills`, and the UI is the **Steward team panel** (a sidebar full page plus a settings section, built on native slots / configForms / session navigation — no custom HTTP bridge).
+The plugin uses DSH-native extension points only: roles are **charters injected at dispatch time** (`roles/*.md`; no Agent Preset is registered, so roles never occupy the mode picker), model routes prefer the project's `steward.config.json` and fall back to the **Settings → Steward** table, dispatch goes through `steward_dispatch` over `ctx.subagents` (children run the built-in `standard` composition), `/steward-roster` is a native human command (`/steward` is the slash gesture that triggers the `steward` skill — type a space after it, or just press Enter), skills register through `ctx.skills`, and the UI is a **per-session board in the right sidebar** (task graph, subagents, artifacts) plus the **Settings → Steward model table**, built on native slots / configForms / session navigation — no custom HTTP bridge.
 
-## The Steward team panel (full Web page)
+## The Steward board in the right sidebar (one per session)
 
-Click **Steward team** in the sidebar (`sidebar.panellist` entry → the `main` page). The page skeleton, type scale and hairlines follow the host's own pages (20px page title, 14px section titles, `.5px` dividers, 960px content column); every color comes from `--dsw-alias-*` theme tokens, so light and dark both work without literal colors.
+The board lives in the session's **right sidebar**. That sidebar saves its layout per session, so **every session opens its own board — switching sessions switches boards**. Three ways to open it:
 
-**One picture answers "where is this stuck".** The board is a dependency DAG (G1 → T1/T2/T3 → G2 → G3), so the default view is a graph rather than a list:
+1. the **Steward icon** in the session header (`conversation.session.header.utilities`);
+2. the **"Steward board" entry** on the right sidebar's guide page;
+3. **automatically**: the first Steward dispatch in a session (a subagent started by `steward_dispatch`, labelled like `backend-dev · T1 export endpoint`) opens the board once; once the user closes it, it stays closed.
 
-1. **Run summary** — a completion ring, one progress segment per task (with ticks at the gate positions) and the member / running / blocked counts sit in the page header. With more than one Agent Teams session a **team switcher** appears above (`role="tablist"`, arrow keys move between teams) and only one team is expanded.
-2. **Dependency graph (default)** — tasks are layered left to right by dependency with orthogonal, arrowed edges. A node shows its plan short id, the title (without the redundant role prefix), the owner's initials and how many files it writes; state reads from the left accent bar, the dashed border for blocked work and the legend. **Hovering or selecting highlights the whole upstream/downstream path** and fades the rest. Keyboard: Tab enters, arrow keys move between tasks, Enter opens the detail, Escape clears. Deep boards narrow the nodes so nothing overflows; past 40 tasks the list view is shown by default.
-3. **Ownership matrix** — one row per write path, one column per agent, a real `<table>` that screen readers can follow; a file written by two agents gets an "overlap" row tint, so Steward's file-ownership rule is visible at a glance.
-4. **List** — the complete text alternative, linked to the graph: selecting a row highlights its node and vice versa.
-5. **Detail and rail** — selecting a task shows its status, owner, dependencies (clickable to jump to the prerequisite), write scopes, overlap warnings, description and an "Open the owner's session" action; the rail lists the lead and members (avatar, state, model, current task — click to open the sub-session) plus **needs attention** items (failed members, file overlaps, dangling dependencies, cycles).
-6. **Footer panes (tabs, model settings first)** — `Subagent models and reasoning effort` is one compact table (role / provider / model / effort / source) headed by the defaults row; the dropdowns come from the live model catalog and save through the native `configForms` into the profile's `- id: steward` row, with a project `steward.config.json` route still winning per role. The other pane is `Subagents (steward_dispatch)`: six rows by default, "show more (N left)" adds twelve at a time and "collapse" returns to the first page, so solo dispatches never stretch the page without a click. Both panes stay mounted, so an unsaved route edit survives a tab switch.
+**One picture answers "where is this stuck".** The board is a dependency DAG (G1 → T1/T2/T3 → G2 → G3), so the task section defaults to a graph rather than a list. Four sections from top to bottom:
 
-With no shared board yet, the page explains the three setup steps and offers "Copy the board request". The panel never registers a session mode, never writes files and never opens an HTTP bridge.
+1. **Run card** — a completion ring, a segmented progress bar (one segment per task, with ticks at the gate positions), `done/total`, task and dependency counts, the subagent count, a run-state badge (running / completed / stopped) and the run directory.
+2. **Tasks** — switch between graph / list / ownership matrix; select a node or row for the task detail (status, owner, dependencies that jump to the prerequisite, write scope, file overlaps, description, "Open the owner's session"). **The graph starts from a `Lead (this session)` root**: every task with no prerequisite gets a "dispatch" arrow out of it, and tasks are linked by their dependencies (so G1 → work items → G2 → G3 reads as one pipeline); a plain todo list without dependencies is still drawn as a `Lead → items` dispatch tree instead of a stack of unconnected cards. A node shows its plan short id, title (without the redundant role prefix), owner and file count, and selecting one highlights the whole upstream/downstream path. Keyboard: Tab enters, arrow keys move between tasks, Enter opens the detail, Escape clears. The ownership matrix is one row per write path and one column per agent (a real `<table>` screen readers can follow); a file written by two agents is marked "overlap", so Steward's file-ownership rule is visible at a glance. A dependency cycle falls back to the list, and more than 14 tasks start in the list (one click back to the graph). A badge in the section header names the current task source.
+3. **Subagents** — one row per dispatch: the child session's title, the role chip and running / idle; **click a row to open that child session in the right sidebar**.
+4. **Artifacts** — files under `tmp/steward/<run>/` (`run.json`, `03-plan.json`, plus the reports and evidence under `reports/` and `evidence/`); **click a row to open the file in the right sidebar**.
 
+**Three task sources, in priority order** (the header badge names the active one):
+
+| Source | When it applies |
+|---|---|
+| `Shared board` | Agent Teams is enabled and a board was built with `steward_board(action="sync")` (the `agentTeam` projection) |
+| `run.json` | the file ownership from `tmp/steward/<run>/03-plan.json` plus the state in `run.json`; available right after `run-state.mjs init` |
+| `Todo list` | the `todos` projection from `todo_write`, the fallback when neither of the above exists |
+
+With none of the three, the task section shows an empty state and three setup steps (dispatch / build the board / use the header icon). **Agent Teams is no longer required** for the board to have content.
+
+The artifacts section can only read `tmp/steward/` when the host serves **workspace files** (the workspace-files Remote); without it the section prints one explanatory line and everything else works as usual.
+
+**Settings now holds models only**: the "Settings → Steward" section renders nothing but the per-role model and reasoning-effort table (role / provider / model / effort / source, plus the defaults row and save / discard). The run board is gone from Settings. The precedence is unchanged: project `steward.config.json` `modelRouting.<role>` > the role's Settings entry > the Settings default > inherit the parent agent.
+
+The **left navigation no longer has a Steward page**: the board exists only in the right sidebar. It registers no Agent Preset, writes no files and opens no HTTP bridge.
 
 ## Installation
 
@@ -45,12 +60,12 @@ plugin_manager(action="install_bundle", target="<repo>/dsh")
 |---|---|
 | Seven roles | Role charters injected at dispatch time (`roles/*.md`): pm, architect, backend-dev, frontend-dev, qa-engineer, browser-tester, reviewer. **No Agent Preset is registered**, so roles never appear in the mode picker |
 | Dispatch | `steward_dispatch(role, description, prompt, cwd?)`: one call per role; the charter is prepended to the task prompt, the child session id comes back, and the result arrives automatically |
-| Model & effort | `modelRouting.<role>` in the project's `steward.config.json` (wins, checked by `scripts/validate-config.mjs`), else the Steward panel's per-role/default selection, else the parent agent |
-| **Team panel** | Sidebar "Steward team" full page (`main` slot): run summary (members / completion / blocked with a progress bar), a team switcher when several boards exist, lead row + member cards (**click one to open its session**), a gate phase rail with work-item rows, and the per-role model + effort table (the same table is in Settings → Steward) |
+| Model & effort | `modelRouting.<role>` in the project's `steward.config.json` (wins, checked by `scripts/validate-config.mjs`), else the role's or default selection in **Settings → Steward**, else the parent agent |
+| **Right-sidebar board** | One per session, opened three ways (the Steward icon in the session header / the right sidebar's guide entry / once automatically on the first Steward dispatch): a run card (completion ring + segmented progress + `done/total` + task and dependency counts + subagent count + run-state badge + run directory), a task section (graph / list / ownership matrix switch plus a task detail), a subagent section (**click a row to open its child session**) and an artifacts section (**click a row to open the file**); task sources fall back `shared board > run.json > todo list`. The per-role model table lives in Settings → Steward |
 | Main skill | `steward`: the Tech Lead playbook (sizing / DAG / dispatch / gates / finishing) |
 | On-demand skills | `inline` (what the lead must still do when it executes a task itself), `docs` (the docTier=3 seven-phase pipeline) and `docs-governance` (the increment layer for splitting, archiving, versioned snapshots and the `docs-gate` / `doc-snapshot` gates), all split out of the main skill |
 | Companion skills | `using-steward` (routing), `agent-settings` (model config), `systematic-debugging`, `tdd`, `verification-before-completion` |
-| Shared task board | `steward_board(action="sync"/"status"/"brief")`: turns `03-plan.json` into gate + work tasks on the Agent Teams board; status is read in the native Team panel |
+| Shared task board | `steward_board(action="sync"/"status"/"brief")`: turns `03-plan.json` into gate + work tasks on the Agent Teams board; status is read in the native Team panel and in the right-sidebar board |
 | Command | `/steward-roster`: echoes the roster and the routing rule (it does not dispatch work); `/steward` is the slash gesture that triggers the `steward` skill |
 | Gate scripts | `scripts/`: `validate-plan.mjs`, `verify.mjs` (including `baseline record/check`), `run-state.mjs`, `maintain.mjs`, `take-over.mjs`, `validate-config.mjs`, `docs-gate.mjs` / `doc-snapshot.mjs` (documentation governance), plus the `doc/` documentation-pipeline tools |
 
@@ -62,22 +77,22 @@ So the DSH side registers no Agent Preset at all. Steward is a *process* (skills
 
 ## Why routing lives in the project
 
-Same argument, applied to configuration: **the project is the first source of truth**. Per-role models and reasoning efforts live in `modelRouting.<role>` in the project's `steward.config.json` — versioned with the code, reviewed in the same diff, revertible, and machine-checked by the bundled `validate-config.mjs`. Only roles the project omits fall back to the team panel's native Config (namespace `steward`), then to the parent route. That way "which model does QA use in this repo?" always has a definite answer instead of becoming unsearchable per-machine history. The plugin ships **no** `steward_config` tool and **builds no** private config file or HTTP bridge of its own.
+Same argument, applied to configuration: **the project is the first source of truth**. Per-role models and reasoning efforts live in `modelRouting.<role>` in the project's `steward.config.json` — versioned with the code, reviewed in the same diff, revertible, and machine-checked by the bundled `validate-config.mjs`. Only roles the project omits fall back to the native Config in **Settings → Steward** (namespace `steward`), then to the parent route. That way "which model does QA use in this repo?" always has a definite answer instead of becoming unsearchable per-machine history. The plugin ships **no** `steward_config` tool and **builds no** private config file or HTTP bridge of its own.
 
-## The shared task board *is* the dashboard (Agent Teams)
+## The shared task board and the right-sidebar board (Agent Teams)
 
-With the host's Agent Teams bundle enabled, **the Team panel in the Web session header is Steward's run dashboard** — there is no second UI to build. `steward_board(action="sync", plan="<run>/03-plan.json", level="M")` turns the plan into native board tasks (idempotent, matched through the `steward:plan=` / `steward:gate=` markers in each description):
+With the host's Agent Teams bundle enabled, the shared task board is the **authoritative source** of task state; the **native Team panel in the Web session header** still exists, while Steward's own **right-sidebar board** folds its three sources — shared board, `run.json` and the todo list — into one picture (priority `shared board > run.json > todo list`, and a header badge names the active source). `steward_board(action="sync", plan="<run>/03-plan.json", level="M")` turns the plan into native board tasks (idempotent, matched through the `steward:plan=` / `steward:gate=` markers in each description):
 
-| Board task | Source | What the panel shows |
+| Board task | Source | What the Team panel / right-sidebar board shows |
 |---|---|---|
 | `G1 · Plan approval` | gate | Until it is completed no work item can be claimed (native dependency gate) |
 | `T<id> · <role> · <title>` | `03-plan.json` tasks | Status dot, owner, dependencies, readiness; write scopes come from file ownership and overlaps warn |
 | `G2 · QA gate` / `G3 · Final review` | gate | Blocked by all work items / by QA, so the process order is visible |
 
-- The description is a fixed block: goal, done-when, ownership, report path, covered acceptance criteria, plus the `steward:plan=` / `steward:role=` markers (two-line summary in the panel, expandable full text).
+- The description is a fixed block: goal, done-when, ownership, report path, covered acceptance criteria, plus the `steward:plan=` / `steward:role=` markers (a two-line summary in the Team panel, expandable full text).
 - Status semantics: `pending` not started / `in_progress` owned by someone / `completed` means the report landed and the task's own verification passed. **A blocked task cannot be claimed** — Steward's DAG and gates run at the native layer.
 - Dispatch: `steward_board(action="brief", role="backend-dev", task="T1")` → hand the brief to `spawn_teammate` → `team_task_update(action="reassign", owner=<teammate>)`; the teammate claims before working.
-- Without the bundle there is no `agentTeams` service, `steward_board` fails loudly, and the solo `steward_dispatch` + `run.json` path stays in charge.
+- Without the bundle there is no `agentTeams` service, `steward_board` fails loudly, and the solo `steward_dispatch` + `run.json` path stays in charge; the right-sidebar board then falls back to `run.json` / the todo list and still has content.
 
 ## Documentation governance (`docs-governance`, an increment layer)
 
@@ -164,7 +179,7 @@ Before dispatching, the route is checked with `llm.resolveModelInfo`; an unknown
 - Trusted-change gates: plan machine-check, independent test/lint/typecheck reruns, baseline guard, resumable run state, and a retry budget.
 - Three quality gates: QA → browser acceptance (when UI) → review; defects are routed back by ownership, at most two rounds.
 - Evidence over claims: no polishing, no fabrication; a failure is reported as a failure.
-- DSH-side 0.6.0 scope: skills (main skill plus on-demand `inline` / `docs`), roles (charters injected at dispatch time, no registered modes), model routing (project file first, then the panel), dispatch, the **team panel** (full page + settings section), the Agent Teams shared task board, the `/steward-roster` roster command, and the gate scripts are aligned. The ZCode/MiniMax `PreToolUse` guard hooks are not ported yet (DSH tool guards are a different in-host mechanism). Browser acceptance follows a three-step ladder: repository Playwright → DSH sidebar driven by a human → manual fallback.
+- DSH-side 0.6.0 scope: skills (main skill plus on-demand `inline` / `docs`), roles (charters injected at dispatch time, no registered modes), model routing (project file first, then Settings), dispatch, the **right-sidebar board** (one per session, task sources falling back shared board > run.json > todo list) with the Settings model table, the Agent Teams shared task board, the `/steward-roster` roster command, and the gate scripts are aligned. The ZCode/MiniMax `PreToolUse` guard hooks are not ported yet (DSH tool guards are a different in-host mechanism). Browser acceptance follows a three-step ladder: repository Playwright → DSH sidebar driven by a human → manual fallback.
 
 ## Universal harness skills (no full install needed)
 

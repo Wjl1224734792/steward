@@ -6,6 +6,34 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [DSH 1.2.0] - 2026-11-13
+
+> **看板搬家**：DSH 侧的 Steward 看板从「左侧导航里的整页」改成**每个会话一份的右侧栏（right sidebar）面板**——任务 DAG、子代理实时状态、`tmp/steward/` 产物都在同一列里按会话打开；模型配置收进「设置 → Steward」，只保留模型表格。DSH 独立升 **1.2.0**，ZCode / MiniMax 侧零改动。
+
+### Breaking
+
+- **左侧导航的「Steward 团队」整页移除**：不再注册 `main` slot 与 `sidebar.panellist` 入口。看板改为右侧栏 tab（`kind: steward`，类型 id `dsh-steward`），由三处打开：会话标题栏新增的 Steward 图标（`conversation.session.header.utilities`）、右侧栏引导页入口、以及**该会话第一次出现 Steward 派发时自动打开一次**（用户关掉后不再抢回）。每个会话各自保存自己的右侧栏布局，因此「切会话 = 切看板」。构建器把 `main` / `sidebar.panellist` 当回归错误拦截。
+- **运行看板不再依赖 Agent Teams**：任务来源按 **共享任务板（`agentTeam` 投影）> `run.json` + `03-plan.json`（读工作区文件）> 待办清单（`todos` 投影）** 三级回落，看板头部用徽标标出当前来源；三者都没有时给三步引导。此前没启用「智能体团队」只有一张建板引导页。
+
+### Added
+
+- **右侧栏看板四块内容**：运行卡片（完成环 + 分段进度条 + `完成/总数` + 任务/依赖/子代理数 + run 状态 + 运行目录）、任务区（`依赖图` / `列表` / `归属矩阵` 三视图 + 点节点看详情）、**子代理区**（每个派发一行：子会话标题、角色 chip、运行中/空闲，点一行在右侧栏打开它的子会话）、**产物区**（`tmp/steward/<run>/` 与 `reports/`、`evidence/` 下的文件，点一行在右侧栏打开文件）。
+- **派发图（依赖图重做）**：最左边一个 `Lead（本会话）` 根节点，没有前置的任务从它拉「派发」箭头，任务之间按依赖连线（G1 → 工作单 → G2 → G3 成一条流水线）；纯待办清单没有依赖时画成 `Lead → 各项` 的派发树，不再是「一摞没有连线的卡片」。节点宽度随面板宽度在 130–238px 之间自适应、列间距均分并把整幅图居中；待办节点显示「待办」而不是「未指派」，标题不再带重复序号；任务超过 14 个时默认列表视图（图仍可一键切换）。
+- **派单标签带角色**：`steward_dispatch` 传给子代理的 `label` 从「任务描述」变为 `"<role> · <description>"`，看板据此把 Steward 派发与普通 `subagent` 调用区分开，并在子代理行显示角色。
+- **工作区文件读取**：客户端经宿主 `remote.workspaceFiles`（`list` / `read`）读本次 run 的 `03-plan.json`、`run.json` 与产物列表；文件服务不可用时产物区退化为一行说明，其余照常。轮询 4 秒（Node 下自动 `unref`，不挂住进程），面板隐藏即卸载。
+
+### Changed
+
+- **设置页只留模型**：「设置 → Steward」分区现在只渲染逐角色模型与思考强度表格（角色 / 提供方 / 模型 / 思考强度 / 来源 + 默认兜底行 + 保存/撤销）。运行看板与旧页面的团队切换条、Lead/成员卡、门禁阶段条、底部双 tab 一并移除。路由优先级不变：项目根 `steward.config.json` 的 `modelRouting.<role>` > 设置页该角色 > 设置页默认 > 继承主代理。
+- **版本**：`host/dsh/package.json` 1.1.0 → **1.2.0**（`description` 同步新 UI）；`host/dsh/skills/steward/banner.md` 版本行与面板口径同步；README（zh/en）、`agent-settings` 技能、`steward` 技能片段、`AGENTS.md` 的 DSH 侧验收步骤同步为「设置 → Steward 配模型 + 会话标题栏图标开看板」。
+- **构建器契约**：`host/dsh/build.mjs` 的客户端检查从「必须有 `main` / `sidebar.panellist`」翻转为「必须有右侧栏三件套（tab 类型 / 正文 / 标题）+ 标题栏入口 + 设置分区，且**不得**再出现整页与左导航入口」。
+
+### 验证
+
+- `node host/dsh/build.mjs` → PASS（同步 `dsh/package.json`、`dsh/client.js`、`dsh/index.js`、`dsh/README.*`，渲染技能/角色/清单），exit 0。
+- `node --test host/dsh/tests/` → **74 pass / 0 fail**，exit 0（含：右侧栏注册契约、首次派发自动打开一次、依赖图/归属矩阵/列表三视图、子代理行与产物行、`workspaceFiles` 读盘回落、循环依赖降级列表、主题 token 与 `.stwd-` 作用域、设置页模型表格 24 个 select）。
+- 本 profile 以 `link:E:/CodeStore/plugins/dev-team/dsh` 方式装本包，重建 `dsh/` 即已生效：**刷新 Web 页面**加载新客户端 bundle；宿主半（`index.js` 的派单 label 与回执措辞）需**重启 DSH** 才换新。
+
 ## [ZCode 1.1.0 / MiniMax 1.1.0 / DSH 1.1.0] - 2026-11-13
 
 > 结构性解耦与文档收口：DSH 命令改名解除对同名技能的斜杠遮蔽（**破坏性变更**）、门禁脚本单一源迁至 `shared/scripts/`、新增通用 harness 技能投放路径、文档职责重排与版本号统一。三宿主同号升 **1.1.0**。

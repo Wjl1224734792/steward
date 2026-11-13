@@ -596,338 +596,6 @@ async function loadClientFactory() {
   return clientBundle;
 }
 
-test('the client bundle registers the page, its sidebar entry and the settings section', async () => {
-  const { id, factory } = await loadClientFactory();
-  assert.equal(id, 'dsh-steward');
-
-  const reactStub = {
-    createElement: (type, props, ...children) => {
-      const merged = { ...(props || {}) };
-      if (children.length === 1) merged.children = children[0];
-      else if (children.length > 1) merged.children = children;
-      return { type, props: merged, children };
-    },
-    useState: (init) => [typeof init === 'function' ? init() : init, () => {}],
-    useEffect: () => {},
-    useMemo: (factory) => factory(),
-    useRef: (init) => ({ current: init }),
-    useCallback: (fn) => fn,
-    Component: class {
-      constructor(props) {
-        this.props = props;
-        this.state = {};
-      }
-    },
-  };
-  const instance = factory((name) => (name === 'react' ? reactStub : {}));
-  assert.deepEqual(instance.inject, ['slots', 'locale', 'remote', 'remote.session', 'configForms', 'uiWorkspace']);
-
-  const registered = [];
-  const ctx = {
-    slots: {
-      inject: (name, callback) => callback(),
-      register: (options, component) => {
-        registered.push({ options, component });
-        return () => {};
-      },
-    },
-    locale: { getLocale: () => ({ id: 'zh-CN' }) },
-    remote: { session: { modelCatalog: async () => ({ ok: true, value: { groups: [] } }) } },
-    configForms: {
-      get: () => ({
-        getSnapshot: () => ({ status: 'loading' }),
-        subscribe: () => () => {},
-        mutate: async () => true,
-      }),
-    },
-    uiWorkspace: { openSession: () => {} },
-    effect: (callback) => {
-      callback();
-    },
-  };
-  instance.apply(ctx);
-
-  assert.deepEqual(registered.map((entry) => entry.options.name), ['main', 'sidebar.panellist', 'settings.section']);
-  assert.equal(registered[0].options.key, 'steward');
-  assert.equal(registered[1].options.id, 'steward');
-
-  /** Expand function/class components until only host elements remain. */
-  const renderTree = (element) => {
-    if (element === null || element === undefined) return '';
-    if (typeof element !== 'object') return String(element);
-    if (Array.isArray(element)) return element.map(renderTree).join('');
-    const type = element.type;
-    if (type === 'style') return '';
-    if (typeof type === 'function') {
-      if (type.prototype instanceof reactStub.Component) {
-        const instance = new type(element.props);
-        return renderTree(instance.render());
-      }
-      return renderTree(type(element.props));
-    }
-    return (element.children || []).map(renderTree).join('');
-  };
-
-  /** Collect host elements whose className list matches, in document order. */
-  const collectByClass = (element, matcher, found = []) => {
-    if (element === null || element === undefined) return found;
-    if (typeof element !== 'object') return found;
-    if (Array.isArray(element)) {
-      for (const item of element) collectByClass(item, matcher, found);
-      return found;
-    }
-    const type = element.type;
-    if (type === 'style') return found;
-    if (typeof type === 'function') {
-      if (type.prototype instanceof reactStub.Component) {
-        return collectByClass(new type(element.props).render(), matcher, found);
-      }
-      return collectByClass(type(element.props), matcher, found);
-    }
-    const className = element.props && element.props.className;
-    if (typeof className === 'string' && matcher(className.split(/\s+/))) found.push(element);
-    for (const child of element.children || []) collectByClass(child, matcher, found);
-    return found;
-  };
-
-  const hasClass = (name) => (classes) => classes.indexOf(name) >= 0;
-
-  /** Collect host elements of one tag, in document order. */
-  const collectTag = (element, tag, found = []) => {
-    if (element === null || element === undefined) return found;
-    if (typeof element !== 'object') return found;
-    if (Array.isArray(element)) {
-      for (const item of element) collectTag(item, tag, found);
-      return found;
-    }
-    const type = element.type;
-    if (typeof type === 'function') {
-      if (type.prototype instanceof reactStub.Component) {
-        return collectTag(new type(element.props).render(), tag, found);
-      }
-      return collectTag(type(element.props), tag, found);
-    }
-    if (type === tag) found.push(element);
-    for (const child of element.children || []) collectTag(child, tag, found);
-    return found;
-  };
-
-  // Rendering the page without team data must explain the empty state, not throw.
-  const page = registered[0].component({ useSessions: () => undefined, useSessionStatus: () => undefined });
-  const flat = renderTree(page);
-  assert.match(flat, /Steward 团队/);
-  assert.match(flat, /还没有共享任务板/);
-  assert.match(flat, /子代理（steward_dispatch）/);
-  assert.equal(collectByClass(page, hasClass('stwd-tab')).length, 0, 'no team means no switcher');
-  assert.equal(collectByClass(page, hasClass('stwd-gate')).length, 0, 'no gate rail without gate tasks');
-
-  // The English dictionary must cover the same page: render it with an en-US locale.
-  const enRegistered = [];
-  const enInstance = factory((name) => (name === 'react' ? reactStub : {}));
-  enInstance.apply({
-    ...ctx,
-    locale: { getLocale: () => ({ id: 'en-US' }) },
-    slots: {
-      inject: (name, callback) => callback(),
-      register: (options, component) => { enRegistered.push({ options, component }); return () => {}; },
-    },
-  });
-  const enFlat = renderTree(enRegistered[0].component({ useSessions: () => undefined, useSessionStatus: () => undefined }));
-  assert.match(enFlat, /Steward team/, 'the page title is localized');
-  assert.match(enFlat, /No shared task board yet/, 'the empty state is localized');
-  assert.match(enFlat, /Subagents \(steward_dispatch\)/, 'section titles are localized');
-  assert.match(enFlat, /Subagent models and reasoning effort/, 'the configuration section is localized');
-
-  // Regression: the live host returns `modelSelection.next = null` for members
-  // that never picked a model. Reading `.provider` off that null used to blank
-  // the whole slot; the card must degrade to the inherited label instead.
-  const teamState = {
-    projectionsBySession: {
-      'session-lead': {
-        values: {
-          agentTeam: {
-            members: [{ id: 'child-1', name: 'backend-dev-t1', phase: 'active' }],
-            tasks: [{
-              id: 't1',
-              subject: 'T1 · backend-dev · 实现导出',
-              status: 'pending',
-              ownerName: 'backend-dev-t1',
-              blockedBy: [],
-              writeScopes: ['src/export.ts'],
-              writeScopeWarnings: [],
-              ready: true,
-            }],
-          },
-        },
-      },
-      'child-1': { values: { modelSelection: { next: null } } },
-      'session-lead-2': { values: { subagentCatalog: [{ id: 'child-9', mode: 'spawn', activity: 'running' }] } },
-    },
-  };
-  const withTeam = registered[0].component({
-    useSessions: (selector) => selector(teamState),
-    useSessionStatus: () => undefined,
-  });
-  const flatTeam = renderTree(withTeam);
-  assert.match(flatTeam, /backend-dev-t1/);
-  assert.match(flatTeam, /继承主代理/, 'a null route must fall back to the inherited label');
-  assert.match(flatTeam, /child-9/, 'solo subagents come from the subagentCatalog projection');
-  assert.doesNotMatch(flatTeam, /团队 · session-/, 'the team label must strip the raw session- prefix');
-  assert.doesNotMatch(flatTeam, /[⛔▶○]/, 'task state is a dot plus a label, never an emoji glyph');
-  assert.equal(collectByClass(withTeam, hasClass('stwd-tab')).length, 0, 'one team means no switcher');
-  // The board is a dependency graph by default, not a list of rows.
-  const singleNodes = collectByClass(withTeam, hasClass('stwd-node'));
-  assert.equal(singleNodes.length, 1, 'one task renders one graph node');
-  assert.match(String(singleNodes[0].props['aria-label']), /T1 · backend-dev · 实现导出/, 'the node names the whole task');
-  assert.equal(collectByClass(withTeam, hasClass('stwd-viewtab')).length, 3, 'three board views are offered');
-  assert.equal(collectByClass(withTeam, hasClass('stwd-seg')).length, 1, 'one progress segment per task');
-  assert.equal(collectByClass(withTeam, hasClass('stwd-legend-item')).length, 4, 'the legend names every state');
-  assert.equal(collectByClass(withTeam, hasClass('stwd-rail-lead')).length, 1, 'the rail carries the lead');
-  assert.equal(collectByClass(withTeam, hasClass('stwd-matrix')).length, 0, 'the graph is the default view, not the matrix');
-
-  // Two teams: one tab strip, still exactly one expanded roster, gates in step order.
-  const twoTeamState = {
-    projectionsBySession: {
-      'session-aaa11111': {
-        values: {
-          agentTeam: {
-            members: [{ id: 'child-a', name: 'pm-a', phase: 'active' }],
-            tasks: [
-              { id: 'g1', subject: 'G1 · 计划批准', status: 'completed', ownerName: '', blockedBy: [], writeScopes: [], writeScopeWarnings: [] },
-              { id: 'g2', subject: 'G2 · QA 门禁', status: 'pending', ownerName: '', blockedBy: ['g1'], writeScopes: [], writeScopeWarnings: [], ready: false },
-              { id: 't1', subject: 'T1 · backend-dev · 实现导出', status: 'in_progress', ownerName: 'pm-a', blockedBy: ['g1'], writeScopes: ['src/export.ts'], writeScopeWarnings: [] },
-              { id: 't2', subject: 'T2 · qa-engineer · 补单测', status: 'pending', ownerName: '', blockedBy: ['t1'], writeScopes: [], writeScopeWarnings: [], ready: false },
-            ],
-          },
-        },
-      },
-      'session-bbb22222': {
-        values: {
-          agentTeam: {
-            members: [{ id: 'child-b', name: 'reviewer-b', phase: 'active' }],
-            tasks: [],
-          },
-        },
-      },
-    },
-  };
-  const twoTeams = registered[0].component({
-    useSessions: (selector) => selector(twoTeamState),
-    useSessionStatus: () => undefined,
-  });
-  const flatTwo = renderTree(twoTeams);
-  assert.equal(collectByClass(twoTeams, hasClass('stwd-tab')).length, 2, 'two teams produce two tabs');
-  assert.equal(collectByClass(twoTeams, hasClass('stwd-rail-lead')).length, 1, 'only the active team is expanded');
-  assert.match(flatTwo, /aaa1111/, 'the tab label is the session tail, not the raw id');
-  const twoNodes = collectByClass(twoTeams, hasClass('stwd-node'));
-  assert.equal(twoNodes.length, 4, 'every task is a node');
-  const nodeLabels = twoNodes.map((node) => String(node.props['aria-label']).split(' ')[0]).sort();
-  assert.deepEqual(nodeLabels, ['G1', 'G2', 'T1', 'T2'], 'nodes carry their short plan labels');
-  assert.equal(collectByClass(twoTeams, hasClass('stwd-edge')).length, 3, 'one edge per dependency');
-  const xOf = (label) => {
-    const node = twoNodes.find((entry) => String(entry.props['aria-label']).indexOf(label + ' ') === 0);
-    const match = /translate\(([-\d.]+)/.exec(String(node.props.transform));
-    return Number(match ? match[1] : NaN);
-  };
-  assert.ok(xOf('G1') < xOf('T1'), 'a dependency sits left of its dependant');
-  assert.ok(xOf('T1') < xOf('T2'), 'the chained work item sits one layer further right');
-  assert.match(flatTwo, /阻塞/, 'blocked work is labelled, not conveyed by color alone');
-  assert.match(flatTwo, /进行中/);
-  assert.match(flatTwo, /pm-a/);
-  assert.doesNotMatch(flatTwo, /session-bbb22222/, 'the collapsed team is not rendered as a panel');
-
-  // The stylesheet is the one dependency this panel shares with the host: it has to
-  // stay scoped to `.stwd-` (never leak into host UI), balanced, and on the host's
-  // scale — 20px page title, 14px section title, 11px meta, .5px hairlines, 960px column.
-  const styleNodes = collectTag(page, 'style');
-  assert.equal(styleNodes.length, 1, 'the page renders exactly one stylesheet');
-  const css = styleNodes[0].children.join('\n');
-  assert.equal((css.match(/{/g) || []).length, (css.match(/}/g) || []).length, 'stylesheet braces must balance');
-  assert.doesNotMatch(css, /;;/, 'stylesheet must not carry empty declarations');
-  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
-  const selectors = [...withoutComments.matchAll(/([^{}]+)\{/g)].map((match) => match[1].trim());
-  const KEYFRAME_STEP = /^(from|to|\d+%)(,\s*(from|to|\d+%))*$/;
-  const unscoped = selectors.filter((selector) => selector !== ''
-    && selector.charAt(0) !== '@'
-    && !KEYFRAME_STEP.test(selector)
-    && selector.indexOf('.stwd-') < 0);
-  assert.deepEqual(unscoped, [], `styles must stay scoped to the plugin prefix: ${unscoped.join(' | ')}`);
-  for (const needle of ['font-size:20px', 'line-height:28px', 'font-size:14px', 'font-size:11px', 'border:.5px', 'max-width:960px']) {
-    assert.ok(css.includes(needle), `styles must keep the host scale, missing ${needle}`);
-  }
-
-  const settings = renderTree(registered[2].component({}));
-  assert.match(settings, /正在读取原生设置服务|子代理模型与思考强度|默认配置/);
-});
-
-/**
- * The panel stylesheet is the only shared styling dependency with the host: every
- * `--dsw-*` reference must be a real theme token, and tokens outside the published
- * alias catalog must carry a CSS fallback so a renamed token degrades instead of
- * blanking a color.
- */
-test('the panel stylesheet uses only host theme tokens, with fallbacks outside the catalog', async () => {
-  const source = readFileSync(new URL('../../../dsh/client.js', import.meta.url), 'utf8');
-
-  // Published by `cordis_inspect_query` Theme.listTokens on this host.
-  const catalog = new Set([
-    '--dsw-alias-bg-base',
-    '--dsw-alias-bg-layer-1',
-    '--dsw-alias-bg-layer-2',
-    '--dsw-alias-bg-overlay',
-    '--dsw-alias-border-l1',
-    '--dsw-alias-border-l2',
-    '--dsw-alias-brand-primary',
-    '--dsw-alias-label-primary',
-    '--dsw-alias-label-secondary',
-    '--dsw-alias-state-error-primary',
-    '--dsw-alias-state-idle-primary',
-    '--dsw-alias-state-success-primary',
-    '--dsw-alias-state-warn-primary',
-    '--dsw-specific-sidebar-fill',
-  ]);
-  // Named in the client bundles of the shipped host packages (Agent Teams panel,
-  // Plugin Manager page) and of the two mature third-party panels in this profile.
-  const nativeExtras = new Set([
-    '--dsw-alias-label-tertiary',
-    '--dsw-alias-label-caption',
-    '--dsw-alias-border-l3',
-    '--dsw-alias-border-l4',
-    '--dsw-alias-bg-layer-3',
-    '--dsw-alias-bg-module-platform',
-    '--dsw-alias-interactive-bg-hover',
-    '--dsw-alias-interactive-bg-active',
-    '--dsw-alias-state-business-primary',
-    '--dsw-alias-state-business-tertiary',
-    '--dsw-alias-button-primary-fill',
-    '--dsw-alias-label-primary-foreground',
-    '--dsw-elevation-panel',
-    '--dsw-elevation-prominent',
-    '--dsw-elevation-stroke',
-    '--dsw-elevation-stroke-color',
-    '--dsw-focus-ring-color',
-  ]);
-
-  const used = new Set([...source.matchAll(/--dsw-[a-z0-9-]+/g)].map((match) => match[0]));
-  assert.ok(used.size > 10, 'the panel must be styled with theme tokens');
-
-  const unknown = [...used].filter((token) => !catalog.has(token) && !nativeExtras.has(token));
-  assert.deepEqual(unknown, [], `unknown theme tokens: ${unknown.join(', ')}`);
-
-  // Anything the Theme catalog does not publish needs a fallback in every var() use.
-  for (const token of used) {
-    if (catalog.has(token)) continue;
-    const bare = new RegExp('var\\(' + token + '\\s*\\)');
-    assert.doesNotMatch(source, bare, `${token} needs a fallback: var(${token}, …)`);
-    const withFallback = new RegExp('var\\(' + token + '\\s*,');
-    assert.match(source, withFallback, `${token} is never given a fallback value`);
-  }
-
-  const literals = [...source.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((match) => match[0].toLowerCase());
-  const colors = literals.filter((value) => value !== '#fff');
-  assert.deepEqual(colors, [], `literal colors are artwork-only, found: ${colors.join(', ')}`);
-});
-
 /**
  * A stateful React stand-in for render tests: state cells survive passes, effects
  * run inline, and every component is expanded down to host elements. Enough to
@@ -1041,11 +709,513 @@ function createRenderHarness(options) {
 }
 
 /**
+ * A client Context stand-in: captures slot registrations and right-Sidebar tab
+ * types, and answers the optional `ctx.inject([...], run)` the plugin uses so a
+ * profile without the right Sidebar still keeps the settings section.
+ * @param options - services to override.
+ * @returns the context plus what the plugin registered.
+ */
+function createClientContext(options) {
+  const settings = options && options.settings;
+  const registered = [];
+  const tabTypes = [];
+  const ctx = {
+    slots: {
+      inject: (name, callback) => callback(),
+      register: (definition, component) => {
+        registered.push({ options: definition, component });
+        return () => {};
+      },
+    },
+    locale: { getLocale: () => ({ id: (options && options.locale) || 'zh-CN' }) },
+    remote: (options && options.remote) || { session: { modelCatalog: async () => ({ ok: true, value: { groups: [] } }) } },
+    configForms: settings || { get: () => ({ getSnapshot: () => ({ status: 'loading' }), subscribe: () => () => {}, mutate: async () => true }) },
+    uiWorkspace: { openSession: () => {} },
+    sidebarRightTabs: {
+      register: (definition) => {
+        tabTypes.push(definition);
+        return () => {};
+      },
+    },
+    sidebarRight: (options && options.sidebarRight) || {
+      mounted: { getSnapshot: () => undefined, subscribe: () => () => {} },
+      openTab: () => {},
+      openResource: () => {},
+    },
+    sessions: (options && options.sessions) || {
+      list: { getSnapshot: () => ({ projectionsBySession: {} }), subscribe: () => () => {} },
+    },
+    effect: (callback) => { callback(); },
+  };
+  if (!options || options.useInject !== false) ctx.inject = (names, run) => run(ctx);
+  return { ctx, registered, tabTypes };
+}
+
+/** The registered board body plus the injected face for one Session. */
+function boardEntry(registered) {
+  const entry = registered.find((item) => item.options.name === 'sidebar.right.pane.tab');
+  assert.ok(entry, 'the board body must register into sidebar.right.pane.tab');
+  return entry;
+}
+
+/** Render the board for one Session with the given scope services. */
+function boardRender(registered, sessionId, props) {
+  const entry = boardEntry(registered);
+  const face = typeof entry.options.inject === 'function' ? entry.options.inject(sessionId) : {};
+  return () => entry.component({ ...face, sessionId, ...(props || {}) });
+}
+
+/** Job-shaped facts the board would read off disk. */
+function sampleFacts(overrides) {
+  return {
+    status: 'ready',
+    dir: 'tmp/steward/1113-1518-demo',
+    run: { status: 'running', updatedAt: '2026-11-13T07:20:00.000Z' },
+    plan: null,
+    artifacts: [{ path: 'tmp/steward/1113-1518-demo/final-report.md', name: 'final-report.md', size: 2048 }],
+    ...(overrides || {}),
+  };
+}
+
+/**
+ * The board is a per-Session right-Sidebar tab: the tab type, its body and chip
+ * title, a header button, and a settings section for models. The old full page and
+ * its left-nav entry must stay gone — the panel is opened per Session, not as a page.
+ */
+test('the client registers a right-sidebar board, its title, a header button and the settings section', async () => {
+  const { id, factory } = await loadClientFactory();
+  assert.equal(id, 'dsh-steward');
+
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  assert.deepEqual(instance.inject, ['slots', 'locale', 'remote', 'remote.session', 'configForms', 'uiWorkspace']);
+
+  const { ctx, registered, tabTypes } = createClientContext();
+  instance.apply(ctx);
+
+  assert.deepEqual(registered.map((entry) => entry.options.name), [
+    'settings.section',
+    'sidebar.right.pane.tab',
+    'sidebar.right.pane.tab.title',
+    'conversation.session.header.utilities',
+  ]);
+  assert.deepEqual(
+    registered.filter((entry) => entry.options.name === 'main' || entry.options.name === 'sidebar.panellist'),
+    [],
+    'there is no full page and no left-nav entry any more',
+  );
+
+  assert.equal(registered[0].options.id, 'steward', 'the settings section keeps its id');
+  assert.equal(registered[1].options.key, 'dsh-steward', 'the body is keyed by the tab type id');
+  assert.equal(registered[2].options.key, 'dsh-steward', 'the chip title uses the same key');
+  assert.equal(registered[3].options.id, 'steward-board');
+  assert.ok(registered[3].options.order < 0, 'the header button sits left of the overflow menu');
+
+  assert.equal(tabTypes.length, 1);
+  assert.equal(tabTypes[0].id, 'dsh-steward');
+  assert.equal(tabTypes[0].kind, 'steward', 'openTab() names the kind');
+  assert.match(tabTypes[0].title('sidebar://steward'), /看板/);
+  assert.equal(tabTypes[0].guide.length, 1, 'the guide page offers a way in');
+  assert.equal(tabTypes[0].guide[0].id, 'steward-board');
+
+  // The empty board explains itself instead of throwing.
+  const renderEmpty = boardRender(registered, 'session-empty', {});
+  const emptyHost = await harness.settle(renderEmpty);
+  const emptyText = emptyHost.map((node) => harness.textOf(node)).join('\n');
+  assert.match(emptyText, /Steward 运行看板/);
+  assert.match(emptyText, /还没有任务/);
+  assert.match(emptyText, /还没有派发子代理/);
+
+  // The header button renders as a real control and calls the injected opener.
+  const buttonEntry = registered[3];
+  let opened = 0;
+  const buttonHost = harness.expand(buttonEntry.component({ text: { openPanel: '打开 Steward 看板' }, openPanel: () => { opened += 1; } }));
+  const buttons = harness.collect(buttonHost, harness.byClass('stwd-headbtn'));
+  assert.equal(buttons.length, 1);
+  assert.equal(buttons[0].props['aria-label'], '打开 Steward 看板');
+  buttons[0].props.onClick();
+  assert.equal(opened, 1);
+
+  // The English dictionary covers the same surfaces.
+  const enHarness = createRenderHarness();
+  const enInstance = factory((name) => (name === 'react' ? enHarness.stub : {}));
+  const en = createClientContext({ locale: 'en-US' });
+  enInstance.apply(en.ctx);
+  const enHost = await enHarness.settle(boardRender(en.registered, 'session-empty', {}));
+  const enText = enHost.map((node) => enHarness.textOf(node)).join('\n');
+  assert.match(enText, /Steward run board/);
+  assert.match(enText, /No tasks yet/);
+  assert.match(enText, /No subagent dispatched/);
+});
+
+/**
+ * The first Steward dispatch in a Session opens the board once and only once: a
+ * plain `subagent` call must not steal the panel, and closing it afterwards has to
+ * stick for that Session.
+ */
+test('the board opens itself once when a Steward dispatch appears', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+
+  const opened = [];
+  const listeners = new Set();
+  let snapshot = {
+    projectionsBySession: {
+      'session-a': { values: { subagentCatalog: [{ id: 'child-1', mode: 'one-shot', label: '查一下文档' }] } },
+    },
+  };
+  const { ctx } = createClientContext({
+    sidebarRight: {
+      mounted: { getSnapshot: () => 'session-a', subscribe: () => () => {} },
+      openTab: (kind) => opened.push(kind),
+      openResource: () => {},
+    },
+    sessions: {
+      list: {
+        getSnapshot: () => snapshot,
+        subscribe: (listener) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+      },
+    },
+  });
+  instance.apply(ctx);
+  assert.deepEqual(opened, [], 'a plain subagent call never opens the board');
+
+  snapshot = {
+    projectionsBySession: {
+      'session-a': { values: { subagentCatalog: [{ id: 'child-2', mode: 'one-shot', label: 'backend-dev · T1 导出接口' }] } },
+    },
+  };
+  for (const listener of listeners) listener();
+  assert.deepEqual(opened, ['steward'], 'a Steward dispatch opens the board');
+
+  for (const listener of listeners) listener();
+  assert.deepEqual(opened, ['steward'], 'it does not fight the user for the panel afterwards');
+});
+
+/**
+ * A host half that predates the role-prefixed label, or a plain `subagent` call
+ * inside a Steward run, still opens the board: the run directory on disk is the
+ * evidence, probed once per Session.
+ */
+test('the board also opens when a run directory exists but the dispatch label carries no role', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+
+  const opened = [];
+  const workspaceFiles = {
+    list: async (sessionId, path) => (path === 'tmp/steward'
+      ? { ok: true, value: { path, entries: [{ name: '1113-1518-demo', type: 'directory' }], truncated: false } }
+      : { ok: false, error: { message: 'workspace-file/not-found', code: 'workspace-file/not-found' } }),
+    read: async () => ({ ok: false, error: { message: 'workspace-file/not-found', code: 'workspace-file/not-found' } }),
+  };
+  const snapshot = {
+    projectionsBySession: {
+      'session-probe': { values: { subagentCatalog: [{ id: 'child-1', mode: 'one-shot', label: '查一下文档' }] } },
+    },
+  };
+  const { ctx } = createClientContext({
+    remote: { session: { modelCatalog: async () => ({ ok: true, value: { groups: [] } }) }, workspaceFiles },
+    sidebarRight: {
+      mounted: { getSnapshot: () => 'session-probe', subscribe: () => () => {} },
+      openTab: (kind) => opened.push(kind),
+      openResource: () => {},
+    },
+    sessions: { list: { getSnapshot: () => snapshot, subscribe: () => () => {} } },
+  });
+  instance.apply(ctx);
+  assert.deepEqual(opened, [], 'the probe is asynchronous');
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(opened, ['steward'], 'a run directory opens the board');
+});
+
+/**
+ * The board is the point of the panel: a layered dependency graph by default, an
+ * ownership matrix for file conflicts and a row list as the complete text
+ * alternative — plus live subagents and the files the run produced.
+ */
+test('the board renders a dependency graph, an ownership matrix, a list, subagents and artifacts', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const values = {
+    agentTeam: {
+      enabled: true,
+      tasks: [
+        { id: 'g1', subject: 'G1 · 计划批准', status: 'completed', ownerName: '', blockedBy: [], writeScopes: [] },
+        { id: 't1', subject: 'T1 · backend-dev · 导出接口', status: 'in_progress', ownerName: 'backend-dev-t1', blockedBy: ['g1'], writeScopes: ['src/export.ts', 'test/export.test.ts'], description: '目标：导出接口返回 200' },
+        { id: 't2', subject: 'T2 · frontend-dev · 导出按钮', status: 'pending', ownerName: 'frontend-dev-t3', blockedBy: ['t1'], writeScopes: ['test/export.test.ts'], ready: false },
+        { id: 'g2', subject: 'G2 · QA 门禁', status: 'pending', ownerName: '', blockedBy: ['t1'], writeScopes: [] },
+      ],
+    },
+    subagentCatalog: [
+      { id: 'child-1', mode: 'one-shot', label: 'backend-dev · T1 导出接口', activity: 'running' },
+      { id: 'child-2', mode: 'one-shot', label: 'qa-engineer · T4 QA', activity: 'inactive' },
+    ],
+  };
+  const opened = [];
+  const props = {
+    loadRun: async () => sampleFacts(),
+    useProjection: (key) => values[key],
+    useSessions: (selector) => selector({ byId: { 'child-1': { title: 'T1 导出接口实现' } } }),
+    useSessionStatus: (selector) => selector(new Map([['child-1', { running: true }]])),
+    openSession: (id, mode) => opened.push(['session', id, mode]),
+    openFile: (path) => opened.push(['file', path]),
+  };
+  const renderBoard = boardRender(registered, 'session-run01', props);
+
+  // 1) Default view: the dispatch graph — a Lead node, the tasks it dispatched and
+  // the dependency edges between them.
+  let host = await harness.settle(renderBoard);
+  const leadNodes = harness.collect(host, harness.byClass('stwd-node-lead'));
+  assert.equal(leadNodes.length, 1, 'the graph has one Lead root');
+  assert.match(String(leadNodes[0].props['aria-label']), /Lead/, 'the root is named');
+  const nodes = harness.collect(host, harness.byClass('stwd-node-task'));
+  assert.equal(nodes.length, 4, 'every task is a graph node');
+  const edges = harness.collect(host, harness.byClass('stwd-edge'));
+  assert.equal(edges.length, 4, 'three dependencies plus the dispatch into the root task');
+  assert.equal(harness.collect(host, harness.byClass('stwd-edge-dispatch')).length, 1, 'exactly one task has no prerequisite');
+  const labels = nodes.map((node) => String(node.props['aria-label']));
+  assert.ok(labels.some((label) => label.indexOf('T1 ') === 0 && label.indexOf('进行中') > 0), 'a node names its task and state');
+  assert.ok(labels.some((label) => label.indexOf('backend-dev-t1') > 0), 'a node names its owner');
+  const xOf = (short) => {
+    const node = nodes.find((entry) => String(entry.props['aria-label']).indexOf(short + ' ') === 0);
+    const match = /translate\(([-\d.]+)/.exec(String(node.props.transform));
+    return Number(match ? match[1] : NaN);
+  };
+  assert.ok(xOf('G1') < xOf('T1'), 'layers run left to right');
+  assert.ok(xOf('T1') < xOf('G2'), 'the QA gate follows the work item');
+  assert.match(host.map((node) => harness.textOf(node)).join('\n'), /共享任务板/, 'the source is named');
+
+  // 2) Subagents: one row per dispatch, live status, click opens the child session.
+  const subrows = harness.collect(host, harness.byClass('stwd-subrow'));
+  assert.equal(subrows.length, 2, 'one row per dispatched subagent');
+  assert.match(harness.textOf(subrows[0]), /T1 导出接口实现/, 'the child Session title is the row title');
+  assert.match(harness.textOf(subrows[0]), /运行中/, 'a running child is labelled, not just coloured');
+  assert.match(harness.textOf(subrows[1]), /空闲/);
+  subrows[0].props.onClick();
+  assert.deepEqual(opened[0], ['session', 'child-1', 'one-shot'], 'clicking a subagent opens its child session');
+
+  // 3) Artifacts: the run directory listing is a clickable file list.
+  const artrows = harness.collect(host, harness.byClass('stwd-artrow'));
+  assert.equal(artrows.length, 1);
+  assert.match(harness.textOf(artrows[0]), /final-report\.md/);
+  artrows[0].props.onClick();
+  assert.deepEqual(opened[1], ['file', 'tmp/steward/1113-1518-demo/final-report.md'], 'clicking an artifact opens the file');
+
+  // 4) Selecting a node opens the task detail.
+  const t1Node = nodes.find((node) => String(node.props['aria-label']).indexOf('T1 ') === 0);
+  t1Node.props.onClick();
+  host = await harness.settle(renderBoard);
+  const detail = harness.collect(host, harness.byClass('stwd-detail'))[0];
+  assert.ok(detail, 'clicking a node opens the detail');
+  assert.match(harness.textOf(detail), /T1 · backend-dev · 导出接口/);
+  assert.match(harness.textOf(detail), /src\/export\.ts/);
+  assert.match(harness.textOf(detail), /导出接口返回 200/, 'the task description is readable in the panel');
+
+  // 5) Ownership matrix: the file both agents write is flagged as overlapping.
+  const viewTabs = harness.collect(host, harness.byClass('stwd-viewtab'));
+  assert.deepEqual(viewTabs.map(harness.textOf), ['依赖图', '列表', '归属']);
+  viewTabs[2].props.onClick();
+  host = await harness.settle(renderBoard);
+  const table = harness.collect(host, (node) => node.type === 'table')[0];
+  assert.ok(table, 'the matrix is a real table');
+  const columnHeads = harness.collect([table], (node) => node.type === 'th' && node.props.scope === 'col').map(harness.textOf);
+  assert.ok(columnHeads.some((cell) => cell.indexOf('backend-dev-t1') >= 0), 'one column per agent');
+  const matrixRows = harness.collect(host, (node) => typeof node.props.className === 'string' && node.props.className.indexOf('stwd-matrix-row-overlap') >= 0);
+  assert.equal(matrixRows.length, 1, 'only the shared file is flagged');
+  assert.match(harness.textOf(matrixRows[0]), /test\/export\.test\.ts/);
+  assert.equal(harness.collect(host, harness.byClass('stwd-node')).length, 0, 'the graph is replaced, not stacked');
+
+  // 6) List: the complete text alternative, one row per task.
+  harness.collect(host, harness.byClass('stwd-viewtab'))[1].props.onClick();
+  host = await harness.settle(renderBoard);
+  const rows = harness.collect(host, harness.byClass('stwd-row'))
+    .filter((node) => node.props.className.indexOf('stwd-subrow') < 0 && node.props.className.indexOf('stwd-artrow') < 0);
+  assert.equal(rows.length, 4, 'one row per task');
+  assert.match(harness.textOf(rows[1]), /T1 · backend-dev · 导出接口/, 'the row carries the whole title');
+  assert.match(harness.textOf(rows[1]), /进行中/);
+});
+
+/**
+ * Without Agent Teams the board still has to say something: the todo list is the
+ * fallback source, and a cyclic board degrades to the list with an explanation.
+ */
+test('the board falls back to the todo list and refuses to draw a cyclic graph', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const todoValues = {
+    todos: [
+      { content: '写规格', status: 'completed' },
+      { content: '实现导出', status: 'in_progress' },
+    ],
+  };
+  const renderTodo = boardRender(registered, 'session-todo', {
+    loadRun: async () => ({ status: 'empty', dir: '', run: null, plan: null, artifacts: [] }),
+    useProjection: (key) => todoValues[key],
+  });
+  let host = await harness.settle(renderTodo);
+  assert.equal(harness.collect(host, harness.byClass('stwd-node-task')).length, 2, 'two todo items are two nodes');
+  assert.equal(harness.collect(host, harness.byClass('stwd-node-lead')).length, 1, 'the Lead root is drawn too');
+  assert.equal(harness.collect(host, harness.byClass('stwd-edge-dispatch')).length, 2, 'each todo hangs off the Lead with a line');
+  assert.equal(harness.collect(host, harness.byClass('stwd-edge')).length, 2, 'a todo list has no dependencies');
+  assert.match(host.map((node) => harness.textOf(node)).join('\n'), /待办清单/, 'the fallback source is named');
+
+  // A cycle cannot be layered: the list takes over and the panel says why.
+  const cycleValues = {
+    agentTeam: {
+      enabled: true,
+      tasks: [
+        { id: 't1', subject: 'T1 · backend-dev · 甲', status: 'pending', ownerName: 'backend-dev-t1', blockedBy: ['t2'], writeScopes: [] },
+        { id: 't2', subject: 'T2 · backend-dev · 乙', status: 'pending', ownerName: 'backend-dev-t1', blockedBy: ['t1'], writeScopes: [] },
+      ],
+    },
+  };
+  const renderCycle = boardRender(registered, 'session-cycle', {
+    loadRun: async () => ({ status: 'empty', dir: '', run: null, plan: null, artifacts: [] }),
+    useProjection: (key) => cycleValues[key],
+  });
+  host = await harness.settle(renderCycle);
+  assert.equal(harness.collect(host, harness.byClass('stwd-node')).length, 0, 'no layered graph for a cyclic board');  const cycleRows = harness.collect(host, harness.byClass('stwd-row'))
+    .filter((node) => node.props.className.indexOf('stwd-subrow') < 0 && node.props.className.indexOf('stwd-artrow') < 0);
+  assert.equal(cycleRows.length, 2, 'the list takes over');
+  const alerts = harness.collect(host, harness.byClass('stwd-alert')).map(harness.textOf);
+  assert.ok(alerts.some((text) => text.indexOf('环状依赖') >= 0), `the panel explains the cycle (alerts: ${alerts.join(' | ')})`);
+});
+
+/**
+ * The board reads the run off disk through the host's workspace-files Remote: the
+ * newest run directory wins, 03-plan.json supplies ownership and run.json status.
+ */
+test('the board reads plan + run.json + artifacts off disk through the workspace-files Remote', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+
+  const listings = {
+    'tmp/steward': [
+      { name: '1112-0930-old', type: 'directory' },
+      { name: '1113-1518-demo', type: 'directory' },
+    ],
+    'tmp/steward/1113-1518-demo': [
+      { name: 'run.json', type: 'file', size: 120 },
+      { name: '03-plan.json', type: 'file', size: 400 },
+    ],
+    'tmp/steward/1113-1518-demo/reports': [{ name: 'qa.md', type: 'file', size: 3000 }],
+    'tmp/steward/1112-0930-old': [],
+  };
+  const reads = {
+    'tmp/steward/1113-1518-demo/run.json': JSON.stringify({
+      status: 'running',
+      updatedAt: '2026-11-13T07:20:00.000Z',
+      tasks: { T1: { status: 'done', attempts: 1 }, T2: { status: 'running' } },
+    }),
+    'tmp/steward/1113-1518-demo/03-plan.json': JSON.stringify({
+      acceptanceCriteria: [{ id: 'AC1', text: '导出接口返回 200', coveredBy: ['T1'] }],
+      tasks: [
+        { id: 'T1', title: '导出接口', role: 'backend-dev', files: ['src/export.js'], newFiles: [], dependsOn: [] },
+        { id: 'T2', title: '导出按钮', role: 'frontend-dev', files: ['src/ui/button.vue'], newFiles: [], dependsOn: ['T1'] },
+      ],
+    }),
+  };
+  const calls = [];
+  const workspaceFiles = {
+    list: async (sessionId, path) => {
+      calls.push(['list', path]);
+      assert.equal(sessionId, 'session-run07');
+      return listings[path] === undefined
+        ? { ok: false, error: { message: 'workspace-file/not-found', code: 'workspace-file/not-found' } }
+        : { ok: true, value: { path, entries: listings[path], truncated: false } };
+    },
+    read: async (sessionId, path) => {
+      calls.push(['read', path]);
+      assert.equal(sessionId, 'session-run07');
+      return reads[path] === undefined
+        ? { ok: false, error: { message: 'workspace-file/not-found', code: 'workspace-file/not-found' } }
+        : { ok: true, value: { text: reads[path], absolutePath: path, version: 'v1', offset: 1, lines: 1, eof: true } };
+    },
+  };
+
+  const { ctx, registered } = createClientContext({
+    remote: { session: { modelCatalog: async () => ({ ok: true, value: { groups: [] } }) }, workspaceFiles },
+  });
+  instance.apply(ctx);
+
+  const entry = boardEntry(registered);
+  const face = entry.options.inject('session-run07');
+  const facts = await face.loadRun();
+  assert.equal(facts.dir, 'tmp/steward/1113-1518-demo', 'the newest run directory wins');
+  assert.equal(facts.run.status, 'running');
+  assert.ok(facts.artifacts.some((item) => item.name === 'reports/qa.md'), 'nested reports are listed');
+  assert.ok(calls.some(([method, path]) => method === 'list' && path === 'tmp/steward'), 'discovery walks the run root');
+
+  // Rendering the same Session turns plan + run.json into the graph.
+  const host = await harness.settle(() => entry.component({
+    ...face,
+    sessionId: 'session-run07',
+    useProjection: () => undefined,
+  }));
+  const nodes = harness.collect(host, harness.byClass('stwd-node-task'));
+  assert.equal(nodes.length, 2, 'the plan tasks become nodes');
+  assert.equal(harness.collect(host, harness.byClass('stwd-node-lead')).length, 1, 'the Lead root heads the plan graph');
+  assert.equal(harness.collect(host, harness.byClass('stwd-edge-dispatch')).length, 1, 'the first task hangs off the Lead');
+  assert.equal(harness.collect(host, harness.byClass('stwd-edge')).length, 2, 'one dispatch edge plus T1 → T2');
+  const nodeLabels = nodes.map((node) => String(node.props['aria-label']));
+  assert.ok(nodeLabels.some((label) => label.indexOf('T1 ') === 0 && label.indexOf('完成') > 0), 'run.json drives the status');
+  assert.ok(nodeLabels.some((label) => label.indexOf('T2 ') === 0 && label.indexOf('进行中') > 0));
+  assert.ok(host.map((node) => harness.textOf(node)).join('\n').indexOf('run.json') >= 0, 'the source is named');
+});
+
+/**
+ * The injected face is how a row reaches the host: a child Session opens as a
+ * `subagentchat` resource in the right Sidebar, an artifact as a `file` resource.
+ */
+test('the board face opens child sessions and artifacts in the right sidebar', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const calls = [];
+  const { ctx, registered } = createClientContext({
+    sidebarRight: {
+      mounted: { getSnapshot: () => undefined, subscribe: () => () => {} },
+      openTab: (kind) => calls.push(['tab', kind]),
+      openResource: (address, options) => calls.push(['resource', address, options]),
+    },
+  });
+  instance.apply(ctx);
+
+  const face = boardEntry(registered).options.inject('session-run09');
+  face.openSession('child-7', 'one-shot');
+  const chat = calls.find(([kind]) => kind === 'resource');
+  assert.ok(chat, 'opening a child uses the Sidebar resource path');
+  assert.equal(chat[1], 'dsh-resource://subagentchat/session/child-7?parent=session-run09&mode=one-shot');
+  assert.equal(chat[2].kind, 'subagentchat', 'the claim names the subagentchat type');
+
+  face.openFile('tmp/steward/1113-1518-demo/reports/qa.md');
+  const file = calls.filter(([kind]) => kind === 'resource').pop();
+  assert.equal(file[1], 'dsh-resource://file/session/session-run09/tmp/steward/1113-1518-demo/reports/qa.md');
+
+  face.openPanel();
+  assert.deepEqual(calls.filter(([kind]) => kind === 'tab'), [['tab', 'steward']], 'the panel opens by kind');
+});
+
+/**
  * The configuration surface is the densest part of the panel. Render it against a
  * settled native settings snapshot plus a live model catalog and assert the table
  * shape: column headers, the defaults row, one row per role, three selects each.
  */
-test('the configuration surface renders as a table with a defaults row and one row per role', async () => {
+test('the settings section renders the model table with a defaults row and one row per role', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
 
@@ -1068,21 +1238,16 @@ test('the configuration surface renders as a table with a defaults row and one r
   };
 
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
-  const registered = [];
-  instance.apply({
-    slots: {
-      inject: (name, callback) => callback(),
-      register: (options, component) => { registered.push({ options, component }); return () => {}; },
-    },
-    locale: { getLocale: () => ({ id: 'zh-CN' }) },
+  const { ctx, registered } = createClientContext({
     remote: { session: { modelCatalog: async () => catalog } },
-    configForms: { get: () => ({ getSnapshot: () => snapshot, subscribe: () => () => {}, mutate: async () => true }) },
-    uiWorkspace: { openSession: () => {} },
-    effect: (callback) => { callback(); },
+    settings: { get: () => ({ getSnapshot: () => snapshot, subscribe: () => () => {}, mutate: async () => true }) },
   });
+  instance.apply(ctx);
 
+  const settingsEntry = registered.find((entry) => entry.options.name === 'settings.section');
+  assert.ok(settingsEntry, 'the settings section is registered');
   const { collect, labelOf, textOf, byClass } = harness;
-  const host = await harness.settle(() => registered[2].component({}));
+  const host = await harness.settle(() => settingsEntry.component({}));
 
   assert.deepEqual(collect(host, byClass('stwd-th')).map(labelOf), ['角色', '提供方', '模型', '思考强度', '来源']);
 
@@ -1113,251 +1278,116 @@ test('the configuration surface renders as a table with a defaults row and one r
 });
 
 /**
- * The board is the point of the panel: a layered dependency graph by default, an
- * ownership matrix for file conflicts, and the row list as the complete text
- * alternative. Drive the switch through real click props.
+ * The stylesheet is the one dependency the panel shares with the host: every
+ * `--dsw-*` reference must be a real theme token, tokens outside the published
+ * alias catalog must carry a fallback, and every selector must stay scoped.
  */
-test('the board renders a dependency graph, an ownership matrix and a list', async () => {
+test('the board stylesheet stays scoped and uses only host theme tokens', async () => {
   const { factory } = await loadClientFactory();
+  const source = readFileSync(new URL('../../../dsh/client.js', import.meta.url), 'utf8');
+
+  // Published by `cordis_inspect_query` Theme.listTokens on this host.
+  const catalog = new Set([
+    '--dsw-alias-bg-base',
+    '--dsw-alias-bg-layer-1',
+    '--dsw-alias-bg-layer-2',
+    '--dsw-alias-bg-overlay',
+    '--dsw-alias-border-l1',
+    '--dsw-alias-border-l2',
+    '--dsw-alias-brand-primary',
+    '--dsw-alias-label-primary',
+    '--dsw-alias-label-secondary',
+    '--dsw-alias-state-error-primary',
+    '--dsw-alias-state-idle-primary',
+    '--dsw-alias-state-success-primary',
+    '--dsw-alias-state-warn-primary',
+    '--dsw-specific-sidebar-fill',
+  ]);
+  // Named in the client bundles of the shipped host packages (Agent Teams panel,
+  // Plugin Manager page, right Sidebar).
+  const nativeExtras = new Set([
+    '--dsw-alias-label-tertiary',
+    '--dsw-alias-label-caption',
+    '--dsw-alias-border-l3',
+    '--dsw-alias-border-l4',
+    '--dsw-alias-bg-layer-3',
+    '--dsw-alias-bg-module-platform',
+    '--dsw-alias-interactive-bg-hover',
+    '--dsw-alias-interactive-bg-active',
+    '--dsw-alias-state-business-primary',
+    '--dsw-alias-state-business-tertiary',
+    '--dsw-alias-button-primary-fill',
+    '--dsw-alias-label-primary-foreground',
+    '--dsw-elevation-panel',
+    '--dsw-elevation-prominent',
+    '--dsw-elevation-stroke',
+    '--dsw-elevation-stroke-color',
+    '--dsw-focus-ring-color',
+  ]);
+
+  const used = new Set([...source.matchAll(/--dsw-[a-z0-9-]+/g)].map((match) => match[0]));
+  assert.ok(used.size > 10, 'the board must be styled with theme tokens');
+
+  const unknown = [...used].filter((token) => !catalog.has(token) && !nativeExtras.has(token));
+  assert.deepEqual(unknown, [], `unknown theme tokens: ${unknown.join(', ')}`);
+
+  // Anything the Theme catalog does not publish needs a fallback in every var() use.
+  for (const token of used) {
+    if (catalog.has(token)) continue;
+    const bare = new RegExp('var\\(' + token + '\\s*\\)');
+    assert.doesNotMatch(source, bare, `${token} needs a fallback: var(${token}, …)`);
+    const withFallback = new RegExp('var\\(' + token + '\\s*,');
+    assert.match(source, withFallback, `${token} is never given a fallback value`);
+  }
+
+  const literals = [...source.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((match) => match[0].toLowerCase());
+  const colors = literals.filter((value) => value !== '#fff');
+  assert.deepEqual(colors, [], `literal colors are artwork-only, found: ${colors.join(', ')}`);
+
+  // Render the panel and read the stylesheet it ships: scoped, balanced, host scale.
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
-  const registered = [];
-  instance.apply({
-    slots: {
-      inject: (name, callback) => callback(),
-      register: (options, component) => { registered.push({ options, component }); return () => {}; },
-    },
-    locale: { getLocale: () => ({ id: 'zh-CN' }) },
-    remote: { session: { modelCatalog: async () => ({ ok: true, value: { groups: [] } }) } },
-    configForms: { get: () => ({ getSnapshot: () => ({ status: 'loading' }), subscribe: () => () => {}, mutate: async () => true }) },
-    uiWorkspace: { openSession: () => {} },
-    effect: (callback) => { callback(); },
-  });
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+  const entry = boardEntry(registered);
+  const face = entry.options.inject('session-style');
+  const tree = entry.component({ ...face, sessionId: 'session-style', loadRun: async () => ({ status: 'empty', dir: '', run: null, plan: null, artifacts: [] }) });
 
-  const state = {
-    projectionsBySession: {
-      'session-run01': {
-        values: {
-          agentTeam: {
-            members: [
-              { id: 'child-a', name: 'backend-dev-t1', phase: 'active' },
-              { id: 'child-b', name: 'frontend-dev-t3', phase: 'active' },
-            ],
-            tasks: [
-              { id: 'g1', subject: 'G1 · 计划批准', status: 'completed', ownerName: '', blockedBy: [], writeScopes: [], writeScopeWarnings: [] },
-              { id: 't1', subject: 'T1 · backend-dev · 导出接口', status: 'in_progress', ownerName: 'backend-dev-t1', blockedBy: ['g1'], writeScopes: ['src/export.ts', 'test/export.test.ts'], writeScopeWarnings: [] },
-              { id: 't2', subject: 'T2 · frontend-dev · 导出按钮', status: 'pending', ownerName: 'frontend-dev-t3', blockedBy: ['g1'], writeScopes: ['test/export.test.ts'], writeScopeWarnings: [], ready: true },
-              { id: 'g2', subject: 'G2 · QA 门禁', status: 'pending', ownerName: '', blockedBy: ['t1', 't2'], writeScopes: [], writeScopeWarnings: [], ready: false },
-            ],
-          },
-        },
-      },
-    },
+  const collectStyles = (element, found = []) => {
+    if (element === null || element === undefined) return found;
+    if (typeof element !== 'object') return found;
+    if (Array.isArray(element)) {
+      for (const item of element) collectStyles(item, found);
+      return found;
+    }
+    if (element.type === 'style') {
+      found.push(element);
+      return found;
+    }
+    if (typeof element.type === 'function') {
+      return collectStyles(element.type.prototype instanceof harness.stub.Component
+        ? new element.type(element.props).render()
+        : element.type(element.props), found);
+    }
+    for (const child of element.children || []) collectStyles(child, found);
+    return found;
   };
-  const pageProps = { useSessions: (selector) => selector(state), useSessionStatus: () => undefined };
-  const renderPage = () => registered[0].component(pageProps);
 
-  // 1) Default view: the dependency graph.
-  let host = await harness.settle(renderPage);
-  const nodes = harness.collect(host, harness.byClass('stwd-node'));
-  assert.equal(nodes.length, 4, 'every task is a graph node');
-  assert.equal(harness.collect(host, harness.byClass('stwd-edge')).length, 4, 'one edge per dependency');
-  const labels = nodes.map((node) => String(node.props['aria-label']));
-  assert.ok(labels.some((label) => label.indexOf('T1 ') === 0 && label.indexOf('进行中') > 0), 'a node names its task and state');
-  assert.ok(labels.some((label) => label.indexOf('backend-dev-t1') > 0), 'a node names its owner');
-  const xOf = (short) => {
-    const node = nodes.find((entry) => String(entry.props['aria-label']).indexOf(short + ' ') === 0);
-    const match = /translate\(([-\d.]+)/.exec(String(node.props.transform));
-    return Number(match ? match[1] : NaN);
-  };
-  assert.ok(xOf('G1') < xOf('T1'), 'layers run left to right');
-  assert.ok(xOf('T1') < xOf('G2'), 'the QA gate follows the work item');
-  assert.equal(harness.collect(host, harness.byClass('stwd-rail-lead')).length, 1, 'the rail shows the lead');
-  assert.equal(harness.collect(host, harness.byClass('stwd-rail-member')).length, 2, 'the rail shows every member');
-
-  // 2) Ownership matrix: the file both agents write is flagged as overlapping.
-  const viewTabs = harness.collect(host, harness.byClass('stwd-viewtab'));
-  assert.deepEqual(viewTabs.map(harness.textOf), ['依赖图', '归属矩阵', '列表']);
-  viewTabs[1].props.onClick();
-  host = await harness.settle(renderPage);
-  const table = harness.collect(host, (node) => node.type === 'table')[0];
-  assert.ok(table, 'the matrix is a real table');
-  const columnHeads = harness.collect([table], (node) => node.type === 'th' && node.props.scope === 'col').map(harness.textOf);
-  assert.ok(columnHeads.some((cell) => cell.indexOf('backend-dev-t1') >= 0), 'one column per agent');
-  const overlapRows = harness.collect(host, (node) => typeof node.props.className === 'string' && node.props.className.indexOf('stwd-matrix-row-overlap') >= 0);
-  assert.equal(overlapRows.length, 1, 'only the shared file is flagged');
-  assert.match(harness.textOf(overlapRows[0]), /test\/export\.test\.ts/);
-  assert.equal(harness.collect(host, harness.byClass('stwd-node')).length, 0, 'the graph is replaced, not stacked');
-
-  // 3) List: the complete text alternative, one row per task.
-  const listTabs = harness.collect(host, harness.byClass('stwd-viewtab'));
-  listTabs[2].props.onClick();
-  host = await harness.settle(renderPage);
-  const rows = harness.collect(host, harness.byClass('stwd-row'));
-  assert.equal(rows.length, 4, 'one row per task');
-  assert.match(harness.textOf(rows[1]), /T1 · backend-dev · 导出接口/, 'the row carries the whole title');
-  assert.match(harness.textOf(rows[1]), /进行中/);
+  const styleNodes = collectStyles(tree);
+  assert.ok(styleNodes.length >= 1, 'the board ships its own stylesheet');
+  const css = styleNodes[0].children.join('\n');
+  assert.equal((css.match(/{/g) || []).length, (css.match(/}/g) || []).length, 'stylesheet braces must balance');
+  assert.doesNotMatch(css, /;;/, 'stylesheet must not carry empty declarations');
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const selectors = [...withoutComments.matchAll(/([^{}]+)\{/g)].map((match) => match[1].trim());
+  const KEYFRAME_STEP = /^(from|to|\d+%)(,\s*(from|to|\d+%))*$/;
+  const unscoped = selectors.filter((selector) => selector !== ''
+    && selector.charAt(0) !== '@'
+    && !KEYFRAME_STEP.test(selector)
+    && selector.indexOf('.stwd-') < 0);
+  assert.deepEqual(unscoped, [], `styles must stay scoped to the plugin prefix: ${unscoped.join(' | ')}`);
+  for (const needle of ['font-size:14px', 'font-size:11px', 'border:.5px', 'overflow-y:auto']) {
+    assert.ok(css.includes(needle), `styles must keep the host scale, missing ${needle}`);
+  }
 });
-
-/**
- * Model settings and the solo dispatch list share one tabbed footer: the model table
- * is the default pane, both panes stay mounted (an unsaved draft survives a switch),
- * and the solo list is capped with an explicit "show more".
- */
-test('the footer tabs switch between the model table and a capped solo list', async () => {
-  const { factory } = await loadClientFactory();
-  const harness = createRenderHarness();
-  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
-  const registered = [];
-  const snapshot = {
-    status: 'ready',
-    writable: true,
-    revision: 2,
-    value: { defaults: { provider: '', model: '', effort: '' }, roles: {} },
-  };
-  const catalog = {
-    ok: true,
-    value: {
-      groups: [
-        { id: 'ctaigw', name: 'CTAIGW', models: [{ id: 'glm-5.3', name: 'GLM 5.3', reasoning: { efforts: [{ id: 'high', name: 'High' }] } }] },
-      ],
-    },
-  };
-  instance.apply({
-    slots: {
-      inject: (name, callback) => callback(),
-      register: (options, component) => { registered.push({ options, component }); return () => {}; },
-    },
-    locale: { getLocale: () => ({ id: 'zh-CN' }) },
-    remote: { session: { modelCatalog: async () => catalog } },
-    configForms: { get: () => ({ getSnapshot: () => snapshot, subscribe: () => () => {}, mutate: async () => true }) },
-    uiWorkspace: { openSession: () => {} },
-    effect: (callback) => { callback(); },
-  });
-
-  const solo = Array.from({ length: 8 }, (_, index) => ({
-    id: 'child-solo-' + (index + 1),
-    name: 'backend-dev-solo-' + (index + 1),
-    mode: 'spawn',
-    activity: index === 0 ? 'running' : 'idle',
-  }));
-  const state = {
-    projectionsBySession: {
-      'session-run02': {
-        values: {
-          agentTeam: {
-            members: [{ id: 'child-a', name: 'backend-dev-t1', phase: 'active' }],
-            tasks: [{ id: 't1', subject: 'T1 · backend-dev · 实现导出', status: 'in_progress', ownerName: 'backend-dev-t1', blockedBy: [], writeScopes: ['src/export.ts'], writeScopeWarnings: [] }],
-          },
-        },
-      },
-      'session-solo02': { values: { subagentCatalog: solo } },
-    },
-  };
-  const renderPage = () => registered[0].component({ useSessions: (selector) => selector(state), useSessionStatus: () => undefined });
-
-  let host = await harness.settle(renderPage);
-
-  // Two panes, the model table selected by default.
-  const tabs = harness.collect(host, harness.byClass('stwd-ftab'));
-  assert.equal(tabs.length, 2, 'the footer offers exactly two panes');
-  assert.match(harness.textOf(tabs[0]), /子代理模型与思考强度/, 'the first pane is the model table');
-  assert.match(harness.textOf(tabs[1]), /子代理（steward_dispatch）/, 'the second pane is the solo list');
-  assert.match(harness.textOf(tabs[1]), /8/, 'and it carries the count');
-  assert.equal(tabs[0].props['aria-selected'], 'true', 'the model table is the default pane');
-  assert.equal(tabs[1].props['aria-selected'], 'false');
-  const panes = harness.collect(host, harness.byClass('stwd-tabpanel'));
-  assert.equal(panes.length, 2, 'both panes stay mounted');
-  const configPane = panes.find((pane) => pane.props.id === 'stwd-pane-config');
-  const soloPane = panes.find((pane) => pane.props.id === 'stwd-pane-solo');
-  assert.equal(configPane.props.hidden, false, 'the model table is visible');
-  assert.equal(soloPane.props.hidden, true, 'the solo list is hidden until its tab is chosen');
-  assert.equal(harness.collect(host, harness.byClass('stwd-tr')).length, 9, 'the model table renders in the default pane');
-
-  // The solo list is capped: six rows plus an explicit "show more".
-  tabs[1].props.onClick();
-  host = await harness.settle(renderPage);
-  const soloRows = () => harness.collect(host, harness.byClass('stwd-row'));
-  assert.equal(soloRows().length, 6, 'the solo list shows one page at a time');
-  const more = harness.collect(host, (node) => node.type === 'button' && harness.textOf(node).indexOf('显示更多') === 0)[0];
-  assert.ok(more, 'a show-more control continues the list');
-  more.props.onClick();
-  host = await harness.settle(renderPage);
-  assert.equal(soloRows().length, 8, 'show more reveals the remaining rows');
-  const collapse = harness.collect(host, (node) => node.type === 'button' && harness.textOf(node) === '收起')[0];
-  assert.ok(collapse, 'the expanded list can be collapsed again');
-  collapse.props.onClick();
-  host = await harness.settle(renderPage);
-  assert.equal(soloRows().length, 6, 'collapsing returns to the first page');
-
-  // An unsaved route edit survives switching panes.
-  const backTabs = harness.collect(host, harness.byClass('stwd-ftab'));
-  backTabs[0].props.onClick();
-  host = await harness.settle(renderPage);
-  const providerSelect = harness.collect(host, (node) => node.type === 'select')[0];
-  providerSelect.props.onChange({ target: { value: 'ctaigw' } });
-  host = await harness.settle(renderPage);
-  const afterEdit = harness.collect(host, (node) => node.type === 'select')[0];
-  assert.equal(afterEdit.props.value, 'ctaigw', 'the edit is staged in the table');
-  const soloTab = harness.collect(host, harness.byClass('stwd-ftab'))[1];
-  soloTab.props.onClick();
-  host = await harness.settle(renderPage);
-  harness.collect(host, harness.byClass('stwd-ftab'))[0].props.onClick();
-  host = await harness.settle(renderPage);
-  const afterSwitch = harness.collect(host, (node) => node.type === 'select')[0];
-  assert.equal(afterSwitch.props.value, 'ctaigw', 'an unsaved draft survives a tab switch');
-  assert.match(harness.textOf(harness.collect(host, harness.byClass('stwd-toolbar'))[0]), /有未保存修改/);
-});
-
-/**
- * A cyclic board cannot be layered: the panel must fall back to the list and say
- * why instead of drawing a broken graph.
- */
-test('a cyclic board falls back to the list with an explanation', async () => {
-  const { factory } = await loadClientFactory();
-  // Stateless on purpose: the list fallback is derived during render
-  // (`view === 'dag' && cycle`), so no state has to survive a pass here.
-  const harness = createRenderHarness({ stateless: true });
-  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
-  const registered = [];
-  instance.apply({
-    slots: {
-      inject: (name, callback) => callback(),
-      register: (options, component) => { registered.push({ options, component }); return () => {}; },
-    },
-    locale: { getLocale: () => ({ id: 'zh-CN' }) },
-    remote: { session: { modelCatalog: async () => ({ ok: true, value: { groups: [] } }) } },
-    configForms: { get: () => ({ getSnapshot: () => ({ status: 'loading' }), subscribe: () => () => {}, mutate: async () => true }) },
-    uiWorkspace: { openSession: () => {} },
-    effect: (callback) => { callback(); },
-  });
-
-  const state = {
-    projectionsBySession: {
-      'session-cycle': {
-        values: {
-          agentTeam: {
-            members: [{ id: 'child-a', name: 'backend-dev-t1', phase: 'active' }],
-            tasks: [
-              { id: 't1', subject: 'T1 · backend-dev · 甲', status: 'pending', ownerName: 'backend-dev-t1', blockedBy: ['t2'], writeScopes: [], writeScopeWarnings: [] },
-              { id: 't2', subject: 'T2 · backend-dev · 乙', status: 'pending', ownerName: 'backend-dev-t1', blockedBy: ['t1'], writeScopes: [], writeScopeWarnings: [] },
-            ],
-          },
-        },
-      },
-    },
-  };
-
-  const host = await harness.settle(() => registered[0].component({
-    useSessions: (selector) => selector(state),
-    useSessionStatus: () => undefined,
-  }));
-
-  assert.equal(harness.collect(host, harness.byClass('stwd-node')).length, 0, 'no layered graph for a cyclic board');
-  assert.equal(harness.collect(host, harness.byClass('stwd-row')).length, 2, 'the list takes over');
-  const alerts = harness.collect(host, harness.byClass('stwd-alert')).map(harness.textOf);
-  assert.ok(alerts.some((text) => text.indexOf('环状依赖') >= 0), `the panel explains the cycle (alerts: ${alerts.join(' | ')})`);
-});
-
-
 

@@ -1,9 +1,9 @@
 {
   "name": "dsh-steward",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
-  "description": "Steward for DeepSeek Harness: seven role charters injected at dispatch time (no user-selectable agent presets), a Steward panel in the Web GUI (agent graph, session links, per-role model/effort config), per-role routes from <project>/steward.config.json over the panel settings, the Agent Teams shared task board as the run dashboard, and a /steward-roster command.",
+  "description": "Steward for DeepSeek Harness: seven role charters injected at dispatch time (no user-selectable agent presets), a per-session Steward board in the right Sidebar (task DAG / list / ownership views, live subagents, run artifacts under tmp/steward, opened from the session header or automatically on the first dispatch), a Settings → Steward table for per-role model/effort, per-role routes from <project>/steward.config.json over the panel settings, the Agent Teams shared task board as the authoritative task source, and a /steward-roster command.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",

@@ -179,7 +179,7 @@ function dshRewrite(text, label) {
       continue;
     }
     if (line.includes('**可视化配置入口**')) {
-      lines.push('- **配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能。两个入口：① **Steward 团队面板**（侧栏「Steward 团队」，或「设置 → Steward」）逐角色选 provider / model / effort——写的是原生 Config（namespace `steward`）；② 项目根 `steward.config.json` 的 `modelRouting.<role>`（**优先级更高**，跟代码一起进仓库），改完跑 `scripts/validate-config.mjs` 校验。本插件不带 `steward_config` 工具。**不要凭记忆写模型名**（模型不存在会在派发时直接失败）。');
+      lines.push('- **配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能。两个入口：① **设置 → Steward** 的模型表格逐角色选 provider / model / effort——写的是原生 Config（namespace `steward`）；运行情况去**会话标题栏 Steward 图标打开的右侧栏看板**（每会话一份，首次派发自动打开）看；② 项目根 `steward.config.json` 的 `modelRouting.<role>`（**优先级更高**，跟代码一起进仓库），改完跑 `scripts/validate-config.mjs` 校验。本插件不带 `steward_config` 工具。**不要凭记忆写模型名**（模型不存在会在派发时直接失败）。');
       continue;
     }
     if (line.startsWith('## 调度规则（')) {
@@ -468,12 +468,20 @@ for (const f of existsSync(join(outDir, 'roles')) ? readdirSync(join(outDir, 'ro
   if (!client.includes('configForms')) errors.push('[dsh] client.js 必须通过 configForms 读写原生设置');
   if (client.includes('/api/dsh-steward')) errors.push('[dsh] client.js 仍含旧的自定义 HTTP 桥；应改用 configForms');
   for (const [needle, label] of [
-    ["name: 'main'", 'Steward 整页面板（main slot）'],
-    ['sidebar.panellist', '侧栏入口（sidebar.panellist）'],
-    ['settings.section', '设置页分区（settings.section）'],
-    ['uiWorkspace', '跳转子会话（ctx.uiWorkspace.openSession）'],
+    ['sidebarRightTabs.register', '右侧栏 tab 类型注册（每会话一份看板）'],
+    ['sidebar.right.pane.tab', '右侧栏看板正文（sidebar.right.pane.tab）'],
+    ['sidebar.right.pane.tab.title', '右侧栏看板标题'],
+    ['conversation.session.header.utilities', '会话标题栏的看板入口'],
+    ['settings.section', '设置页分区（settings.section，只配模型）'],
+    ['uiWorkspace', '跳转子会话的兜底（ctx.uiWorkspace.openSession）'],
   ]) {
     if (!client.includes(needle)) errors.push(`[dsh] client.js 缺少 ${label}`);
+  }
+  for (const [needle, label] of [
+    ["name: 'main'", 'client.js 又注册了整页看板（main slot）：看板应只在右侧栏按会话打开'],
+    ['sidebar.panellist', 'client.js 又注册了左侧导航入口（sidebar.panellist）：看板应只在右侧栏打开'],
+  ]) {
+    if (client.includes(needle)) errors.push(`[dsh] ${label}`);
   }
 }
 

@@ -7,13 +7,13 @@ description: Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当�
 
 # Steward · Tech Lead 手册
 
-> 当前版本（DSH 侧 1.1.0）：功能交付（六阶段 + 批准门）+ 需求澄清（第一性原理 + 提问预算）+ 任务 DAG / 文件所有权 + Bug 通道（B0–B3）+ 可信变更门禁（计划校验 / 独立验证 / 基线守卫 / run-state）+ 维护循环 + 接手存量 + 浏览器证据契约 + 学习循环 + 收尾 + 文档流水线（docTier=3，细节见按需技能 `docs`）+ 文档治理（`docs-governance` 增量层：拆分 / 归档 / `history/` 版本快照 + `docs-gate` / `doc-snapshot` 门禁）+ 项目全生命周期（`project-lifecycle`）+ **Steward 团队面板**（Web 整页：运行总览 + 团队切换 + Lead/成员卡点击进子会话 + 门禁阶段条与工作单 + 逐角色模型表格）+ 项目级子代理模型路由（`steward.config.json` 优先于面板）+ **Agent Teams 共享任务板**。角色是**派单时注入的章程**：本插件不注册 Agent Preset，7 个角色不会出现在模式选择器里。
+> 当前版本（DSH 侧 1.2.0）：功能交付（六阶段 + 批准门）+ 需求澄清（第一性原理 + 提问预算）+ 任务 DAG / 文件所有权 + Bug 通道（B0–B3）+ 可信变更门禁（计划校验 / 独立验证 / 基线守卫 / run-state）+ 维护循环 + 接手存量 + 浏览器证据契约 + 学习循环 + 收尾 + 文档流水线（docTier=3，细节见按需技能 `docs`）+ 文档治理（`docs-governance` 增量层：拆分 / 归档 / `history/` 版本快照 + `docs-gate` / `doc-snapshot` 门禁）+ 项目全生命周期（`project-lifecycle`）+ **Steward 右侧栏看板**（每会话一份：依赖图 / 任务列表 / 归属矩阵 + 子代理实时状态点击进子会话 + `tmp/steward/` 产物；任务来源按共享任务板 > run.json > 待办清单回落；会话标题栏图标打开，首次派发自动打开）+ 设置页逐角色模型表格 + 项目级子代理模型路由（`steward.config.json` 优先于设置页）+ **Agent Teams 共享任务板**。角色是**派单时注入的章程**：本插件不注册 Agent Preset，7 个角色不会出现在模式选择器里。
 >
 > **DSH 宿主映射（读正文前先记住这几条）**：
-> ①文中 `steward:<角色>` 指 `steward_dispatch` 工具的 `role` 参数（`pm` / `architect` / `backend-dev` / `frontend-dev` / `qa-engineer` / `browser-tester` / `reviewer`），派发时**只填 role，不手写模型**——子代理以 DSH 内置 `standard` 组合启动，角色章程由工具拼在派单正文前，模型与思考强度按「项目根 `steward.config.json` 的 `modelRouting.<role>` > 面板该角色 > 面板默认 > 继承主代理」解析；
+> ①文中 `steward:<角色>` 指 `steward_dispatch` 工具的 `role` 参数（`pm` / `architect` / `backend-dev` / `frontend-dev` / `qa-engineer` / `browser-tester` / `reviewer`），派发时**只填 role，不手写模型**——子代理以 DSH 内置 `standard` 组合启动，角色章程由工具拼在派单正文前，模型与思考强度按「项目根 `steward.config.json` 的 `modelRouting.<role>` > 设置页该角色 > 设置页默认 > 继承主代理」解析；
 > ②文中 `steward:xxx` 技能 = 本宿主技能名 `xxx`（如 `tdd`、`systematic-debugging`、`agent-settings`、`inline`、`docs`）；
 > ③文中 `/steward:inline` = 用户明确说「你直接做 / 别派子代理」或 `steward.config.json` 的 `execution.mode: "inline"`，此时**加载 `inline` 技能**按它列的硬动作执行；DSH 的原生 `/steward-roster` 命令只回显名册/路由口径，派活入口仍是自然语言 + 本技能（`/steward` 是触发本技能的斜杠手势，手势后接空格或直接回车）；
-> ④门禁脚本表里若出现 `agent-config.mjs` / `build.mjs`，那是源码仓库工具、**不随本包提供**：改子代理模型改 **Steward 面板**（侧栏「Steward 团队」或设置 → Steward）或项目根 `steward.config.json` 的 `modelRouting`（仓库优先）；更新本插件走插件管理器；源码构建用 `node host/dsh/build.mjs`。
+> ④门禁脚本表里若出现 `agent-config.mjs` / `build.mjs`，那是源码仓库工具、**不随本包提供**：改子代理模型改 **设置 → Steward** 的模型表格或项目根 `steward.config.json` 的 `modelRouting`（仓库优先）；更新本插件走插件管理器；源码构建用 `node host/dsh/build.mjs`。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 
@@ -139,7 +139,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 ## 共享任务板（Agent Teams，DSH）
 
-宿主启用「智能体团队」后，**任务板就是唯一的实时看板**：会话页头的 Team 面板里有成员状态（provisioning / running / inactive / failed）与任务板（未开始 = 灰点、被依赖阻塞 = 橙点、进行中 = loading、完成 = 绿点），并显示负责人、依赖、就绪态、写入范围与**文件重叠告警**。Lead 不再靠脑子记「谁在做哪张单」。
+宿主启用「智能体团队」后，Agent Teams 任务板是**权威来源**：会话页头的 Team 面板里有成员状态（provisioning / running / inactive / failed）与任务板（未开始 = 灰点、被依赖阻塞 = 橙点、进行中 = loading、完成 = 绿点），并显示负责人、依赖、就绪态、写入范围与**文件重叠告警**。Steward 的**右侧栏看板**把这张板和 `run.json` / 待办清单统一成同一张图（Agent Teams 未启用时按 `run.json` > 待办清单回落）；会话页头的原生 Team 面板仍然存在。Lead 不再靠脑子记「谁在做哪张单」。
 
 **建板（计划批准后一次）**：`steward_board(action="sync", plan="<工件目录>/03-plan.json", level="M")`。不要手写板上的任务：
 
@@ -161,7 +161,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 **看板自检**：`steward_board(action="status", plan="<…>")` 返回与面板一致的文本快照（门禁进度 / 每单状态·负责人·阻塞·就绪）。向用户同步进度时贴它，不要自己编。
 
-**没启用团队时**：会话里没有 `agentTeams` 服务，`steward_board` 会直接报错——此时走单人模式（`steward_dispatch` + `run.json`），照 DAG 派活，只是没有看板。
+**没启用团队时**：会话里没有 `agentTeams` 服务，`steward_board` 会直接报错——此时走单人模式（`steward_dispatch` + `run.json`），照 DAG 派活；右侧栏看板回落到 `run.json` / 待办清单，仍然有内容。
 
 ## 调度规则（串行/并行的唯一依据）
 
@@ -193,10 +193,10 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 - `steward.config.json` 可配 `modelRouting`（角色 → 模型/effort + fallback 模型）与 `budget`（`maxTotalAttempts`：整个 run 允许的任务失败重试总次数）。`validate-config.mjs` 会校验结构。
 - **生效优先级（唯一事实链）**：用户当次指定 > 项目级 `modelRouting`（**下次派单即生效**）> 插件 frontmatter 默认（`model` + `effort`，build + 安装后**新会话**生效）。
-- **配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能。两个入口：① **Steward 团队面板**（侧栏「Steward 团队」，或「设置 → Steward」）逐角色选 provider / model / effort——写的是原生 Config（namespace `steward`）；② 项目根 `steward.config.json` 的 `modelRouting.<role>`（**优先级更高**，跟代码一起进仓库），改完跑 `scripts/validate-config.mjs` 校验。本插件不带 `steward_config` 工具。**不要凭记忆写模型名**（模型不存在会在派发时直接失败）。
+- **配置入口**：用户要「看得见、改得动」子代理的模型与思考强度时，加载 `steward:agent-settings` 技能。两个入口：① **设置 → Steward** 的模型表格逐角色选 provider / model / effort——写的是原生 Config（namespace `steward`）；运行情况去**会话标题栏 Steward 图标打开的右侧栏看板**（每会话一份，首次派发自动打开）看；② 项目根 `steward.config.json` 的 `modelRouting.<role>`（**优先级更高**，跟代码一起进仓库），改完跑 `scripts/validate-config.mjs` 校验。本插件不带 `steward_config` 工具。**不要凭记忆写模型名**（模型不存在会在派发时直接失败）。
 - **派发时**：`steward_dispatch` 从项目根 `steward.config.json` 的 `modelRouting.<role>` 解析该角色的模型与思考强度（没有配置就继承主代理）；用户当次点名模型/档位时，按用户当次指令执行，并提示这与项目配置不一致。派发失败若是模型不存在 / 档位不支持 / 限流类错误 → 改项目配置或如实报告，不硬刷；模型名先在宿主模型目录里核对，不凭记忆写。
 - **预算**：`run-state.mjs init --budget-attempts N` 写入 run.json；每次 fail 消耗一次，超限 → run 停摆（reason=budget-exhausted），如实向用户报告花费与卡点。
-- 角色未单独配置时继承主代理当前模型；要单独指定有两个入口：**Steward 团队面板**（侧栏「Steward 团队」，或「设置 → Steward」）里逐角色选 provider / model / effort，或项目根 `steward.config.json` 写 `modelRouting.<role>`（`{ "model": "provider/model", "effort": "…" }`，改完跑 `scripts/validate-config.mjs`，**下一次派单即生效**）。生效优先级：**项目配置文件 > 面板该角色 > 面板默认（兜底） > 继承主代理**。本插件不带 `steward_config` 工具。
+- 角色未单独配置时继承主代理当前模型；要单独指定有两个入口：**设置 → Steward** 里逐角色选 provider / model / effort，或项目根 `steward.config.json` 写 `modelRouting.<role>`（`{ "model": "provider/model", "effort": "…" }`，改完跑 `scripts/validate-config.mjs`，**下一次派单即生效**）。生效优先级：**项目配置文件 > 设置页该角色 > 设置页默认（兜底） > 继承主代理**。本插件不带 `steward_config` 工具。
 
 ## 学习循环（05-record，v0.6）
 
