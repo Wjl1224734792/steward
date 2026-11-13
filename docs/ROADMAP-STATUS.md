@@ -5,6 +5,20 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
+## DSH 1.2.0（看板迁到右侧栏 + 派发图）— 2026-11-13
+
+> 用户反馈：旧看板是左侧导航里的整页，且只有启用 Agent Teams 才有内容，「没出现我要的看板」；随后又指出任务卡片之间没有连线、「不喜欢这种样子」。1.2.0 因此做两件事：① 看板改为**每会话一份的右侧栏（right sidebar）面板**，由会话标题栏图标 / 引导页 / 首次 Steward 派发自动打开；② 依赖图重做为**派发图**（`Lead` 根节点 + 派发箭头 + 任务依赖连线，树干式布线、列宽自适应居中）。ZCode / MiniMax 零改动。
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| S1 | 看板迁到右侧栏（每会话一份） | 已实现 | `host/dsh/client.js` 注册 `sidebarRightTabs`（id `dsh-steward` / kind `steward`）+ `sidebar.right.pane.tab` 正文 + 同名标题 + `conversation.session.header.utilities` 入口；不再注册 `main` / `sidebar.panellist`（`host/dsh/build.mjs` 把二者列为回归错误） | 布局由 DSH 右侧栏按会话保存，切会话即切看板；打开方式三种，自动打开按会话只触发一次（关掉不再抢回） |
+| S2 | 派发图（依赖图重做） | 已实现 | `buildGraph()` 合成 `Lead` 根节点与 `dispatch` / `depends` 两类边；`layoutGraph()` 分层 + 树干式正交布线 + 列宽 130–238px 自适应 + 列间距均分并居中；单测断言「唯一 Lead 根 / 根任务一条 dispatch 边 / 依赖边数 / 待办场景 `Lead → 各项`」；另以布局函数在 320 / 420 / 760 / 1000 / 1280 五个宽度跑几何，确认列宽与居中 | 纯待办清单也画成派发树，不再是没连线的卡片堆；任务 > 14 默认列表视图 |
+| S3 | 任务来源三级回落 | 已实现 | `agentTeam` 投影（共享任务板）> `run.json` + `03-plan.json`（经 `remote.workspaceFiles` 读工作区）> `todos` 投影；单测用假 `workspaceFiles` 覆盖「新 run 目录优先 / `reports/` 嵌套 / run.json 状态合并」与「文件服务缺失时产物区退化」 | 不再要求宿主启用 Agent Teams；头部徽标标出当前来源 |
+| S4 | 子代理区与产物区 | 已实现 | 子代理行 = 子会话标题 + 角色 chip + 运行中/空闲，点击 `openResource('dsh-resource://subagentchat/session/<child>?parent=…&mode=…', { kind:'subagentchat' })`；产物行点击打开 `dsh-resource://file/session/<sid>/<path>`；单测覆盖两条地址构造 | 派单 label 改为 `"<role> · <描述>"`，看板据此区分 Steward 派发与普通 `subagent` 调用 |
+| S5 | 设置页只留模型 | 已实现 | `settings.section` 只渲染 `ConfigSection`（角色 / 提供方 / 模型 / 思考强度 / 来源 + 默认兜底行 + 保存/撤销）；单测断言 24 个 select、来源徽标、保存按钮初始禁用 | 路由优先级不变：项目 `steward.config.json` > 设置页该角色 > 设置页默认 > 继承主代理 |
+| S6 | 门禁与文档收口 | 已实现 | `node host/dsh/build.mjs --check` PASS；`node --test host/dsh/tests/` **76 pass / 0 fail**；README（根 zh/en + DSH 侧 zh/en）、技能正文、locale 描述、`AGENTS.md` 验收步骤、`CHANGELOG` 同步；`host/dsh/package.json` 1.1.0 → 1.2.0 | 仅动 DSH 侧（`host/dsh/` 与生成的 `dsh/`）与根 `README`/`AGENTS`/`CHANGELOG`/本文件；`shared/`、`zcode/`、`minimax/` 未触碰 |
+| — | 遗留 | 部分实现 | 真实浏览器视觉验收未做：本机浏览器扩展离线（`[extension_offline]`），只有布局函数几何检查与 76 例渲染/契约单测，没有人工点检截图 | 待人工刷新页面过一遍后再关闭 |
+
 ## 三宿主 1.0.1（收口 1.0.0 留给他侧的两项偏差）— 2026-11-12
 
 > 用户指示「其他侧的也提交并推送」后落地：把 1.0.0 收口时明确写进「已知偏差」的两项（DSH 运行时换行归一、ZCode 随包资源补齐）在本仓库一次性修完，并按仓库「两宿主同号」规则把 ZCode / MiniMax 同升 1.0.1、DSH 独立升 1.0.1。

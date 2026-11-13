@@ -8,7 +8,7 @@ Steward 是面向 ZCode / MiniMax / DeepSeek Harness（DSH）的多角色研发�
 
 ## Steward 是什么
 
-当前版本（ZCode 1.1.0 / MiniMax 1.1.0 / DSH 1.1.0）覆盖功能交付（含 subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；v0.8 起双宿主共享 docTier=3 完整文档流水线（七阶段文档树 + PRD/FRD/契约/页面/测试/部署全量模板 + 命名守卫与文档检查）与 M/L 需求的第一性原理澄清/提问预算，v0.8.1 起双宿主共享 `steward:using-steward` 技能路由，技能/agent 正文单一源生成，MiniMax 另附带维护健康看板等可选 GenUI 视图；DSH 侧（0.2.0 起）用 DSH 原生机制实现：0.3.0 起角色**不再注册为 Agent Preset**（可写专员模式会绕过门禁），0.4.0 移除自建私有配置与 HTTP 桥（配置改走原生 Config）、0.5.0 主技能按需拆出 `inline` / `docs` 并接入 **Agent Teams 共享任务板**，0.6.0 补上 **Steward 团队面板**（Web 整页：Agent 关系图 + 点成员进子会话 + 逐角色模型/档位配置；路由 = 项目 `steward.config.json` 优先，其次面板，最后继承主代理），0.9.0 新增 `docs-governance` 文档治理技能与 G1–G11 本地门禁，1.0.0 收口。
+当前版本（ZCode 1.1.0 / MiniMax 1.1.0 / DSH 1.2.0）覆盖功能交付（含 subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环、接手存量与演进循环；v0.8 起双宿主共享 docTier=3 完整文档流水线（七阶段文档树 + PRD/FRD/契约/页面/测试/部署全量模板 + 命名守卫与文档检查）与 M/L 需求的第一性原理澄清/提问预算，v0.8.1 起双宿主共享 `steward:using-steward` 技能路由，技能/agent 正文单一源生成，MiniMax 另附带维护健康看板等可选 GenUI 视图；DSH 侧（0.2.0 起）用 DSH 原生机制实现：0.3.0 起角色**不再注册为 Agent Preset**（可写专员模式会绕过门禁），0.4.0 移除自建私有配置与 HTTP 桥（配置改走原生 Config）、0.5.0 主技能按需拆出 `inline` / `docs` 并接入 **Agent Teams 共享任务板**，0.6.0 补上第一版 **Steward 团队面板**（Web 整页：Agent 关系图 + 点成员进子会话 + 逐角色模型/档位配置；路由 = 项目 `steward.config.json` 优先，其次面板，最后继承主代理），0.9.0 新增 `docs-governance` 文档治理技能与 G1–G11 本地门禁，1.0.0 收口；**DSH 1.2.0 把看板从左侧导航的整页改成每会话一份的右侧栏面板**——派发图（`Lead → 任务` 派发箭头 + 任务依赖连线）、子代理实时状态（点一行在右侧栏打开它的子会话）、`tmp/steward/<run>/` 产物（点一行打开文件），任务来源按「共享任务板 > `run.json` > 待办清单」三级回落（不再要求启用 Agent Teams），「设置 → Steward」只保留逐角色模型/思考强度表格。
 
 **ZCode 侧 1.0.0 与 MiniMax 侧 1.0.0 分别对齐 DSH 1.0.0 的规范流程优化**（两侧机制各自原生、语义对齐）：新增 `steward:docs-governance` 文档治理技能（活 / 记录 / 基线三类分治、体积预算与 hub-and-spoke 拆册、frontmatter 读契约、`history/` 版本快照与双向溯源）与宿主无关的 `steward:project-lifecycle` 项目全生命周期技能；ZCode 侧门禁在 `scripts/docs-gov/`、MiniMax 侧在 `scripts/`（各宿主自有脚本，不互相灌包）；MiniMax 侧另把主技能按需拆出 `inline` / `docs` 两个小技能（主技能只留指针），机制用 MiniMax Code 自己的（技能按需加载 + 子代理 frontmatter + hooks + Mini App）。DSH 侧功能零改动。
 
@@ -29,8 +29,8 @@ Steward 是面向 ZCode / MiniMax / DeepSeek Harness（DSH）的多角色研发�
 | 主技能按需拆分 | 加载 `steward:inline` / `steward:docs` | 1.0.0 起 MiniMax 可用（DSH 0.5.0 同款：主技能只留指针，小节按需加载） |
 | 文档治理 | 加载 `steward:docs-governance` | 1.0.0 起 MiniMax 可用（DSH 0.9.0 同款：三类文档分治 + G1–G11 门禁 + 基线快照） |
 | 技能路由 | 加载 `steward:using-steward` | 0.8.1 起双宿主可用（不知道用哪个入口/技能时先做路由） |
-| 子代理模型配置 | 加载 `steward:agent-settings` | 0.9.0 起 MiniMax 可用（可视化配置页 / CLI；ZCode 沿用宿主默认模型）；DSH 0.2.0–0.3.0 曾是 Settings 页 + `steward_config` 工具，**0.4.0 起 `steward_config` 工具已移除**，配置来源改为「项目根 `steward.config.json` 的 `modelRouting` 优先，其次团队面板（原生 Config namespace `steward`），都没有则继承主代理」 |
-| DSH 原生机制 | 随插件注册 | 0.2.0 起用原生扩展点；0.3.0 起角色**去模式化**；0.4.0 起**不再自建私有配置文件与 HTTP 桥**（配置改走原生 Config namespace `steward`）；0.5.0 起 `inline` / `docs` 按需技能 + **Agent Teams 共享任务板**（`steward_board` 建板，原生 Team 面板即看板）；0.6.0 起**团队面板**（client 半：侧栏「Steward 团队」整页 + 设置分区） |
+| 子代理模型配置 | 加载 `steward:agent-settings` | 0.9.0 起 MiniMax 可用（可视化配置页 / CLI；ZCode 沿用宿主默认模型）；DSH 0.2.0–0.3.0 曾是 Settings 页 + `steward_config` 工具，**0.4.0 起 `steward_config` 工具已移除**，配置来源改为「项目根 `steward.config.json` 的 `modelRouting` 优先，其次「设置 → Steward」的模型表格（原生 Config namespace `steward`），都没有则继承主代理」 |
+| DSH 原生机制 | 随插件注册 | 0.2.0 起用原生扩展点；0.3.0 起角色**去模式化**；0.4.0 起**不再自建私有配置文件与 HTTP 桥**（配置改走原生 Config namespace `steward`）；0.5.0 起 `inline` / `docs` 按需技能 + **Agent Teams 共享任务板**（`steward_board` 建板，原生 Team 面板即看板）；0.6.0 起有团队面板，**1.2.0 起改为每会话一份的右侧栏看板**（派发图 / 子代理 / 产物；client 半只注册右侧栏 tab 类型、会话标题栏入口与设置分区，不再注册整页与左侧导航入口） |
 | 宿主守卫 hooks | 随插件生效（PreToolUse） | 0.11.0 起双宿主可用（三道守卫：密钥 / 所有权 / 危险命令） |
 
 功能交付：受理定级（S/M/L）→ 方案 → 批准门 → 实施 → QA → 浏览器验收 → 终审 → 收尾。Bug 修复按严重度分流：B2/B3 走「复现 → 失败测试 → 根因 → 最小修复 → 回归 → 记录」，B0/B1 增加止损与 postmortem 复盘。只出计划：方案 → 计划校验 → Plan Critic → 用户批准后停止，不实施。维护循环：八类扫描（依赖/安全/重复/churn/文档漂移/循环依赖/flaky/TODO/重构比例）→ 评分排序 backlog → 小修 → 更新 HEALTH。接手：扫描生成 T1 项目记忆 + 首轮健康扫描，先盘点后动手。演进与 T3/文档流水线见 [docs/ROADMAP.md](docs/ROADMAP.md)。
@@ -135,7 +135,8 @@ New-Item -ItemType Directory -Force "$dst" | Out-Null
 - 已实现（DSH 0.2.0 → 0.5.0）：DSH 侧用宿主原生机制实现——`steward_dispatch` over `ctx.subagents`、`/steward` 注册到原生 commands（1.1.0 起改名 `/steward-roster`）、技能走 `ctx.skills`；独立构建器 `node host/dsh/build.mjs`（只读 `shared/`（含 `shared/scripts/`）与 `zcode/skills/` 参考库、只写 `dsh/`）。0.2.0 曾把 7 个角色注册为 Agent Preset，**0.3.0 已移除**（preset 就是用户可选的会话模式，可写专员模式会绕过门禁），改为派单注入章程；**0.4.0 再收一刀**：删 Config / `steward_config` / 整个浏览器半，路由只留项目 `steward.config.json`；**0.5.0**：主技能按需拆出 `inline` / `docs` 两个技能（正文仍来自 `shared/`，拆分只在 DSH 生成物里），并新增 `steward_board` 把 `03-plan.json` 建成 **Agent Teams 共享任务板**（G1 计划门 → 工作单 → G2 QA → G3 终审，依赖即 DAG，文件所有权即写入范围），Web Team 面板直接当看板。`node --test host/dsh/tests/` 14 例覆盖「工具/命令/技能注册 / 技能拆分 / 不注册预设 / 章程注入 / 项目级路由与降级 / 组合缺失拒绝 / 建板与幂等 / status / brief / 无团队时报错 / 产物无设置与客户端残留」。
 - 已实现（v1.0.0，MiniMax 侧对齐 DSH 1.0.0）：主技能按需拆分（`inline` / `docs`）+ `docs-governance` 文档治理技能 + 随包门禁（`docs-gate.mjs` G1–G11、`doc-snapshot.mjs` 快照幂等）；共享构建器新增三个宿主钩子（宿主级技能拆分 / 宿主整技能覆盖 / 宿主脚本目录），ZCode 侧输出逐字节不变；两宿主版本同升 1.0.0。
 - 已实现（1.1.0）：DSH 原生命令改名 `/steward-roster`，解除对同名技能的 client 侧遮蔽（破坏性变更；`/steward` 恢复为技能手势）；门禁脚本单一源 `zcode/scripts/` → `shared/scripts/`；通用 harness 技能投放路径（`.agents/skills/`）文档化；文档职责重排与版本号统一。
-- 重点（后续）：MiniMax 宿主 GenUI 实机验收；DSH **Steward 团队面板**在真实浏览器里的渲染与交互验收（此前已用 Client Slots 检查确认页面 occupant active，但未做视觉截图）。
+- 已实现（DSH 1.2.0）：看板从左侧导航整页迁到**每会话一份的右侧栏面板**（`kind: steward`，由会话标题栏图标 / 引导页 / 首次派发自动打开进出），内容为运行卡片 + **派发图**（`Lead` 根节点、派发箭头、任务依赖连线、列宽 130–238px 自适应、列间距均分并居中；待办清单也画成 `Lead → 各项`）+ 列表 / 归属矩阵 + 子代理区（点行进子会话）+ 产物区（点行打开文件）；任务来源「共享任务板 > `run.json` + `03-plan.json` > `todos`」三级回落，不再要求 Agent Teams；「设置 → Steward」只留逐角色模型表格；`steward_dispatch` 的 label 带角色前缀。客户端半重写、构建器契约翻转（**禁止** `main` / `sidebar.panellist` 回归），`node --test host/dsh/tests/` **76 例**。
+- 重点（后续）：MiniMax 宿主 GenUI 实机验收；DSH 右侧栏看板在真实浏览器里的视觉验收（几何与交互已由 76 例单测覆盖，本机浏览器扩展离线，尚未做人工点检）。
 
 ## 从 dev-team 更名
 
