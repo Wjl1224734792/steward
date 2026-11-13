@@ -12,6 +12,16 @@ The current release (ZCode 1.1.0 / MiniMax 1.1.0 / DSH 1.2.0) covers feature del
 
 **Since 1.1.0**: the DSH native roster command `/steward` is renamed **`/steward-roster`** — when a command shares a skill's name, the client side claims the token for the command, so `/steward` always echoed the roster and the skill body never loaded (the shadowing root cause); after the rename `/steward` is again the slash gesture that triggers the `steward` skill (the ZCode/MiniMax `/steward` slash commands are unaffected). The gate scripts' single source moved to `shared/scripts/` (shared by all three hosts; `zcode/scripts/` is downgraded to ZCode/MiniMax-proprietary tools plus write-back artifacts). A harness-agnostic skill-install path (`.agents/skills/`) is documented below.
 
+## Architecture at a glance
+
+![Steward architecture: the shared/ single source is rendered by two builders into three host bundles; at runtime the lead agent acts as Tech Lead, dispatching 7 roles along a task DAG with the artifact bus and local gates running throughout](docs/assets/architecture.en.svg)
+
+- **① Source → build → host bundles**: `shared/` (skill / agent bodies plus the gate scripts' single source) + `host/<host>/` (frontmatter, dispatch mechanism, model tables and other host differences) → `node zcode/scripts/build.mjs` renders `zcode/` and `minimax/`, `node host/dsh/build.mjs` renders `dsh/` read-only; generated files are never hand-edited, `--check` catches drift, and each host is installed and updated independently.
+- **② Runtime**: the lead agent walks intake → plan → approval gate → DAG implementation → quality gates → delivery; the unit of dispatch is a task across 7 specialist roles plus the external Explore, parallel only with no dependencies and disjoint file ownership; inline swaps the executor without downgrading the gates.
+- **③ Cross-cutting**: every handoff goes through `tmp/steward/<run-id>/` artifact files instead of long prose in prompts; `validate-plan` / `verify` / `baseline` / `run-state` and the guard hooks are all local scripts — a non-zero exit code is a failure.
+
+(The Chinese diagram lives in [README.md](README.md); sources are `docs/assets/architecture.{zh,en}.svg`.)
+
 ## Modes
 
 | Mode | Command | Status |

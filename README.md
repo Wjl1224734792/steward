@@ -14,6 +14,16 @@ Steward 是面向 ZCode / MiniMax / DeepSeek Harness（DSH）的多角色研发�
 
 **1.1.0 起**：DSH 原生名册命令 `/steward` 改名 **`/steward-roster`**——命令与 `steward` 技能同名时，client 侧会把同名 token 判给命令，`/steward` 永远变成命令回显、技能正文注入不了（遮蔽根因）；改名后 `/steward` 恢复为触发技能的斜杠手势（ZCode/MiniMax 的 `/steward` 系斜杠命令不受影响）。门禁脚本单一源迁至 `shared/scripts/`（三宿主共享；`zcode/scripts/` 降为 ZCode/MiniMax 专有工具 + 生成物）。新增通用 harness 技能投放路径（`.agents/skills/`，见下文「通用 harness 安装」）。
 
+## 架构总览
+
+![Steward 架构总览：shared/ 单一正文源经两个构建器生成三宿主包；运行时主代理作为 Tech Lead 按任务 DAG 派发 7 角色，贯穿工件总线与本地门禁](docs/assets/architecture.zh.svg)
+
+- **① 源码 → 构建 → 宿主包**：`shared/`（技能 / agent 正文 + 门禁脚本单一正文源）+ `host/<宿主>/`（frontmatter、派发机制、模型表等宿主差异）→ `node zcode/scripts/build.mjs` 生成 `zcode/` 与 `minimax/`，`node host/dsh/build.mjs` 只读生成 `dsh/`；生成物不手改，`--check` 拦截漂移，三侧各自安装、各自更新。
+- **② 运行时**：主代理作为 Tech Lead 走「受理定级 → 方案 → 计划批准门 → DAG 实施 → 质量门 → 交付」；派发单位是任务，7 个角色子代理 + 外援 Explore，并行条件 = 无依赖且文件所有权不相交；inline 只换执行者、不降门禁。
+- **③ 贯穿机制**：所有交接走 `tmp/steward/<run-id>/` 工件文件，不在 prompt 里转述长文；`validate-plan` / `verify` / `baseline` / `run-state` 与守卫 hooks 全是本地脚本，exit code 非 0 就是失败。
+
+（英文版图见 [README.en.md](README.en.md)；源文件 `docs/assets/architecture.{zh,en}.svg`。）
+
 ## 工作模式
 
 | 模式 | 命令 | 状态 |

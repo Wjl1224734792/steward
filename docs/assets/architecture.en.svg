@@ -1,0 +1,222 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1180" width="1200" height="1180" role="img" aria-labelledby="t-ar d-ar">
+<title id="t-ar">Steward Architecture</title>
+<desc id="d-ar">Top: the shared/ single source is rendered by two builders into the ZCode / MiniMax / DSH host bundles, each installed separately. Bottom: at runtime the lead agent acts as Tech Lead through intake, planning, the approval gate, DAG-driven implementation and quality gates, dispatching 7 specialist roles, with the artifact bus and local gate scripts running throughout.</desc>
+<defs>
+  <linearGradient id="steward-bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#0f3d2e"/><stop offset="1" stop-color="#14532d"/>
+  </linearGradient>
+  <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
+  </marker>
+</defs>
+<rect x="0" y="0" width="1200" height="1180" rx="0" fill="#ffffff"/>
+<g transform="translate(40,20) scale(0.6875)">
+  <rect width="64" height="64" rx="14" fill="url(#steward-bg)"/>
+  <path d="M16 44c0-9.4 7.2-17 16-17s16 7.6 16 17" fill="none" stroke="#86efac" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="32" cy="21" r="6.5" fill="#bbf7d0"/>
+  <path d="M23 48h18" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+  <path d="M32 34v8" stroke="#4ade80" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="33" r="2.4" fill="#4ade80"/>
+</g>
+<text x="100" y="44" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="23" font-weight="700" fill="#0f172a">Steward Architecture</text>
+<text x="100" y="66" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="400" fill="#64748b">One source builds three host bundles; the Tech Lead dispatches a task DAG</text>
+<rect x="808" y="28" width="112" height="28" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="864" y="46.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#475569" text-anchor="middle">ZCode 1.1.0</text>
+<rect x="928" y="28" width="112" height="28" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="984" y="46.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#475569" text-anchor="middle">MiniMax 1.1.0</text>
+<rect x="1048" y="28" width="112" height="28" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1104" y="46.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#475569" text-anchor="middle">DSH 1.2.0</text>
+<rect x="28" y="96" width="1144" height="296" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<circle cx="52" cy="126" r="11" fill="#14532d"/>
+<text x="52" y="130.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+<text x="72" y="132" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="16.5" font-weight="700" fill="#0f172a">Source → Build → Host bundles</text>
+<text x="1156" y="131" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">single source of truth · never hand-edit generated files · --check catches drift</text>
+<rect x="40" y="150" width="344" height="218" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="40" y="150" width="344" height="3.5" rx="1.75" fill="#bbf7d0"/>
+<rect x="420" y="150" width="312" height="218" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="420" y="150" width="312" height="3.5" rx="1.75" fill="#86efac"/>
+<rect x="772" y="150" width="388" height="218" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="772" y="150" width="388" height="3.5" rx="1.75" fill="#4ade80"/>
+<text x="58" y="178" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d" letter-spacing="1">SOURCE</text>
+<line x1="58" y1="190" x2="40" y2="190" stroke="none"/>
+<line x1="58" y1="190" x2="366" y2="190" stroke="none"/>
+<text x="58" y="216" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="12" font-weight="600" fill="#0f172a">shared/skills/ · shared/agents/</text>
+<text x="58" y="234" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#64748b">Skill bodies + 7 role charters (@@SLOT@@ slots)</text>
+<text x="58" y="264" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="12" font-weight="600" fill="#0f172a">shared/scripts/</text>
+<text x="58" y="282" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#64748b">6 gate scripts · templates · doc pipeline</text>
+<text x="58" y="312" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="12" font-weight="600" fill="#0f172a">host/{zcode,minimax,dsh}/</text>
+<text x="58" y="330" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#64748b">frontmatter · dispatch · model tables · browser ops</text>
+<text x="58" y="358" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#94a3b8">DSH builder also reads zcode/skills/steward/references/</text>
+<text x="438" y="178" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d" letter-spacing="1">BUILD</text>
+<line x1="438" y1="190" x2="420" y2="190" stroke="none"/>
+<line x1="438" y1="190" x2="746" y2="190" stroke="none"/>
+<rect x="436" y="200" width="280" height="72" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+<text x="450" y="222" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="600" fill="#0f172a">node zcode/scripts/build.mjs</text>
+<text x="450" y="242" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#15803d">→ zcode/ + minimax/</text>
+<text x="450" y="259" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">renders skills/agents · syncs gates &amp; templates</text>
+<rect x="436" y="284" width="280" height="72" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+<text x="450" y="306" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="600" fill="#0f172a">node host/dsh/build.mjs</text>
+<text x="450" y="326" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#15803d">→ dsh/ (only write target)</text>
+<text x="450" y="343" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">reads shared + host/dsh + references</text>
+<text x="438" y="362" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#94a3b8">--check blocks hand edits and un-rebuilt drift</text>
+<text x="790" y="178" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d" letter-spacing="1">PACKAGES → INSTALL</text>
+<line x1="790" y1="190" x2="772" y2="190" stroke="none"/>
+<line x1="790" y1="190" x2="1098" y2="190" stroke="none"/>
+<circle cx="804" cy="210" r="5" fill="#2563eb"/>
+<text x="818" y="214" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">ZCode 1.1.0 · zcode/</text>
+<text x="818" y="232" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569">zcode plugins update steward@&lt;marketplace&gt;</text>
+<circle cx="804" cy="262" r="5" fill="#ea580c"/>
+<text x="818" y="266" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">MiniMax 1.1.0 · minimax/</text>
+<text x="818" y="284" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569">agent-config.mjs install --apply</text>
+<circle cx="804" cy="314" r="5" fill="#7c3aed"/>
+<text x="818" y="318" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">DSH 1.2.0 · dsh/</text>
+<text x="818" y="336" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569">plugin manager install_bundle → dsh/</text>
+<text x="790" y="362" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#94a3b8">Each host is developed, tested and updated independently</text>
+<line x1="386" y1="259" x2="414" y2="259" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="734" y1="259" x2="766" y2="259" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="28" y="412" width="1144" height="446" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<circle cx="52" cy="442" r="11" fill="#14532d"/>
+<text x="52" y="446.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+<text x="72" y="448" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="16.5" font-weight="700" fill="#0f172a">Runtime: the lead agent is the Tech Lead</text>
+<text x="1156" y="447" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">the lead owns delivery · subagent output is checked · substandard work goes back</text>
+<rect x="40" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="52" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">Feature</text>
+<text x="52" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward</text>
+<rect x="228" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="240" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">Bug fix</text>
+<text x="240" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:fix</text>
+<rect x="416" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="428" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">Plan only</text>
+<text x="428" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:plan</text>
+<rect x="604" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="616" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">Maintenance</text>
+<text x="616" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:maintain</text>
+<rect x="792" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="804" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">Takeover</text>
+<text x="804" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:take-over</text>
+<rect x="980" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="992" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">Inline</text>
+<text x="992" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:inline</text>
+<text x="40" y="514" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#94a3b8">Slash commands are ZCode's; MiniMax / DSH trigger by natural language (DSH roster: /steward-roster)</text>
+<rect x="40" y="526" width="212" height="134" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="54" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#94a3b8" letter-spacing="1">STAGE 01</text>
+<text x="54" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">Intake &amp; sizing</text>
+<text x="54" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">write 01-requirement.md</text>
+<text x="54" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">size S / M / L</text>
+<text x="54" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">M/L: first principles, ≤3 P0</text>
+<text x="54" y="638.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">S: proceed on defaults</text>
+<line x1="252" y1="593" x2="265" y2="593" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="267" y="526" width="212" height="134" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="281" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#94a3b8" letter-spacing="1">STAGE 02</text>
+<text x="281" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">Plan</text>
+<text x="281" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">architect → 02-impact.md</text>
+<text x="281" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">03-plan.md + machine-readable</text>
+<text x="281" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">03-plan.json</text>
+<text x="281" y="638.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">S: lead writes a mini plan</text>
+<line x1="479" y1="593" x2="492" y2="593" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="494" y="526" width="212" height="134" rx="12" fill="#fffbeb" stroke="#fcd34d" stroke-width="1"/>
+<text x="508" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#b45309" letter-spacing="1">GATE</text>
+<text x="508" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">Plan approval</text>
+<text x="508" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">validate-plan.mjs machine check</text>
+<text x="508" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">Plan Critic (clean context)</text>
+<text x="508" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">explicit user approval; S skips</text>
+<line x1="706" y1="593" x2="719" y2="593" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="721" y="526" width="212" height="134" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="735" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#94a3b8" letter-spacing="1">STAGE 03</text>
+<text x="735" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">Implement</text>
+<text x="735" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">dispatch by task DAG</text>
+<text x="735" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">parallel = no deps + disjoint files</text>
+<text x="735" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">default subagent; inline limited</text>
+<text x="735" y="638.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">baseline record → check</text>
+<line x1="933" y1="593" x2="946" y2="593" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="948" y="526" width="212" height="134" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+<text x="962" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#94a3b8" letter-spacing="1">STAGE 04–05</text>
+<text x="962" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">Quality → deliver</text>
+<text x="962" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">QA → browser (if UI) → reviewer</text>
+<text x="962" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">blocking = 0; ≤2 repair rounds</text>
+<text x="962" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#475569">final-report.md + 05-record.md</text>
+<text x="40" y="686" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="13" font-weight="700" fill="#0f172a">Roster · 7 roles + Explore</text>
+<text x="1156" y="686" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">the task is the dispatch unit, not a role slot · DSH injects charters, no Agent Presets</text>
+<rect x="40" y="700" width="240" height="138" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="40" y="700" width="240" height="3.5" rx="1.75" fill="#bbf7d0"/>
+<text x="56" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">Planning</text>
+<text x="264" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9" font-weight="600" fill="#94a3b8" text-anchor="end" letter-spacing="1">PLAN</text>
+<text x="56" y="754" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">steward:pm</text>
+<text x="56" y="770" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">vague request → testable spec</text>
+<text x="56" y="796" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">steward:architect</text>
+<text x="56" y="812" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">spec → impact + task DAG</text>
+<rect x="290" y="700" width="270" height="138" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="290" y="700" width="270" height="3.5" rx="1.75" fill="#86efac"/>
+<text x="306" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">Implementation</text>
+<text x="544" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9" font-weight="600" fill="#94a3b8" text-anchor="end" letter-spacing="1">BUILD</text>
+<text x="306" y="754" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">steward:backend-dev</text>
+<text x="306" y="770" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">TDD within file ownership</text>
+<text x="306" y="796" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">steward:frontend-dev</text>
+<text x="306" y="812" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">UI + browser acceptance script</text>
+<rect x="570" y="700" width="390" height="138" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="570" y="700" width="390" height="3.5" rx="1.75" fill="#4ade80"/>
+<text x="586" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">Quality</text>
+<text x="944" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9" font-weight="600" fill="#94a3b8" text-anchor="end" letter-spacing="1">QUALITY</text>
+<text x="586" y="750" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">steward:qa-engineer</text>
+<text x="586" y="764" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">test / lint / typecheck gate</text>
+<text x="586" y="784" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">steward:browser-tester</text>
+<text x="586" y="798" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">real browser + evidence contract</text>
+<text x="586" y="818" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">steward:reviewer</text>
+<text x="586" y="832" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">final diff / clean-context Plan Critic</text>
+<rect x="970" y="700" width="190" height="138" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="970" y="700" width="190" height="3.5" rx="1.75" fill="#cbd5e1"/>
+<text x="986" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">External</text>
+<text x="1144" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9" font-weight="600" fill="#94a3b8" text-anchor="end" letter-spacing="1">EXTERNAL</text>
+<text x="986" y="754" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">Explore</text>
+<text x="986" y="770" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">L-sized read-only recon →</text>
+<text x="986" y="784" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">00-context.md map</text>
+<text x="986" y="822" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="400" fill="#94a3b8">built-in, on demand</text>
+<rect x="28" y="878" width="1144" height="250" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<circle cx="52" cy="908" r="11" fill="#14532d"/>
+<text x="52" y="912.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+<text x="72" y="914" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="16.5" font-weight="700" fill="#0f172a">Cross-cutting: artifacts, gates, guards</text>
+<text x="1156" y="913" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">every handoff is a file · every claim needs real output</text>
+<rect x="40" y="924" width="520" height="190" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="58" y="952" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d">Artifact bus · tmp/steward/&lt;run-id&gt;/</text>
+<text x="58" y="970" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#64748b">all handoffs go through files, not long prose in prompts</text>
+<rect x="58" y="982" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="176" y="1000.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">01-requirement.md</text>
+<rect x="306" y="982" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="424" y="1000.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">02-spec.md</text>
+<rect x="58" y="1016" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="176" y="1034.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">03-plan.json</text>
+<rect x="306" y="1016" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="424" y="1034.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">run.json</text>
+<rect x="58" y="1050" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="176" y="1068.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">baseline.json</text>
+<rect x="306" y="1050" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="424" y="1068.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">verify-result.json</text>
+<rect x="58" y="1084" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="176" y="1102.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">reports/*.md</text>
+<rect x="306" y="1084" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="424" y="1102.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">final-report.md</text>
+<rect x="572" y="924" width="588" height="190" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="590" y="952" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d">Trusted-change gates + host guards</text>
+<text x="590" y="970" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#64748b">local Node scripts, no CI; a non-zero exit code is a failure</text>
+<rect x="590" y="982" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="604" y="998.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">validate-plan</text>
+<text x="604" y="1012.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">paths / DAG / ownership / AC</text>
+<rect x="878" y="982" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="892" y="998.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">verify</text>
+<text x="892" y="1012.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">independent test · lint · typecheck rerun</text>
+<rect x="590" y="1026" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="604" y="1042.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">baseline</text>
+<text x="604" y="1056.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">out-of-bounds diff / undeclared test edits</text>
+<rect x="878" y="1026" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="892" y="1042.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">run-state</text>
+<text x="892" y="1056.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">resume · stop after 2 same errors · budget</text>
+<rect x="590" y="1070" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="604" y="1086.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">hooks (PreToolUse)</text>
+<text x="604" y="1100.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">secret / ownership / dangerous, fail-open</text>
+<rect x="878" y="1070" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="892" y="1086.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">maintain · take-over · docs-gate</text>
+<text x="892" y="1100.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">8 scans / T1 / G1–G11</text>
+<line x1="40" y1="1142" x2="1160" y2="1142" stroke="#f1f5f9"/>
+<text x="40" y="1162" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b">principles: small changes skip the full team · gates never downgrade · failures reported as-is · git untouched by default</text>
+<text x="1160" y="1162" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">host surfaces: ZCode commands · MiniMax GenUI board · DSH right-sidebar board</text>
+</svg>

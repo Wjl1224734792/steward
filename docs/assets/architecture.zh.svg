@@ -1,0 +1,219 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1180" width="1200" height="1180" role="img" aria-labelledby="t-ar d-ar">
+<title id="t-ar">Steward 架构总览</title>
+<desc id="d-ar">上半部分：shared/ 单一正文源经两个构建器生成 ZCode / MiniMax / DSH 三个宿主包并各自安装。下半部分：运行时主代理作为 Tech Lead，走受理定级、方案、计划批准门、DAG 实施、质量门五步，按任务派发 7 个角色子代理，贯穿工件总线与本地门禁脚本。</desc>
+<defs>
+  <linearGradient id="steward-bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#0f3d2e"/><stop offset="1" stop-color="#14532d"/>
+  </linearGradient>
+  <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/>
+  </marker>
+</defs>
+<rect x="0" y="0" width="1200" height="1180" rx="0" fill="#ffffff"/>
+<g transform="translate(40,20) scale(0.6875)">
+  <rect width="64" height="64" rx="14" fill="url(#steward-bg)"/>
+  <path d="M16 44c0-9.4 7.2-17 16-17s16 7.6 16 17" fill="none" stroke="#86efac" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="32" cy="21" r="6.5" fill="#bbf7d0"/>
+  <path d="M23 48h18" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+  <path d="M32 34v8" stroke="#4ade80" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="33" r="2.4" fill="#4ade80"/>
+</g>
+<text x="100" y="44" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="23" font-weight="700" fill="#0f172a">Steward 架构总览</text>
+<text x="100" y="66" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="400" fill="#64748b">单一正文源构建三宿主包；主代理作为 Tech Lead 按任务 DAG 派发与验收</text>
+<rect x="808" y="28" width="112" height="28" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="864" y="46.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#475569" text-anchor="middle">ZCode 1.1.0</text>
+<rect x="928" y="28" width="112" height="28" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="984" y="46.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#475569" text-anchor="middle">MiniMax 1.1.0</text>
+<rect x="1048" y="28" width="112" height="28" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1104" y="46.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11.5" font-weight="600" fill="#475569" text-anchor="middle">DSH 1.2.0</text>
+<rect x="28" y="96" width="1144" height="296" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<circle cx="52" cy="126" r="11" fill="#14532d"/>
+<text x="52" y="130.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+<text x="72" y="132" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="16.5" font-weight="700" fill="#0f172a">源码 → 构建 → 宿主包</text>
+<text x="1156" y="131" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">单一正文源 · 生成物不手改 · --check 拦截漂移</text>
+<rect x="40" y="150" width="344" height="218" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="40" y="150" width="344" height="3.5" rx="1.75" fill="#bbf7d0"/>
+<rect x="420" y="150" width="312" height="218" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="420" y="150" width="312" height="3.5" rx="1.75" fill="#86efac"/>
+<rect x="772" y="150" width="388" height="218" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="772" y="150" width="388" height="3.5" rx="1.75" fill="#4ade80"/>
+<text x="58" y="178" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d" letter-spacing="1">源 SOURCE</text>
+<line x1="58" y1="190" x2="40" y2="190" stroke="none"/>
+<line x1="58" y1="190" x2="366" y2="190" stroke="none"/>
+<text x="58" y="216" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="12" font-weight="600" fill="#0f172a">shared/skills/ · shared/agents/</text>
+<text x="58" y="234" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#64748b">技能正文 + 7 角色章程（含 @@SLOT@@ 宿主槽位）</text>
+<text x="58" y="264" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="12" font-weight="600" fill="#0f172a">shared/scripts/</text>
+<text x="58" y="282" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#64748b">6 个门禁脚本 · 模板 · 文档流水线（唯一正文源）</text>
+<text x="58" y="312" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="12" font-weight="600" fill="#0f172a">host/{zcode,minimax,dsh}/</text>
+<text x="58" y="330" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#64748b">frontmatter · 派发机制 · 模型表 · 浏览器操作</text>
+<text x="58" y="358" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#94a3b8">另有 zcode/skills/steward/references/ 供 DSH 构建器只读</text>
+<text x="438" y="178" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d" letter-spacing="1">构建 BUILD</text>
+<line x1="438" y1="190" x2="420" y2="190" stroke="none"/>
+<line x1="438" y1="190" x2="746" y2="190" stroke="none"/>
+<rect x="436" y="200" width="280" height="72" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+<text x="450" y="222" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="600" fill="#0f172a">node zcode/scripts/build.mjs</text>
+<text x="450" y="242" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#15803d">→ zcode/ + minimax/</text>
+<text x="450" y="259" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">渲染技能 / agent · 同步脚本与模板</text>
+<rect x="436" y="284" width="280" height="72" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+<text x="450" y="306" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="600" fill="#0f172a">node host/dsh/build.mjs</text>
+<text x="450" y="326" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#15803d">→ dsh/（唯一写入目标）</text>
+<text x="450" y="343" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">只读 shared + host/dsh + references</text>
+<text x="438" y="362" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#94a3b8">--check：拦截手改与未重建漂移</text>
+<text x="790" y="178" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d" letter-spacing="1">宿主包 PACKAGES → 安装</text>
+<line x1="790" y1="190" x2="772" y2="190" stroke="none"/>
+<line x1="790" y1="190" x2="1098" y2="190" stroke="none"/>
+<circle cx="804" cy="210" r="5" fill="#2563eb"/>
+<text x="818" y="214" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">ZCode 1.1.0 · zcode/</text>
+<text x="818" y="232" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569">zcode plugins update steward@&lt;marketplace&gt;</text>
+<circle cx="804" cy="262" r="5" fill="#ea580c"/>
+<text x="818" y="266" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">MiniMax 1.1.0 · minimax/</text>
+<text x="818" y="284" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569">agent-config.mjs install --apply</text>
+<circle cx="804" cy="314" r="5" fill="#7c3aed"/>
+<text x="818" y="318" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">DSH 1.2.0 · dsh/</text>
+<text x="818" y="336" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569">插件管理器 install_bundle → dsh/</text>
+<text x="790" y="362" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#94a3b8">三侧各自开发、各自测试、各自更新</text>
+<line x1="386" y1="259" x2="414" y2="259" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<line x1="734" y1="259" x2="766" y2="259" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="28" y="412" width="1144" height="446" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<circle cx="52" cy="442" r="11" fill="#14532d"/>
+<text x="52" y="446.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+<text x="72" y="448" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="16.5" font-weight="700" fill="#0f172a">运行时：主代理 = Tech Lead</text>
+<text x="1156" y="447" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">交付责任在主代理 · 子代理产出必须核对 · 不达标就回派</text>
+<rect x="40" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="52" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">功能交付</text>
+<text x="52" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward</text>
+<rect x="228" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="240" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">Bug 修复</text>
+<text x="240" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:fix</text>
+<rect x="416" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="428" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">只出计划</text>
+<text x="428" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:plan</text>
+<rect x="604" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="616" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">维护循环</text>
+<text x="616" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:maintain</text>
+<rect x="792" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="804" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">接手存量</text>
+<text x="804" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:take-over</text>
+<rect x="980" y="464" width="180" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="992" y="480" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="11" font-weight="700" fill="#0f172a">内联执行</text>
+<text x="992" y="494" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="9.5" font-weight="400" fill="#15803d">/steward:inline</text>
+<text x="40" y="514" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#94a3b8">斜杠命令为 ZCode；MiniMax / DSH 用自然语言触发（DSH 名册命令 /steward-roster）</text>
+<rect x="40" y="526" width="212" height="134" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="54" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#94a3b8" letter-spacing="1">STAGE 01</text>
+<text x="54" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">受理定级</text>
+<text x="54" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">落 01-requirement.md</text>
+<text x="54" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">S / M / L 定级</text>
+<text x="54" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">M/L：四问 + ≤3 个 P0</text>
+<line x1="252" y1="593" x2="265" y2="593" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="267" y="526" width="212" height="134" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="281" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#94a3b8" letter-spacing="1">STAGE 02</text>
+<text x="281" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">方案</text>
+<text x="281" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">architect → 02-impact.md</text>
+<text x="281" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">03-plan.md + 机读 03-plan.json</text>
+<text x="281" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">S 级：主代理自拟迷你方案</text>
+<line x1="479" y1="593" x2="492" y2="593" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="494" y="526" width="212" height="134" rx="12" fill="#fffbeb" stroke="#fcd34d" stroke-width="1"/>
+<text x="508" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#b45309" letter-spacing="1">GATE</text>
+<text x="508" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">计划批准门</text>
+<text x="508" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">validate-plan.mjs 机检</text>
+<text x="508" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">Plan Critic（干净上下文）</text>
+<text x="508" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">用户明确批准；S 级跳过</text>
+<line x1="706" y1="593" x2="719" y2="593" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="721" y="526" width="212" height="134" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="735" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#94a3b8" letter-spacing="1">STAGE 03</text>
+<text x="735" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">实施</text>
+<text x="735" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">按任务 DAG 派单</text>
+<text x="735" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">并行 = 无依赖 + 所有权不相交</text>
+<text x="735" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">subagent 默认；inline 受限</text>
+<line x1="933" y1="593" x2="946" y2="593" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr)"/>
+<rect x="948" y="526" width="212" height="134" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+<text x="962" y="548" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="700" fill="#94a3b8" letter-spacing="1">STAGE 04–05</text>
+<text x="962" y="570" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#0f172a">质量门 → 交付</text>
+<text x="962" y="592" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">QA → 浏览器（有 UI）→ reviewer</text>
+<text x="962" y="607.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">blocking = 0；回派修复 ≤ 2 轮</text>
+<text x="962" y="623" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.8" font-weight="400" fill="#475569">final-report.md + 05-record.md</text>
+<text x="40" y="686" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="13" font-weight="700" fill="#0f172a">派发名册 · 7 角色 + 外援</text>
+<text x="1156" y="686" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">派发单位是任务，不是角色名额 · DSH 以章程注入，不注册 Agent Preset</text>
+<rect x="40" y="700" width="240" height="138" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="40" y="700" width="240" height="3.5" rx="1.75" fill="#bbf7d0"/>
+<text x="56" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">规划</text>
+<text x="264" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9" font-weight="600" fill="#94a3b8" text-anchor="end" letter-spacing="1">PLAN</text>
+<text x="56" y="754" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">steward:pm</text>
+<text x="56" y="770" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">模糊需求 → 可测规格</text>
+<text x="56" y="796" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">steward:architect</text>
+<text x="56" y="812" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">规格 → 影响面 + 任务 DAG</text>
+<rect x="290" y="700" width="270" height="138" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="290" y="700" width="270" height="3.5" rx="1.75" fill="#86efac"/>
+<text x="306" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">实施</text>
+<text x="544" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9" font-weight="600" fill="#94a3b8" text-anchor="end" letter-spacing="1">BUILD</text>
+<text x="306" y="754" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">steward:backend-dev</text>
+<text x="306" y="770" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">按任务单 TDD 实施</text>
+<text x="306" y="796" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">steward:frontend-dev</text>
+<text x="306" y="812" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">UI + 浏览器验收脚本</text>
+<rect x="570" y="700" width="390" height="138" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="570" y="700" width="390" height="3.5" rx="1.75" fill="#4ade80"/>
+<text x="586" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">质量</text>
+<text x="944" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9" font-weight="600" fill="#94a3b8" text-anchor="end" letter-spacing="1">QUALITY</text>
+<text x="586" y="750" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">steward:qa-engineer</text>
+<text x="586" y="764" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">测试 / lint / typecheck 门</text>
+<text x="586" y="784" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">steward:browser-tester</text>
+<text x="586" y="798" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">真实浏览器黑盒 + 证据契约</text>
+<text x="586" y="818" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">steward:reviewer</text>
+<text x="586" y="832" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">终审 diff / Plan Critic</text>
+<rect x="970" y="700" width="190" height="138" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="970" y="700" width="190" height="3.5" rx="1.75" fill="#cbd5e1"/>
+<text x="986" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#0f172a">外援</text>
+<text x="1144" y="726" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9" font-weight="600" fill="#94a3b8" text-anchor="end" letter-spacing="1">EXTERNAL</text>
+<text x="986" y="754" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="11" font-weight="700" fill="#14532d">Explore</text>
+<text x="986" y="770" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">L 级只读勘察，产出</text>
+<text x="986" y="784" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.3" font-weight="400" fill="#64748b">00-context.md 仓库地图</text>
+<text x="986" y="822" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.5" font-weight="400" fill="#94a3b8">非插件角色，按需派</text>
+<rect x="28" y="878" width="1144" height="250" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<circle cx="52" cy="908" r="11" fill="#14532d"/>
+<text x="52" y="912.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+<text x="72" y="914" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="16.5" font-weight="700" fill="#0f172a">贯穿：工件、门禁与守卫</text>
+<text x="1156" y="913" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">所有交接走文件 · 所有结论要有真实输出</text>
+<rect x="40" y="924" width="520" height="190" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="58" y="952" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d">工件总线 · tmp/steward/&lt;run-id&gt;/</text>
+<text x="58" y="970" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#64748b">所有交接走文件，不在 prompt 里转述长文；子代理返回后立即落盘</text>
+<rect x="58" y="982" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="176" y="1000.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">01-requirement.md</text>
+<rect x="306" y="982" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="424" y="1000.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">02-spec.md</text>
+<rect x="58" y="1016" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="176" y="1034.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">03-plan.json</text>
+<rect x="306" y="1016" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="424" y="1034.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">run.json</text>
+<rect x="58" y="1050" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="176" y="1068.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">baseline.json</text>
+<rect x="306" y="1050" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="424" y="1068.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">verify-result.json</text>
+<rect x="58" y="1084" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="176" y="1102.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">reports/*.md</text>
+<rect x="306" y="1084" width="236" height="28" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="424" y="1102.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle">final-report.md</text>
+<rect x="572" y="924" width="588" height="190" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<text x="590" y="952" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="12.5" font-weight="700" fill="#14532d">可信变更门禁 + 宿主守卫</text>
+<text x="590" y="970" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10" font-weight="400" fill="#64748b">本地 Node 脚本，不做 CI；exit code 非 0 就是失败，如实上报</text>
+<rect x="590" y="982" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="604" y="998.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">validate-plan</text>
+<text x="604" y="1012.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">路径存在 / DAG 无环 / 所有权 / AC</text>
+<rect x="878" y="982" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="892" y="998.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">verify</text>
+<text x="892" y="1012.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">独立复跑 test · lint · typecheck</text>
+<rect x="590" y="1026" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="604" y="1042.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">baseline</text>
+<text x="604" y="1056.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">越界 diff、未声明测试改动 = 拦截</text>
+<rect x="878" y="1026" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="892" y="1042.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">run-state</text>
+<text x="892" y="1056.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">断点恢复 · 同错 2 次即停 · 预算</text>
+<rect x="590" y="1070" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="604" y="1086.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">hooks（PreToolUse）</text>
+<text x="604" y="1100.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">secret / ownership / dangerous，fail-open</text>
+<rect x="878" y="1070" width="270" height="38" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="892" y="1086.5" font-family="'Cascadia Code',Consolas,'SFMono-Regular','Liberation Mono',monospace" font-size="10.8" font-weight="700" fill="#14532d">maintain · take-over · docs-gate</text>
+<text x="892" y="1100.5" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="9.8" font-weight="400" fill="#64748b">八类扫描 / T1 生成 / G1–G11</text>
+<line x1="40" y1="1142" x2="1160" y2="1142" stroke="#f1f5f9"/>
+<text x="40" y="1162" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b">原则：小需求不开全员大会 · 门禁不降级 · 失败如实上报 · 默认不动 git</text>
+<text x="1160" y="1162" font-family="'Segoe UI','PingFang SC','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif" font-size="10.5" font-weight="400" fill="#64748b" text-anchor="end">宿主呈现：ZCode 斜杠命令 · MiniMax GenUI 看板 · DSH 右侧栏看板</text>
+</svg>
