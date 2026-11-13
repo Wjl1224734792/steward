@@ -5,8 +5,9 @@ dev-team-minimax-*.zip
 # Steward 本地工作区与验收 fixture（不进版本库）
 tmp/
 
-# ZCode 会话级 plan 工件（临时产物；.zcode/config.json 是有意跟踪的，不在此列）
-.zcode/plans/
+# ZCode 本地 harness 状态：会话级 plan 工件 + 客户端自行维护的插件启用配置等，均不入库
+# （.zcode/config.json 由 ZCode 客户端自动写入，属机器本地状态；缺了客户端会重建）
+.zcode/
 
 # 本地 Agent Skills 发现入口（junction 到技能母本，不入库）
 /.agents/
