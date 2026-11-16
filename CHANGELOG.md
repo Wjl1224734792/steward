@@ -6,6 +6,29 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [ZCode 1.3.0 / MiniMax 1.4.0 / DSH 1.4.0] - 2026-11-17
+
+> **通用 harness 技能对齐 DSH 1.3.0（跨宿主）**：三宿主各自的「文档入口拆分 + 文档就绪硬门」已在 1.2.0–1.3.0 陆续落地，但**通用 harness 侧**——不装整包、直接投放 `shared/skills/` 下 4 个宿主无关技能的任意 harness——仍停在 DSH 0.9.0 的文档治理口径。本版把「文档就绪硬门」通用化并去掉宿主专有字段名；版本随发布列车推进：**DSH / MiniMax 同号 1.4.0，ZCode 1.3.0**（不领先列车）。
+
+### Added
+
+- **`project-lifecycle` v1.1.0（1.0.0 → 1.1.0）**：把 DSH 侧的「文档就绪硬门」通用化为 harness 无关口径——`references/documentation.md` §8 由「自检清单」扩为「文档就绪门禁与自检清单」，新增 §8.1（先分流 → 声明范围 → 机检 + 独立评审 → 签发就绪凭据，含凭据失效规则、门禁作用面、绕门禁处置）；§8.2 自检清单补 4 条就绪项（范围声明 / 空壳与占位符 / 关键数字一致 / 独立评审与凭据），反模式与落地清单同步。`SKILL.md` §2 工作环在「立约」与「落档」两处挂钩（声明本轮文档范围、口径改动后重跑就绪检查）、§7 完成定义新增「文档就绪」一条（收尾六问 → 七问）、§10 新增「就绪门禁」指针、§12 能力降级新增「无门禁脚本」降级行、§14 新增三条反模式、§16 补就绪门禁说明、§17 记 1.1.0 变更。
+
+### Changed
+
+- **三个纪律技能去宿主化**：`verification-before-completion` 去掉 `steward.config.json` 的门禁字段名（改为「仓库自己的门禁配置——CI 用的那套」）并新增第 6 问「文档就绪了吗」；`tdd` 的「计划 testChanges」改成宿主无关的「计划里声明」；`systematic-debugging` 的 `CONSTITUTION` 改成「项目红线文档」。四个通用技能自此不含宿主脚本名 / 配置字段 / 阶段目录树。
+- **版本**：`host/dsh/package.json` 与 `minimax/.minimax-plugin/plugin.json` 1.3.0 → **1.4.0**（MiniMax 与 DSH 同号）；`zcode/.zcode-plugin/plugin.json` 1.2.0 → **1.3.0**（不领先发布列车）；三处 banner 版本行同步。
+- **文档**：根 README（zh/en）与两侧 README 的「通用 harness 安装」节补通用技能内容口径；根 README 版本行校正为 ZCode 1.3.0 / MiniMax 1.4.0 / DSH 1.4.0；`docs/ROADMAP-STATUS.md` 记本波次台账。
+
+### 验证
+
+- `node zcode/scripts/build.mjs` / `--check` → PASS。
+- `node --test zcode/scripts/tests/` → 全绿。
+- `node --test host/minimax/tests/` → 全绿（含「MiniMax 版本 = DSH 版本」「ZCode 不领先列车」两条断言）。
+- **测试稳健性**：`host/minimax/tests/docs-governance.test.mjs` 的两条 frontmatter 断言改为换行无关（`\r?\n`）——检出态是 CRLF 时不再假红，判定内容不变（包内技能文件由构建器渲染为 LF，但「内容相同、仅换行不同」时构建器按既有口径跳过重写）。
+- `node host/dsh/build.mjs` / `--check` → PASS。
+- `node --test host/dsh/tests/` → 全绿。
+
 ## [MiniMax 1.3.0] - 2026-11-16
 
 > **MiniMax Code 侧对齐 DSH 1.3.0**：文档不再是「一个技能全走」——新建项目、接手存量、单个功能各一个入口技能，审查独立成入口，写作规范下沉为总库；新增 `scripts/docs-ready.mjs` 把「阶段产物齐不齐、有没有空壳 / 占位符 / 追溯断链、计划引用了没写的阶段」做成机检收据，并落成**派发硬门**：docTier=3 时派 `steward:backend-dev` / `steward:frontend-dev` 先校验收据，没过就拒绝派发。MiniMax 升 **1.3.0**（与 DSH 1.3.0 同号），ZCode 侧零改动。

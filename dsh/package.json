@@ -1,6 +1,6 @@
 {
   "name": "dsh-steward",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "type": "module",
   "description": "Steward for DeepSeek Harness: seven role charters injected at dispatch time (no user-selectable agent presets), a per-session Steward board in the right Sidebar (task DAG / list / ownership views, live subagents, run artifacts under tmp/steward, opened from the session header or automatically on the first dispatch), a Settings → Steward table for per-role model/effort, per-role routes from <project>/steward.config.json over the panel settings, the Agent Teams shared task board as the authoritative task source, four documentation entry skills (docs-new / docs-takeover / docs-feature / docs-review) backed by a hard readiness gate that refuses backend-dev / frontend-dev dispatch until the seven-phase documents pass closure checks and review, and a /steward-roster command.",

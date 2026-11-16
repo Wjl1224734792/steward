@@ -5,6 +5,17 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
+## 通用 harness 技能对齐 DSH 1.3.0（文档就绪硬门通用化）— 2026-11-17
+
+> DSH / MiniMax / ZCode 三侧的「文档入口拆分 + 文档就绪硬门」已在 1.2.0–1.3.0 落地；通用 harness 侧（不装整包、直接投放 `shared/skills/` 下 4 个宿主无关技能的任意 harness）此前停在 DSH 0.9.0 的文档治理口径。本节把就绪硬门通用化并去掉宿主专有字段名。
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| G1 | 文档就绪门禁通用化 | 已实现 | `shared/skills/project-lifecycle/references/documentation.md` §8 扩为「文档就绪门禁与自检清单」，新增 §8.1（先分流 → 声明范围 → 机检 + 独立评审 → 签发就绪凭据，含失效规则 / 门禁作用面 / 绕门禁处置），§8.2 自检清单补 4 条就绪项；`SKILL.md` §2 工作环挂钩、§7 完成定义新增「文档就绪」、§10 就绪门禁指针、§12 降级行、§14 三条反模式 | harness 无关口径：不含宿主脚本名 / 配置字段 / 阶段目录树 |
+| G2 | 三个纪律技能去宿主化 | 已实现 | `verification-before-completion` 去 `steward.config.json` 门禁字段名 + 新增第 6 问「文档就绪了吗」；`tdd` 去 `testChanges`；`systematic-debugging` 去 `CONSTITUTION` | 任意 harness 读到的是纯指令 |
+| G3 | 版本随列车推进 | 已实现 | `host/dsh/package.json` 与 `minimax/.minimax-plugin/plugin.json` 1.3.0 → 1.4.0（MiniMax = DSH）；`zcode/.zcode-plugin/plugin.json` 1.2.0 → 1.3.0（不领先列车）；`node --test host/minimax/tests/` 的两条版本断言通过 | 与 `host/minimax/tests/docs-governance.test.mjs` 的版本口径一致 |
+| G4 | 门禁复跑 | 已实现 | `node zcode/scripts/build.mjs` / `--check` PASS；`node --test zcode/scripts/tests/`；`node --test host/minimax/tests/`；`node host/dsh/build.mjs` / `--check` PASS；`node --test host/dsh/tests/` | 三宿主构建 + 测试全绿 |
+
 ## MiniMax 1.3.0（对齐 DSH 1.3.0 的文档入口拆分 + 文档就绪硬门）— 2026-11-16
 
 > 用户指示「根据 dsh 的新功能更新，同步对齐 minimaxcode 这边然后升级」：DSH 1.3.0 把文档拆成四个入口 + 一个总库，并加了「文档未就绪不许派开发」的硬门。MiniMax 侧按**自己的机制**对齐——MiniMax 没有 DSH 的 `steward_dispatch` 工具（派发走通用 `task` 工具 + 子代理 frontmatter），所以硬门落在 `task` 的 `PreToolUse` 钩子上，判据与 CLI 共用同一套 `lib/docs-state.mjs`。DSH / ZCode 侧零改动。

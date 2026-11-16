@@ -158,7 +158,10 @@ test('doc-snapshot 首跑生成 history/ 快照与 manifest.json，复跑 skip �
 test('docs-governance 技能正文覆盖 0–12 小节、脚本路径与 MiniMax 化口径（无 DSH 专属机制词）', () => {
   const rel = 'host/minimax/skills/docs-governance/SKILL.md';
   const text = readFileSync(join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
-  assert.match(text, /^---\nname: docs-governance\n/m, 'frontmatter 应含 name: docs-governance');
+  // 换行无关：仓库在 core.autocrlf=true 的 Windows 上，检出态可能是 CRLF；
+  // 包内技能文件由构建器渲染（正文归一为 LF），但「内容相同、仅换行不同」时构建器会跳过重写，
+  // 因此断言不能绑定 \n，否则换行态不同的检出就会出现假红。
+  assert.match(text, /^---\r?\nname: docs-governance\r?\n/m, 'frontmatter 应含 name: docs-governance');
   assert.match(text, /^description:/m, 'frontmatter 应含 description');
   for (let n = 0; n <= 12; n += 1) {
     assert.ok(
@@ -235,7 +238,7 @@ test('主技能三节已拆走只留指针，拆出技能正文承接原节', ()
   // 文档四入口是宿主全文技能：正文在 host/minimax/skills/，包内只带 frontmatter + 生成标记
   for (const entry of ['docs-new', 'docs-takeover', 'docs-feature', 'docs-review']) {
     const text = readFileSync(join(MX, 'skills', entry, 'SKILL.md'), 'utf8');
-    assert.match(text, new RegExp(`^---\\nname: ${entry}\\n`), `${entry} 技能 frontmatter 应含 name: ${entry}`);
+    assert.match(text, new RegExp(`^---\\r?\\nname: ${entry}\\r?\\n`), `${entry} 技能 frontmatter 应含 name: ${entry}`);
     assert.ok(text.length > 500, `${entry} 技能正文不应为空壳`);
     assert.doesNotMatch(text, /steward_dispatch|DSH 宿主/, `${entry} 不应出现 DSH 专属措辞`);
   }

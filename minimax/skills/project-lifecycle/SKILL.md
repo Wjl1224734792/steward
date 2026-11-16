@@ -1,6 +1,6 @@
 ---
 name: project-lifecycle
-description: 通用项目全生命周期规范（纯指令，单代理，无子代理、无脚本依赖）。用于开发新项目、接手存量仓库、加功能、修缺陷、重构/迁移/演进、技术债治理、长期维护、发版与交接，以及文档越写越长需要拆分、归档与版本溯源：以仓库为事实来源，按「勘察 → 立约 → 小步实施 → 复跑验证 → 落档交接」推进，验收标准可观察、完成有真实命令证据，文档按「活 / 记录 / 基线」三类治理（体积预算、hub-and-spoke 拆册、读契约、版本快照与双向溯源），状态随代码同步。Use when developing or taking over a software project, adding features, fixing bugs, refactoring, migrating, maintaining long-term, managing technical debt, releasing, or handing off; also when documentation outgrows itself and needs splitting, archiving, or versioned snapshots; works in any agent harness and never requires subagents.
+description: 通用项目全生命周期规范（纯指令，单代理，无子代理、无脚本依赖）。用于开发新项目、接手存量仓库、加功能、修缺陷、重构/迁移/演进、技术债治理、长期维护、发版与交接，以及文档越写越长需要拆分、归档与版本溯源：以仓库为事实来源，按「勘察 → 立约 → 小步实施 → 复跑验证 → 落档交接」推进，验收标准可观察、完成有真实命令证据，文档按「活 / 记录 / 基线」三类治理（体积预算、hub-and-spoke 拆册、读契约、版本快照与双向溯源），状态随代码同步。Use when developing or taking over a software project, adding features, fixing bugs, refactoring, migrating, maintaining long-term, managing technical debt, releasing, or handing off; also when documentation outgrows itself and needs splitting, archiving, or versioned snapshots; works in any agent harness and never requires subagents; changes to requirements, contracts, interfaces or data semantics must pass a documentation-readiness gate (scope declaration, machine checks, independent review, readiness receipt) before implementation.
 ---
 
 <!-- 由 zcode/scripts/build.mjs 从 shared/ + host/minimax/ 生成，请勿手改；改源后重跑 build.mjs。 -->
@@ -33,10 +33,10 @@ description: 通用项目全生命周期规范（纯指令，单代理，无子�
 |---|---|---|---|
 | 1 | 受理 Intake | 判定模式；确认目标、AC、非目标、风险 | 任务卡（S 级可三行口述） |
 | 2 | 勘察 Recon | 读指令与 README；看 git 状态/历史；定位命令；跑基线 | 现状摘要 + 基线结果 |
-| 3 | 立约 Contract | 固定改动边界、验收方式、回滚方案 | 可执行的计划 |
+| 3 | 立约 Contract | 固定改动边界、验收方式、回滚方案；动需求 / 契约 / 口径时同时声明本轮文档范围与就绪判据 | 可执行的计划 |
 | 4 | 实施 Implement | 最小 diff；行为变更先测；重构先补特征测试 | 代码 + 测试 |
 | 5 | 验证 Verify | 目标测试 → 全量相关门禁 → AC 逐条取证 → diff 自审 | 证据清单 |
-| 6 | 落档 Record | 按活 / 记录 / 基线三类落档：changelog / 文档 / ADR / 状态文件 | 仓库内的知识 |
+| 6 | 落档 Record | 按活 / 记录 / 基线三类落档：changelog / 文档 / ADR / 状态文件；口径类文档改动后重跑就绪检查 | 仓库内的知识 |
 | 7 | 交接 Handoff | 状态、证据、风险、下一步 | 自包含的交接块 |
 
 每一步的产出都要能被下一个人（或下一轮会话）直接看到，而不是只存在于当前对话。
@@ -107,8 +107,9 @@ description: 通用项目全生命周期规范（纯指令，单代理，无子�
 3. **测试诚信**：相关测试全绿；flaky 用重复运行确认并记录；新增/修改测试有红→绿过程或不可测说明。
 4. **diff 自审**：无调试残留、无密钥、无越界文件、无被注释掉的代码、无意外生成物。
 5. **文档按类治理**：行为、接口、配置、运维方式变化时按「活 / 记录 / 基线」三类落档（活文档原地改、记录只增不改、基线版本 bump），版本 / 修订表 / 索引三处一致；"以后补文档"视为未完成。
-6. **文档门禁**：仓库有文档门禁脚本就跑并贴输出；没有则逐项过 [documentation.md §8](references/documentation.md) 的自检清单。
+6. **文档门禁**：仓库有文档门禁脚本就跑并贴输出；没有则逐项过 [documentation.md §8.2](references/documentation.md) 的自检清单。
 7. **风险可控**：风险改动有回滚步骤；未验证项逐条列出。
+8. **文档就绪**：动了需求 / 契约 / 接口 / 数据口径 → 文档范围已声明（必需 / 不适用及理由）、空壳与占位符清零、跨文档关键数字一致、追溯无孤儿、有独立评审记录且就绪凭据有效（口径类文档改过就重跑过）；没动 → 交付记录里写明「本次不涉及口径变更，文档未动」。
 
 **证据格式**（按需裁剪）：
 
@@ -123,7 +124,7 @@ description: 通用项目全生命周期规范（纯指令，单代理，无子�
 
 **无法验证时**：明确写"未验证 + 原因 + 建议的验证方式"，不降低完成标准。
 
-**收尾六问**：① 最后一次改动后复跑了吗？② 每条 AC 都有证据吗？③ diff 只含本任务且干净吗？④ 文档按三类落档、版本与索引一致吗？⑤ 文档治理自检（体积 / 索引 / 快照 / 依据）过了吗？⑥ 接手者能不看对话继续吗？
+**收尾七问**：① 最后一次改动后复跑了吗？② 每条 AC 都有证据吗？③ diff 只含本任务且干净吗？④ 文档按三类落档、版本与索引一致吗？⑤ 文档治理自检（体积 / 索引 / 快照 / 依据）过了吗？⑥ 接手者能不看对话继续吗？⑦ 口径类文档动了的话，就绪凭据有效吗？
 
 ## 8. 长期维护（心跳）
 
@@ -162,6 +163,7 @@ description: 通用项目全生命周期规范（纯指令，单代理，无子�
 - **读契约分级**：恒读只给短小的入口与红线；条件必读靠目录 / 任务点名；其余按需检索。读长文先索引、再定位、后片段读，禁止整文件倾倒；实现任务不读历史区。
 - **ADR 门槛**：难以回滚、跨模块/跨团队、成本超过 1 天、限制未来选项——满足任一即记录（模板 [decision-record.md](assets/decision-record.md)）。
 - **同一改动更新文档**；"以后补文档"视为未完成。
+- **就绪门禁**：动了口径类文档（需求 / 契约 / 数据模型 / 接口 / 页面口径 / 测试方案）时，先过文档就绪门禁（声明范围 → 机检 → 独立评审 → 签发凭据），再进实现；门禁模型见 [documentation.md §8.1](references/documentation.md)。
 - **单一事实来源**：能链接就不复制；必须复制时标注同步来源。
 - 记忆载体、决策与上下文管理见 [memory.md](references/memory.md)；分类 / 预算 / 拆册 / 读契约 / 版本快照 / 自检清单见 [documentation.md](references/documentation.md)。
 
@@ -184,7 +186,8 @@ description: 通用项目全生命周期规范（纯指令，单代理，无子�
 | 子代理 | 串行执行全部阶段 | 伪造并行或委派 |
 | 持久化 | 结束时输出完整交接块 | 把关键决策留在对话里 |
 | 只读权限 | 产出计划、补丁建议与验证步骤 | 声称已修改或已验证 |
-| 文档门禁脚本 | 按 [documentation.md §8](references/documentation.md) 的清单人工逐项核对 | 跳过核对就宣称"文档没问题" |
+| 文档门禁脚本 | 按 [documentation.md §8.2](references/documentation.md) 的清单人工逐项核对 | 跳过核对就宣称"文档没问题" |
+| 文档就绪门禁脚本 | 按 [documentation.md §8.1](references/documentation.md) 逐项人工核对 + 独立评审记录 + 自写凭据（状态 / 指纹 / 评审链接 / 时间） | 跳过核对就宣称"文档就绪" |
 | frontmatter / 元数据 | 用文档头部一张表等价承载 read / version / status | 假装元数据存在 |
 
 ## 13. 沟通
@@ -213,6 +216,9 @@ description: 通用项目全生命周期规范（纯指令，单代理，无子�
 - 把所有评审都往长期文档里倒（run 级报告应留在工件目录）。
 - 归档 / 拆册后不更新索引，链接和索引指向旧位置。
 - 修订行不挂依据，条目编号重排或复用——变更无法溯源。
+- 自己写的文档自己批「通过」（自审自批 = 把门禁关掉）。
+- 用空目录 / `{{占位}}` / `待补` 充数交差。
+- 改了口径类文档却不重跑就绪检查（凭据还在，文档已经变了）。
 
 ## 15. 快速开始（任何仓库的前 30 分钟）
 
@@ -230,7 +236,7 @@ description: 通用项目全生命周期规范（纯指令，单代理，无子�
 - [references/maintenance.md](references/maintenance.md) — 接手、周期维护、债务、演进、弃用的操作手册
 - [references/verification.md](references/verification.md) — 门禁目录、证据格式、失败处理
 - [references/memory.md](references/memory.md) — 记忆载体、决策记录、状态与上下文管理
-- [references/documentation.md](references/documentation.md) — 文档治理：三类分治、体积预算与拆册、读契约、版本快照与溯源、自检清单
+- [references/documentation.md](references/documentation.md) — 文档治理：三类分治、体积预算与拆册、读契约、版本快照与溯源、文档就绪门禁（范围声明 / 机检 / 独立评审 / 就绪凭据）、自检清单
 - 模板：[task-brief.md](assets/task-brief.md)、[decision-record.md](assets/decision-record.md)、[maintenance-report.md](assets/maintenance-report.md)、[handoff.md](assets/handoff.md)、[project-brief.md](assets/project-brief.md)
 
 **安装**：零脚本、零依赖。把整个 `project-lifecycle/` 目录放到项目的 `.agents/skills/`（个人级为 `~/.agents/skills/`）即可；使用 `.claude/skills/` 的宿主可软链或复制过去。只读本文件也能完整执行，`references/` 与 `assets/` 是按需加深用的。
@@ -241,5 +247,7 @@ description: 通用项目全生命周期规范（纯指令，单代理，无子�
 - 每次修订递增版本并写变更记录；破坏性调整说明迁移方式。
 
 ### 变更记录
+
+- **1.1.0** — 吸收 DSH 1.3.0 的文档就绪硬门，通用化为 harness 无关口径：§2 工作环在「立约」与「落档」两处挂钩（声明文档范围 / 口径改动后重跑就绪检查），§7 完成定义新增「文档就绪」一条、收尾问题从六问变七问，§10 新增「就绪门禁」指针，§12 能力降级新增「无门禁脚本」降级行，§14 新增三条反模式，§16 补就绪门禁说明；[references/documentation.md](references/documentation.md) §8 扩为「文档就绪门禁与自检清单」，新增 §8.1（先分流 → 声明范围 → 机检 + 独立评审 → 签发就绪凭据，含失效规则、门禁作用面与绕门禁处置），§8.2 自检清单补 4 条就绪项，反模式与落地清单同步。纪律来源是 DSH 侧 1.3.0 的文档入口拆分与就绪机检，本版把它通用化为不含宿主脚本、配置字段与阶段目录树的 harness 无关口径。
 
 - **1.0.0** — 首个版本：七步工作环、七种模式、任务卡、完成定义、维护心跳、演进与弃用、项目记忆与交接、能力降级、反模式；并含文档治理——新增 [references/documentation.md](references/documentation.md)（活 / 记录 / 基线三类分治、体积预算与 hub-and-spoke 拆册、文档头读契约与三级读法、记录三铁律与 ADR、版本快照与双向溯源、运行时工件边界、无脚本自检清单、反模式与落地清单），§10 扩为「项目记忆与文档治理」，§2 / §7 / §12 / §14 / §16 同步，完成定义补「文档按类治理」与「文档门禁」两条。纪律来源是 DSH 侧 0.9.0 文档治理，本版把它通用化为 harness 无关口径——不含宿主脚本、配置字段或七阶段目录树。

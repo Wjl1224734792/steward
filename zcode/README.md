@@ -1,8 +1,8 @@
 # Steward · ZCode 插件
 
-角色化研发团队插件：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体；也可切换 inline 由 Tech Lead 自己执行低风险任务。当前版本（1.2.0）覆盖功能交付（subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，ZCode 侧含 docTier=3 完整文档流水线（七阶段树 + 全量模板 + 命名守卫/文档检查，1.2.0 起拆为 `steward:docs-new` / `steward:docs-takeover` / `steward:docs-feature` / `steward:docs-review` 四个入口 + `steward:docs-rules` 规范总库，并带文档就绪硬门：docTier=3 时未过 `scripts/docs-gov/docs-ready.mjs` 门禁不许派开发）、文档治理（`steward:docs-governance`）、项目全生命周期（`steward:project-lifecycle`）、M/L 需求澄清（第一性原理 + 提问预算）与 `steward:using-steward` 技能路由，并自带可信变更门禁、演进循环与单一正文源构建（门禁脚本单一源自 1.1.0 起在仓库 `shared/scripts/`）；演进细节见 [路线图](../docs/ROADMAP.md)。
+角色化研发团队插件：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体；也可切换 inline 由 Tech Lead 自己执行低风险任务。当前版本（1.3.0）覆盖功能交付（subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，ZCode 侧含 docTier=3 完整文档流水线（七阶段树 + 全量模板 + 命名守卫/文档检查，1.2.0 起拆为 `steward:docs-new` / `steward:docs-takeover` / `steward:docs-feature` / `steward:docs-review` 四个入口 + `steward:docs-rules` 规范总库，并带文档就绪硬门：docTier=3 时未过 `scripts/docs-gov/docs-ready.mjs` 门禁不许派开发）、文档治理（`steward:docs-governance`）、项目全生命周期（`steward:project-lifecycle`）、M/L 需求澄清（第一性原理 + 提问预算）与 `steward:using-steward` 技能路由，并自带可信变更门禁、演进循环与单一正文源构建（门禁脚本单一源自 1.1.0 起在仓库 `shared/scripts/`）；演进细节见 [路线图](../docs/ROADMAP.md)。
 
-> A role-based engineering team plugin for ZCode. Release 1.2.0 covers feature delivery with subagent / inline execution modes, the B0–B3 bug track, plan-only mode, the maintenance loop, and takeover, with a full docTier=3 documentation pipeline split into four entry skills (docs-new / docs-takeover / docs-feature / docs-review) plus a docs-rules library and a hard readiness gate (docs-ready receipt + guard.mjs docs hook refusing implementer dispatches until the receipt is green), a lightweight first-principles clarification step (max 3 P0 questions), and a using-steward router skill on the ZCode side, trusted-change gates, single-source generation and the evolution loop built in.
+> A role-based engineering team plugin for ZCode. Release 1.3.0 covers feature delivery with subagent / inline execution modes, the B0–B3 bug track, plan-only mode, the maintenance loop, and takeover, with a full docTier=3 documentation pipeline split into four entry skills (docs-new / docs-takeover / docs-feature / docs-review) plus a docs-rules library and a hard readiness gate (docs-ready receipt + guard.mjs docs hook refusing implementer dispatches until the receipt is green), a lightweight first-principles clarification step (max 3 P0 questions), and a using-steward router skill on the ZCode side, trusted-change gates, single-source generation and the evolution loop built in.
 
 ## 团队名册（7 角色 + 外援）
 
@@ -54,7 +54,7 @@
        {
          "name": "steward",
          "source": "./steward/zcode",
-         "version": "1.1.0",
+         "version": "1.3.0",
          "displayName": "Steward · 长期维护型研发团队",
          "category": "developer-tools"
        }
@@ -92,6 +92,8 @@ New-Item -ItemType Directory -Force "$dst" | Out-Null
 
 用户级把 `$dst` 换成 `"$env:USERPROFILE\.agents\skills"` 即可。纯目录复制（SKILL.md + references/assets），**不需要任何 npm/npx 安装器**，新会话起生效。
 
+**技能内容随仓库更新走**：`project-lifecycle` v1.1.0 起把 DSH 侧的「文档就绪硬门」通用化为 harness 无关口径（声明范围 → 机检 → 独立评审 → 签发就绪凭据），另三个纪律技能去掉宿主专有字段名——任意 harness 读到的都是纯指令，不含宿主脚本 / 配置字段 / 阶段目录树。
+
 ## 排障
 
 - **命令列表不对 / 入口缺失**：`zcode commands list` 应列出 5 条命令（`/steward`、`/steward:fix`、`/steward:plan`、`/steward:maintain`、`/steward:take-over`）；缺命令多半是旧版本，按上面「安装」步骤重装或升级。
@@ -113,4 +115,4 @@ Usage:
 /steward:plan Add an export-CSV button to the admin panel.
 ```
 
-Version: 1.1.0 · License: MIT
+Version: 1.3.0 · License: MIT
