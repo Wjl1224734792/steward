@@ -9,3 +9,5 @@
 | 测试工程师 | `steward:qa-engineer` | 独立验证门禁（verify.mjs 复跑）、补测试 | QA 报告 |
 | 浏览器验收员 | `steward:browser-tester` | 真实浏览器 GUI 黑盒验收 | 逐条判定 + 缺陷清单 |
 | 评审员 | `steward:reviewer` | 终审 diff；Plan Critic 模式审计划 | 终审报告（三级意见） |
+
+> 文档入口：新建项目 `steward:docs-new` ｜ 接手存量 `steward:docs-takeover` ｜ 单个功能 `steward:docs-feature` ｜ 审查与闭环 `steward:docs-review` ｜ 规范与模板总库 `steward:docs-rules`。docTier=3 时未过 `scripts/docs-gov/docs-ready.mjs` 门禁，`backend-dev` / `frontend-dev` 的派发会被 PreToolUse 守卫（`guard.mjs docs`）直接拒绝。

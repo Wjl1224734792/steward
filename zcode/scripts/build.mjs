@@ -323,7 +323,12 @@ const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-comple
 const HOST_ONLY_LIGHT_SKILLS = { zcode: ['project-lifecycle'], minimax: ['project-lifecycle'] };
 // 宿主全文技能：正文是 host/<host>/skills/<name>/SKILL.md（各宿主各自实现，语义对齐、措辞可异），
 // 只渲染进本宿主插件包。ZCode / MiniMax / DSH 的 docs-governance 是三份并列实现。
-const HOST_ONLY_SKILLS = { zcode: ['docs-governance'], minimax: ['docs-governance'] };
+// docs-new / docs-takeover / docs-feature / docs-review 是 ZCode 侧的文档四入口（1.2.0 对齐 DSH 1.3.0），
+// 正文全在 host/zcode（ZCode 独占）；MiniMax 待其自身任务再启用，不得并入本清单。
+const HOST_ONLY_SKILLS = {
+  zcode: ['docs-governance', 'docs-new', 'docs-takeover', 'docs-feature', 'docs-review'],
+  minimax: ['docs-governance'],
+};
 // 宿主随包资源：shared 技能的 references/ assets/ 附属目录（只对声明的宿主生效）。
 // 两宿主都随包带全，避免技能正文里的相对链接在包内断链（ZCode 侧 1.0.0 曾只随包 SKILL.md）。
 const HOST_SKILL_RESOURCES = {
