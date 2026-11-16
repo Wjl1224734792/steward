@@ -1,6 +1,6 @@
 ---
 name: using-steward
-description: Steward 技能路由（DSH）。当用户不知道用 Steward 的哪个入口/技能、问「该用哪个模式/从哪开始」、或在功能交付、Bug 修复、只出计划、维护、接手、文档流水线、主代理直接执行（inline）、调试、TDD、完成前验证之间做选择时，先读本技能做路由。Use when the user is unsure which Steward mode or skill to use, or asks where to start.
+description: Steward 技能路由（DSH）。当用户不知道用 Steward 的哪个入口/技能、问「该用哪个模式/从哪开始」、或在功能交付、Bug 修复、只出计划、维护、接手、文档四个入口（新建项目 / 接手存量 / 单个功能 / 审查闭环）、主代理直接执行（inline）、调试、TDD、完成前验证之间做选择时，先读本技能做路由。Use when the user is unsure which Steward mode or skill to use, or asks where to start.
 ---
 
 <!-- 由 host/dsh/build.mjs 从 shared/ + host/dsh/ 生成，请勿手改；改源后重跑 node host/dsh/build.mjs。 -->
@@ -8,17 +8,22 @@ description: Steward 技能路由（DSH）。当用户不知道用 Steward 的�
 # Steward 技能路由（不知道用哪个时先读这个）
 
 > 本技能只做路由，不替代主技能。选定入口后按对应技能执行；不要把路由本身当成流程，也不要新造角色。DSH 的派活入口靠自然语言 + 技能加载（`/steward` 是触发技能的斜杠手势；名册命令 `/steward-roster` 只回显名册/路由）。
+> **文档不再是「一个技能全走」**：写文档按 `docs-new` / `docs-takeover` / `docs-feature` 三个入口分场景，审查单独走 `docs-review`，规范正文在 `docs-rules`。
 
 ## 先判断：这是哪类事？
 
 | 用户意图 | 路由到 | 怎么开始 |
 |---|---|---|
-| 开发/修改一个功能、新页面、新接口 | 主技能 `steward`（功能交付） | 加载 `steward` 技能，按六阶段走 |
+| 开发/修改一个功能、新页面、新接口 | 主技能 `steward`（功能交付） | 加载 `steward` 技能，按六阶段走；docTier=3 时先过文档门 |
 | 修 Bug / 功能坏了 / 线上异常 | 主技能 `steward`（Bug 通道 B0–B3） | 先定级再复现，可复现 Bug 无失败测试不修 |
 | 只要方案、先别写代码 | 主技能 `steward`（只出计划模式） | 到批准门停止，不派 dev/qa |
 | 依赖升级、安全扫描、文档漂移、flaky | 主技能 `steward`（维护循环） | 跑 `maintain.mjs` 出排序 backlog |
-| 接手一个不熟的存量仓库 | 主技能 `steward`（接手存量） | 先用 `take-over.mjs` 生成 T1 再动手 |
-| 需要 PRD/FRD/契约/页面/测试/部署全套文档 | 主技能 `steward` + `docs` | 先设 `steward.config.json` 的 `docTier: 3`，再加载 `docs` 技能 |
+| 新建项目 / 从零搭文档基线 | `docs-new` | docTier=3；建树 → 需求 → 架构 → 契约 → 页面 → 测试 → 治理 → `docs-review` → 收据 |
+| 接手一个不熟的存量仓库 | 主技能 `steward`（接手存量）+ `docs-takeover` | 先 `take-over.mjs` 盘点落位，再按缺口补文档 |
+| 给某个功能补文档 / 需求变更要动哪些文档 | `docs-feature` | 影响面扫描 → 只改受影响阶段（其余 na + 理由）→ `check --plan` |
+| 审查文档 / 文档齐了吗 / 能不能开工 | `docs-review` | 派 reviewer 全新实例 → 评审记录 → `docs-ready approve` |
+| 需要 PRD/FRD/契约/页面/测试/部署的写法与模板 | `docs-rules` | 规范与模板总库（**不是入口**，写文档时按需查） |
+| 文档拆分 / 归档 / 版本快照 | `docs-governance` | 跑 `scripts/docs-gate.mjs` / `scripts/doc-snapshot.mjs` |
 | 小改动、让主代理自己干 | 主技能 `steward` + `inline` | 加载 `inline` 技能；S / B3 / 维护小修可直接用，M 需显式要求，L 与 B0/B1/B2 禁止 |
 | 想看团队进度 / 用共享任务板 | 主技能 `steward`（共享任务板） | 加载 `steward`，用 `steward_board(action="sync"/"status")`，看会话标题栏的 Steward 图标打开的右侧栏看板（或原生 Team 面板） |
 | 改子代理用的模型 / 思考强度 | `agent-settings` | 改项目根 `steward.config.json` 的 `modelRouting`，跑 `validate-config.mjs` |
@@ -32,13 +37,17 @@ description: Steward 技能路由（DSH）。当用户不知道用 Steward 的�
 | 准备说「完成 / 修好了 / 全绿」 | `verification-before-completion` |
 | 想改子代理用的模型 / 思考强度 | `agent-settings` |
 | 主代理要自己动手改代码（不派子代理） | `inline` |
-| 要建七阶段文档树（docTier=3） | `docs` |
+| 新建项目要建七阶段文档基线 | `docs-new` |
+| 接手存量仓库要盘文档、补落位 | `docs-takeover` |
+| 单个功能 / 需求变更要动文档 | `docs-feature` |
+| 文档要过门禁、要签发收据、要复审 | `docs-review` |
+| 要查七阶段写作规范、SSOT 地图、联动表、模板 | `docs-rules` |
 
 派单时在 prompt 里点名「加载 `xxx` 技能并遵守」；不要默认塞给所有任务。
 
 ## 三条纪律
 
-1. **不新造角色/流程**：只用 7 个角色 + 6 个轻量技能（含本路由、子代理模型配置、按需拆出的 `inline` / `docs`）+ 主技能；需要新角色先给方案，不直接加。
+1. **不新造角色/流程**：只用 7 个角色 + 主技能 + 12 个技能（`inline` / `docs-rules` / `docs-governance` / 文档四入口 / 本路由 / `agent-settings` / 三个通用纪律技能）；需要新角色先给方案，不直接加。
 2. **S 级直接做**：≤3 文件、单层、无 UI / 无 schema，可走 inline（加载 `inline` 技能；用户要求或配置 `execution.mode: "inline"`），不派全员、不建深文档；计划与 verify 仍不可省。
 3. **不确定就先走只出计划模式**：先把方案 / 影响面 / 风险摆出来，再决定做不做；不要猜着写。
 
@@ -48,9 +57,12 @@ description: Steward 技能路由（DSH）。当用户不知道用 Steward 的�
 - 明明是 Bug 却走 feature 六阶段：复现和失败测试都缺。
 - 一上来派 7 个角色：S 级也开批准门，流程税高于改动本身。
 - 把 inline 当免检：跳过计划、baseline 或 verify，自己写又自己判通过。
+- **docTier=3 却没文档收据就派 dev**：`steward_dispatch` 会直接拒绝——不是提示词劝告，是工具级硬门。
+- 用 `docs-new` 去补一个老仓库，或用 `docs-feature` 从零建树：场景选错，产物清单与出口判据都不对。
 - 不知道用哪个就硬猜一个模式：不读本表、不说明假设。
 
 ## 边界
 
 - 本技能只做「把用户带到正确入口」，不执行流程；路由表与主技能冲突时以主技能正文为准。
-- 文档流水线与需求澄清是主技能内的两节（docTier=3 / Stage 0.1），不是独立入口。
+- 需求澄清仍在主技能内（Stage 0.1）；**文档流水线已拆出**成四个入口技能，不要再从主技能正文里找「文档流水线」小节——那里只留一行指针。
+- 文档门禁判据只有一份：`scripts/lib/docs-state.mjs`（CLI `scripts/docs-ready.mjs`，宿主派发同一判据）。收据 = `.steward/docs-state.json`。

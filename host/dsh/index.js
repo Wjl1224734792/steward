@@ -17,8 +17,15 @@
  *    `startActivation` on the `standard` composition.
  *  - `steward_board` mirrors `03-plan.json` onto the Agent Teams shared task
  *    board, so the native Team panel is the live dashboard.
+ *  - `steward_dispatch` refuses `backend-dev` / `frontend-dev` while a
+ *    docTier=3 project has no valid documentation receipt: the same state file
+ *    and the same hash that `scripts/docs-ready.mjs` writes (see
+ *    `scripts/lib/docs-state.mjs`). Documentation becomes a precondition of
+ *    implementation instead of a prompt-level promise.
  *  - `/steward-roster` is registered on the native human-command registry.
- *  - Skills are registered on the native `ctx.skills` registry.
+ *  - Skills are registered on the native `ctx.skills` registry (13 skills:
+ *    main + inline / docs-rules / docs-governance + docs-new / docs-takeover /
+ *    docs-feature / docs-review + four generic light skills).
  *
  * `@deepseek-ai/schemastery` is resolved from the installed package or the
  * active profile (see `resolveSchemastery`); nothing else outside Node builtins
@@ -29,6 +36,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkReadiness, formatGaps, readState } from './scripts/lib/docs-state.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROLES_DIR = path.join(HERE, 'roles');
@@ -258,6 +266,59 @@ async function resolveBaseDirectory(ctx, parent, args) {
     // fall through to the process directory
   }
   return process.cwd();
+}
+
+// --- Documentation gate: <repo>/.steward/docs-state.json ---------------------------
+// docTier=3 turns "write the docs first" into a precondition instead of a promise:
+// the receipt written by scripts/docs-ready.mjs must exist, be approved, and still
+// hash-match the current docs tree. Only implementers are gated — architect, pm,
+// reviewer, qa-engineer and browser-tester stay dispatchable so someone can fix
+// the documents and review them.
+
+/** Roles that write product code, i.e. the ones a documentation gate may block. */
+const DOC_GATED_ROLES = new Set(['backend-dev', 'frontend-dev']);
+
+const DOCS_READY = 'scripts/docs-ready.mjs';
+
+/**
+ * Refuse a dispatch when the project enabled docTier=3 and its documentation
+ * receipt is missing, unapproved, or stale.
+ * @param {string} roleId dispatched role id.
+ * @param {string} baseDir resolved dispatch directory.
+ */
+function assertDocsReady(roleId, baseDir) {
+  if (!DOC_GATED_ROLES.has(roleId)) return;
+  const root = findProjectRoot(baseDir);
+  const config = readJson(path.join(root, 'steward.config.json'), null);
+  if (config?.docTier !== 3) return;
+
+  const read = readState(root);
+  const state = read.state;
+  if (state === null) {
+    throw toolError(
+      `docs gate blocked: ${read.error ?? `missing ${path.join(root, '.steward/docs-state.json')}`}. `
+      + 'docTier=3 projects need a documentation receipt before implementation. '
+      + `Run "node <plugin>/${DOCS_READY} ${root} init --scope new|takeover|feature --write", `
+      + 'finish the docs-new / docs-takeover / docs-feature entry, review with docs-review, then approve.',
+    );
+  }
+
+  const result = checkReadiness({ root, gate: 'dev' });
+  if (!result.ok) {
+    throw toolError(
+      `docs gate blocked (${result.errors.length} gap(s) in ${root}): ${formatGaps(result.errors)}. `
+      + `Fix them (skills: docs-new / docs-takeover / docs-feature), then review with docs-review and `
+      + `"node <plugin>/${DOCS_READY} ${root} approve --review <record>". `
+      + 'Implementers stay blocked until the receipt is green.',
+    );
+  }
+  if (state.ok !== true || state.review?.status !== 'approved') {
+    throw toolError(
+      `docs gate blocked: ${path.join(root, '.steward/docs-state.json')} has no approved receipt `
+      + `(ok=${JSON.stringify(state.ok)}, review=${JSON.stringify(state.review?.status ?? 'none')}). `
+      + 'Load the docs-review skill, then approve it. Hand-editing the receipt is not a way around the gate.',
+    );
+  }
 }
 
 // --- Roles → dispatch-time charters ----------------------------------------------
@@ -671,6 +732,8 @@ function defineStewardTools(ctx, config) {
       await assertChildPresetReady(ctx);
 
       const baseDir = await resolveBaseDirectory(ctx, parent, args);
+      // docTier=3: no implementation before the documentation receipt is green.
+      assertDocsReady(roleId, baseDir);
       const effective = resolveRoute(ctx, config, roleId, baseDir);
       let agentOptions;
       if (effective.provider !== '' && effective.model !== '') {
@@ -737,6 +800,7 @@ function renderRoster(topic) {
   lines.push('路由：项目根 `steward.config.json` 的 `modelRouting.<role>`（形如 `{ "model": "provider/model", "effort": "…" }`）优先；仓库里没写的角色落到 **Steward 面板**（设置 → Steward）里的该角色 / 默认配置；两处都没有就继承主代理。派发结果的括号里会回显本次实际生效的路由与来源。');
   lines.push('派发：主代理调用 `steward_dispatch(role=..., description=..., prompt=...)`；子代理以 DSH 内置 `standard` 组合启动，角色章程由派单正文注入，prompt 必须自包含。');
   lines.push('模式：本插件不注册 Agent Preset——7 个角色不会出现在模式选择器里；Steward 是一套流程（技能 + 工具 + 门禁脚本），不是一个会话模式。');
+  lines.push('文档：新建项目 `docs-new` ｜ 接手存量 `docs-takeover` ｜ 单个功能 `docs-feature` ｜ 审查与闭环 `docs-review` ｜ 规范与模板总库 `docs-rules`。docTier=3 时未过 `scripts/docs-ready.mjs` 门禁，`backend-dev` / `frontend-dev` 会被直接拒绝。');
   return lines.join('\n');
 }
 

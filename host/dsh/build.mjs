@@ -39,7 +39,20 @@ if (!existsSync(shared) || !existsSync(zc)) {
 }
 
 const AGENTS = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'browser-tester', 'reviewer'];
-const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-completion', 'using-steward', 'agent-settings', 'docs-governance'];
+const LIGHT_SKILLS = [
+  'systematic-debugging',
+  'tdd',
+  'verification-before-completion',
+  'using-steward',
+  'agent-settings',
+  'docs-governance',
+  // 文档四个入口：新建项目 / 接手存量 / 单个功能 / 审查。正文全在 host/dsh（DSH 独占）。
+  'docs-new',
+  'docs-takeover',
+  'docs-feature',
+  'docs-review',
+];
+const SKILL_COUNT = 13;
 const SKIP_SCRIPTS = new Set(['agent-config.mjs', 'agent-config-core.mjs', 'trigger.mjs', 'build.mjs']);
 
 const errors = [];
@@ -104,8 +117,10 @@ function assemble(fm, body) {
 }
 
 /**
- * 主技能按需拆分：inline 执行模式与文档流水线单独成技能，主技能里只留一行指针。
+ * 主技能按需拆分：inline 执行模式与文档规范总库单独成技能，主技能里只留一行指针。
  * 正文仍来自 shared/（不复制、不改共享源），拆分只发生在 DSH 生成物里。
+ * 文档的四个**入口**（docs-new / docs-takeover / docs-feature / docs-review）是
+ * host/dsh 独占技能，不在这里拆：它们承载流程与出口判据，docs-rules 只放规范正文。
  */
 const SPLIT_RULES = [
   {
@@ -114,9 +129,9 @@ const SPLIT_RULES = [
     pointer: '> **直接执行（inline）已拆出**：需要时加载 `inline` 技能（适用范围 / 硬动作 / 反模式都在里面；S、B3、维护小修可直接用，M 需显式要求，L 与 B0/B1/B2 禁止）。',
   },
   {
-    skill: 'docs',
+    skill: 'docs-rules',
     headings: ['## T3 文档按需升级（', '## 文档流水线（'],
-    pointer: '> **文档流水线（docTier=3）已拆出**：需要建七阶段文档树时加载 `docs` 技能（模板索引、变更联动表与本地门禁都在里面）。',
+    pointer: '> **文档规范已拆出**：文档入口是 `docs-new`（新建项目）/ `docs-takeover`（接手存量）/ `docs-feature`（单个功能与需求变更），审查是 `docs-review`；规范正文、SSOT 地图、联动表与模板索引在 `docs-rules` 技能里。',
   },
 ];
 
@@ -330,7 +345,12 @@ function addManifest(rel, value) {
     skills.push({ name: skillName, description, path: `skills/${name}/SKILL.md`, dir: `skills/${name}` });
   }
   skills.sort((a, b) => a.name.localeCompare(b.name));
-  if (skills.length !== 9) errors.push(`[dsh] 技能清单应有 9 项（含按需拆出的 inline / docs / docs-governance），实际 ${skills.length} 项`);
+  if (skills.length !== SKILL_COUNT) {
+    errors.push(
+      `[dsh] 技能清单应有 ${SKILL_COUNT} 项（主技能 + inline / docs-rules / docs-governance + 文档四个入口 + 四个通用轻量技能），实际 ${skills.length} 项；`
+      + '多出来的多半是改名后没删掉的旧目录（dsh/skills/<旧名>/）',
+    );
+  }
   addManifest('skills/manifest.json', { version: 1, skills });
 
   let metaRoles = [];

@@ -63,11 +63,14 @@ plugin_manager(action="install_bundle", target="<repo>/dsh")
 | Model & effort | `modelRouting.<role>` in the project's `steward.config.json` (wins, checked by `scripts/validate-config.mjs`), else the role's or default selection in **Settings → Steward**, else the parent agent |
 | **Right-sidebar board** | One per session, opened three ways (the Steward icon in the session header / the right sidebar's guide entry / once automatically on the first Steward dispatch): a run card (completion ring + segmented progress + `done/total` + task and dependency counts + subagent count + run-state badge + run directory), a task section (graph / list / ownership matrix switch plus a task detail), a subagent section (**click a row to open its child session**) and an artifacts section (**click a row to open the file**); task sources fall back `shared board > run.json > todo list`. The per-role model table lives in Settings → Steward |
 | Main skill | `steward`: the Tech Lead playbook (sizing / DAG / dispatch / gates / finishing) |
-| On-demand skills | `inline` (what the lead must still do when it executes a task itself), `docs` (the docTier=3 seven-phase pipeline) and `docs-governance` (the increment layer for splitting, archiving, versioned snapshots and the `docs-gate` / `doc-snapshot` gates), all split out of the main skill |
+| Documentation entries (4) | `docs-new` (new project, build the 01→07 baseline), `docs-takeover` (existing repository: inventory and re-home first, then fill gaps), `docs-feature` (one feature or requirement change: only the touched phases), `docs-review` (dispatch a fresh reviewer, then issue the receipt). One scenario per entry, no "one skill does everything" |
+| Documentation rules | `docs-rules`: seven-phase writing rules, SSOT map, change-link table and template index (an entry it is not) |
+| Readiness gate | `scripts/docs-ready.mjs`: phase artifacts, empty shells, template placeholders, `na` reasons, FR↔FP traceability, plan `docsRead`, review verdict — the receipt `.steward/docs-state.json` must be green before `backend-dev` / `frontend-dev` can be dispatched |
+| On-demand skills | `inline` (what the lead must still do when it executes a task itself) and `docs-governance` (the increment layer for splitting, archiving, versioned snapshots and the `docs-gate` / `doc-snapshot` gates) |
 | Companion skills | `using-steward` (routing), `agent-settings` (model config), `systematic-debugging`, `tdd`, `verification-before-completion` |
 | Shared task board | `steward_board(action="sync"/"status"/"brief")`: turns `03-plan.json` into gate + work tasks on the Agent Teams board; status is read in the native Team panel and in the right-sidebar board |
 | Command | `/steward-roster`: echoes the roster and the routing rule (it does not dispatch work); `/steward` is the slash gesture that triggers the `steward` skill |
-| Gate scripts | `scripts/`: `validate-plan.mjs`, `verify.mjs` (including `baseline record/check`), `run-state.mjs`, `maintain.mjs`, `take-over.mjs`, `validate-config.mjs`, `docs-gate.mjs` / `doc-snapshot.mjs` (documentation governance), plus the `doc/` documentation-pipeline tools |
+| Gate scripts | `scripts/`: `validate-plan.mjs`, `verify.mjs` (including `baseline record/check`), `run-state.mjs`, `maintain.mjs`, `take-over.mjs`, `validate-config.mjs`, `docs-ready.mjs` (documentation receipt), `docs-gate.mjs` / `doc-snapshot.mjs` (documentation governance), plus the `doc/` documentation-pipeline tools |
 
 ## Why no modes (Agent Presets)
 
@@ -94,9 +97,33 @@ With the host's Agent Teams bundle enabled, the shared task board is the **autho
 - Dispatch: `steward_board(action="brief", role="backend-dev", task="T1")` → hand the brief to `spawn_teammate` → `team_task_update(action="reassign", owner=<teammate>)`; the teammate claims before working.
 - Without the bundle there is no `agentTeams` service, `steward_board` fails loudly, and the solo `steward_dispatch` + `run.json` path stays in charge; the right-sidebar board then falls back to `run.json` / the todo list and still has content.
 
+## Documentation entries and the implementation gate (docTier=3)
+
+Writing docs is no longer one blanket skill: three entry skills per scenario plus a review entry, with the rules and templates kept in a separate library.
+
+| You say | Loads | Covers |
+|---|---|---|
+| New project / build the baseline from scratch | `docs-new` | 01 requirements (PRD→FRD) → 02 architecture → 03 contracts (+05 pages) → 06 test baseline → 07 governance files → closure check → review → receipt |
+| Take over an existing repository | `docs-takeover` | `take-over.mjs` writes T1 → inventory and re-homing map (needs a decision) → `docs-gate --baseline-write` records the baseline → fill the gaps |
+| One feature / requirement change | `docs-feature` | Impact scan → collect the decisions → touch only the affected phases (the rest `na` with a reason) → land the change-link table in one batch |
+| Review / can we start implementing? | `docs-review` | A fresh reviewer (clean context, read-only) → verdict lands in `docs/07-治理/评审记录/` with a machine-readable block → `approve` |
+
+**The gate is not a prompt.** With `docTier: 3` in `steward.config.json`, `steward_dispatch` verifies the receipt in `.steward/docs-state.json` and the current docs hash before dispatching `backend-dev` / `frontend-dev`, and refuses otherwise. `architect` / `reviewer` / `qa-engineer` / `browser-tester` are never gated, so someone can fix and review the documents. Only the script issues receipts:
+
+```bash
+node scripts/docs-ready.mjs <root> init --scope new|takeover|feature --write   # declare the scope
+node scripts/docs-ready.mjs <root> check [--plan <03-plan.json>] [--strict]    # closure check
+node scripts/docs-ready.mjs <root> approve --review <review record>            # issue the receipt
+node scripts/docs-ready.mjs <root> status                                      # current state (incl. stale)
+```
+
+Codes: `E-DOC-MISSING` / `E-DOC-PLACEHOLDER` / `E-DOC-THIN` / `E-NA-REASON` / `E-PLAN-DOCSREAD` / `E-PLAN-NA-CONFLICT` / `E-STATE-STALE` / `E-REVIEW-*`. Any change to a rule-bearing document voids the receipt; `执行步骤.md`, `评审状态.md` and `评审记录/` are excluded from the hash so day-to-day bookkeeping does not force a re-review.
+
+**Rollback**: set `docTier` back to 1 or 2 and the whole gate is off — no code change needed.
+
 ## Documentation governance (`docs-governance`, an increment layer)
 
-The `docs` skill builds the tree (seven phases + templates); `docs-governance` keeps that tree from turning into a swamp: splitting, archiving, versions and read contracts. Triggers: "the docs are getting too long", "reviews are piling up under 07-governance", "this PRD needs a version".
+`docs-new` / `docs-takeover` / `docs-feature` build and update the tree; `docs-governance` keeps that tree from turning into a swamp: splitting, archiving, versions and read contracts. Triggers: "the docs are getting too long", "reviews are piling up under 07-governance", "this PRD needs a version".
 
 | Kind of document | How it grows | Treatment |
 |---|---|---|
@@ -138,7 +165,10 @@ Overrides for budgets and the baseline live under `docsGovernance` in the projec
 | Plan only | "Plan only, don't write code yet" → stop at the approval gate, no implementation |
 | Maintenance loop | "Run a maintenance scan" → eight-category scan + scored backlog + small fixes |
 | Takeover | "Take over this repository, inventory first" → T1 project memory + first health scan |
-| Documentation pipeline | `docTier: 3` (with the `steward` skill) → seven-phase docs tree + full templates |
+| Documentation entry (new project) | "New project / initialise the seven-phase docs" → `docs-new`: build the baseline, review it, then get the receipt |
+| Documentation entry (takeover) | "Take over this repo / the docs are missing" → `docs-takeover`: inventory and re-home, then fill gaps |
+| Documentation entry (one feature) | "Write the docs for this feature / which docs does this change touch" → `docs-feature`: impact scan, only the affected phases |
+| Documentation review | "Review the docs / is the documentation ready to start" → `docs-review`: fresh reviewer → review record → `approve` |
 | Documentation governance | "The docs are too long / reviews pile up under 07 / this PRD needs a version" → `docs-governance`: splitting, archiving, `history/` snapshots, `docs-gate` / `doc-snapshot` |
 | Model / effort | "Configure subagent models" → `agent-settings`: edit `modelRouting` in the project's `steward.config.json` and run `validate-config.mjs` |
 | Unsure which entry | Load `using-steward` to route |
@@ -179,7 +209,7 @@ Before dispatching, the route is checked with `llm.resolveModelInfo`; an unknown
 - Trusted-change gates: plan machine-check, independent test/lint/typecheck reruns, baseline guard, resumable run state, and a retry budget.
 - Three quality gates: QA → browser acceptance (when UI) → review; defects are routed back by ownership, at most two rounds.
 - Evidence over claims: no polishing, no fabrication; a failure is reported as a failure.
-- DSH-side 0.6.0 scope: skills (main skill plus on-demand `inline` / `docs`), roles (charters injected at dispatch time, no registered modes), model routing (project file first, then Settings), dispatch, the **right-sidebar board** (one per session, task sources falling back shared board > run.json > todo list) with the Settings model table, the Agent Teams shared task board, the `/steward-roster` roster command, and the gate scripts are aligned. The ZCode/MiniMax `PreToolUse` guard hooks are not ported yet (DSH tool guards are a different in-host mechanism). Browser acceptance follows a three-step ladder: repository Playwright → DSH sidebar driven by a human → manual fallback.
+- DSH-side 0.6.0 scope: skills (main skill plus on-demand `inline` / `docs-rules` / `docs-governance` and the four documentation entries `docs-new` / `docs-takeover` / `docs-feature` / `docs-review`, 13 in total), roles (charters injected at dispatch time, no registered modes), model routing (project file first, then Settings), dispatch (with the docTier=3 documentation gate), the **right-sidebar board** (one per session, task sources falling back shared board > run.json > todo list) with the Settings model table, the Agent Teams shared task board, the `/steward-roster` roster command, and the gate scripts are aligned. The ZCode/MiniMax `PreToolUse` guard hooks are not ported yet (DSH tool guards are a different in-host mechanism). Browser acceptance follows a three-step ladder: repository Playwright → DSH sidebar driven by a human → manual fallback.
 
 ## Universal harness skills (no full install needed)
 

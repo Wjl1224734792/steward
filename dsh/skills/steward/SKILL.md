@@ -1,17 +1,17 @@
 ---
 name: steward
-description: Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当用户提出要开发/修改一个软件功能、修复 Bug、只出实施方案、做维护扫描或接手存量仓库时加载。流程：受理定级（S/M/L）→ 需求澄清（第一性原理，M/L 条件启用）→ 任务 DAG + 文件所有权 → 用 `steward_dispatch` 按角色派子代理（pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer，角色章程随派单注入，模型与思考强度按项目根 steward.config.json 的 modelRouting 解析）→ QA → 浏览器验收 → 终审 → 汇报；含 Bug 通道（B0–B3）、可信变更门禁脚本、文档流水线（docTier=3）、学习循环与 inline 执行模式。Use when the user asks the Steward team to develop a feature, fix a bug, produce a plan, run maintenance, or take over an existing repository.
+description: Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当用户提出要开发/修改一个软件功能、修复 Bug、只出实施方案、做维护扫描或接手存量仓库时加载。流程：受理定级（S/M/L）→ 需求澄清（第一性原理，M/L 条件启用）→ 任务 DAG + 文件所有权 → 用 `steward_dispatch` 按角色派子代理（pm / architect / backend-dev / frontend-dev / qa-engineer / browser-tester / reviewer，角色章程随派单注入，模型与思考强度按项目根 steward.config.json 的 modelRouting 解析）→ QA → 浏览器验收 → 终审 → 汇报；含 Bug 通道（B0–B3）、可信变更门禁脚本、文档四入口（docs-new / docs-takeover / docs-feature / docs-review）与文档就绪硬门（docTier=3 时未过 docs-ready 门禁不许派开发）、学习循环与 inline 执行模式。Use when the user asks the Steward team to develop a feature, fix a bug, produce a plan, run maintenance, or take over an existing repository.
 ---
 
 <!-- 由 host/dsh/build.mjs 从 shared/ + host/dsh/ 生成，请勿手改；改源后重跑 node host/dsh/build.mjs。 -->
 
 # Steward · Tech Lead 手册
 
-> 当前版本（DSH 侧 1.2.0）：功能交付（六阶段 + 批准门）+ 需求澄清（第一性原理 + 提问预算）+ 任务 DAG / 文件所有权 + Bug 通道（B0–B3）+ 可信变更门禁（计划校验 / 独立验证 / 基线守卫 / run-state）+ 维护循环 + 接手存量 + 浏览器证据契约 + 学习循环 + 收尾 + 文档流水线（docTier=3，细节见按需技能 `docs`）+ 文档治理（`docs-governance` 增量层：拆分 / 归档 / `history/` 版本快照 + `docs-gate` / `doc-snapshot` 门禁）+ 项目全生命周期（`project-lifecycle`）+ **Steward 右侧栏看板**（每会话一份：依赖图 / 任务列表 / 归属矩阵 + 子代理实时状态点击进子会话 + `tmp/steward/` 产物；任务来源按共享任务板 > run.json > 待办清单回落；会话标题栏图标打开，首次派发自动打开）+ 设置页逐角色模型表格 + 项目级子代理模型路由（`steward.config.json` 优先于设置页）+ **Agent Teams 共享任务板**。角色是**派单时注入的章程**：本插件不注册 Agent Preset，7 个角色不会出现在模式选择器里。
+> 当前版本（DSH 侧 1.3.0）：功能交付（六阶段 + 批准门）+ 需求澄清（第一性原理 + 提问预算）+ 任务 DAG / 文件所有权 + Bug 通道（B0–B3）+ 可信变更门禁（计划校验 / 独立验证 / 基线守卫 / run-state）+ 维护循环 + 接手存量 + 浏览器证据契约 + 学习循环 + 收尾 + **文档入口拆分**（`docs-new` 新建项目 / `docs-takeover` 接手存量 / `docs-feature` 单个功能 / `docs-review` 审查，规范与模板在 `docs-rules`）+ **文档就绪硬门**（`scripts/docs-ready.mjs` 闭环机检 + 收据；docTier=3 时 `backend-dev` / `frontend-dev` 派发前强校验）+ 文档治理（`docs-governance` 增量层：拆分 / 归档 / `history/` 版本快照 + `docs-gate` / `doc-snapshot` 门禁）+ 项目全生命周期（`project-lifecycle`）+ **Steward 右侧栏看板**（每会话一份：依赖图 / 任务列表 / 归属矩阵 + 子代理实时状态点击进子会话 + `tmp/steward/` 产物；任务来源按共享任务板 > run.json > 待办清单回落；会话标题栏图标打开，首次派发自动打开）+ 设置页逐角色模型表格 + 项目级子代理模型路由（`steward.config.json` 优先于设置页）+ **Agent Teams 共享任务板**。角色是**派单时注入的章程**：本插件不注册 Agent Preset，7 个角色不会出现在模式选择器里。
 >
 > **DSH 宿主映射（读正文前先记住这几条）**：
 > ①文中 `steward:<角色>` 指 `steward_dispatch` 工具的 `role` 参数（`pm` / `architect` / `backend-dev` / `frontend-dev` / `qa-engineer` / `browser-tester` / `reviewer`），派发时**只填 role，不手写模型**——子代理以 DSH 内置 `standard` 组合启动，角色章程由工具拼在派单正文前，模型与思考强度按「项目根 `steward.config.json` 的 `modelRouting.<role>` > 设置页该角色 > 设置页默认 > 继承主代理」解析；
-> ②文中 `steward:xxx` 技能 = 本宿主技能名 `xxx`（如 `tdd`、`systematic-debugging`、`agent-settings`、`inline`、`docs`）；
+> ②文中 `steward:xxx` 技能 = 本宿主技能名 `xxx`（如 `tdd`、`systematic-debugging`、`agent-settings`、`inline`、`docs-rules`，以及文档四个入口 `docs-new` / `docs-takeover` / `docs-feature` / `docs-review`）；
 > ③文中 `/steward:inline` = 用户明确说「你直接做 / 别派子代理」或 `steward.config.json` 的 `execution.mode: "inline"`，此时**加载 `inline` 技能**按它列的硬动作执行；DSH 的原生 `/steward-roster` 命令只回显名册/路由口径，派活入口仍是自然语言 + 本技能（`/steward` 是触发本技能的斜杠手势，手势后接空格或直接回车）；
 > ④门禁脚本表里若出现 `agent-config.mjs` / `build.mjs`，那是源码仓库工具、**不随本包提供**：改子代理模型改 **设置 → Steward** 的模型表格或项目根 `steward.config.json` 的 `modelRouting`（仓库优先）；更新本插件走插件管理器；源码构建用 `node host/dsh/build.mjs`。
 
@@ -44,6 +44,17 @@ description: Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当�
 - 维护循环：「做一次维护扫描」；接手存量：「接手这个仓库，先盘点再动手」。
 - 改子代理模型/档位：「配置子代理模型」——加载 `agent-settings` 技能，改项目根 `steward.config.json` 的 `modelRouting`，跑 `scripts/validate-config.mjs` 校验。
 - 文档治理/拆分/归档/版本溯源：「文档太长了」「评审堆在 07」「需求文档要留版本」——加载 `docs-governance` 技能，跑 `scripts/docs-gate.mjs` 与 `scripts/doc-snapshot.mjs`。
+
+**文档入口（docTier=3，四个入口各管一段，不是「一个技能全走」）**：
+
+| 你说 | 加载 | 做到哪为止 |
+|---|---|---|
+| 「新建项目」「初始化七阶段文档」 | `docs-new` | 01→07 建树 + PRD/FRD/架构/契约/页面/测试/治理骨架 |
+| 「接手这个仓库」「存量项目补文档」 | `docs-takeover` | 先 `take-over.mjs` 盘点落位，再按缺口补齐 |
+| 「给这个功能写文档」「这个需求要动哪些文档」 | `docs-feature` | 影响面扫描 → 只改受影响的阶段（其余显式 na + 理由） |
+| 「审查文档」「文档齐了吗」「先看看能不能开工」 | `docs-review` | 派 reviewer 全新实例评审 → 评审记录 → 签发收据 |
+
+写文档的规范正文、SSOT 地图、联动表与模板索引进 `docs-rules`（不是入口）。**门禁是硬的**：`steward.config.json` 的 `docTier: 3` 时，`backend-dev` / `frontend-dev` 的派发会先校验 `.steward/docs-state.json` 收据与文档哈希，未过 `scripts/docs-ready.mjs` 一律拒绝；`architect` / `reviewer` / `qa-engineer` 不受限（要留人补文档和评审）。
 
 **检索工具栈（DSH 宿主工具，团队全员继承可用）**：`web_search`（网页搜索）、`web_fetch`（抓取正文）、`research`（多来源证据包）、`platform_search`（GitHub / V2EX / B站 / Reddit 等站点内搜索）、`domain_search`（包 / 论文 / 漏洞 / 金融等垂直源）。各角色的查证纪律已写进自身提示词；这些工具不可用时如实标注「检索不可用」，不阻塞流程，不得凭记忆臆造 API。
 
@@ -225,7 +236,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 - **批量改动 / codemod**：需要跨大量文件的机械改动时**不直接动手**——走只出计划模式出 codemod 计划（转换脚本 + 抽样验证 + 全量执行 + diff 审查 + 回滚点），执行按任务 DAG 分批，每批跑 `verify.mjs run` + `baseline check`，任何一批红了立即停。
 - **模块边界**：架构漂移（新循环依赖、层级越界）先在 DECISIONS 立 ADR 记决策，重构单独立项走功能交付流程，不在维护小修里夹带。
 
-> **文档流水线（docTier=3）已拆出**：需要建七阶段文档树时加载 `docs` 技能（模板索引、变更联动表与本地门禁都在里面）。
+> **文档规范已拆出**：文档入口是 `docs-new`（新建项目）/ `docs-takeover`（接手存量）/ `docs-feature`（单个功能与需求变更），审查是 `docs-review`；规范正文、SSOT 地图、联动表与模板索引在 `docs-rules` 技能里。
 
 ## Monorepo / 多服务（v0.7）
 

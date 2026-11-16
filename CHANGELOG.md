@@ -6,6 +6,35 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [DSH 1.3.0] - 2026-11-16
+
+> **文档入口拆分 + 开发硬门**：文档不再是「一个技能全走」。新建项目、接手存量、单个功能各有一个入口技能，审查单独成入口，写作规范与模板下沉为总库；`scripts/docs-ready.mjs` 把「阶段产物齐不齐、有没有空壳 / 占位符 / 追溯断链、计划引用了没写的阶段」做成机检收据，`steward_dispatch` 在 docTier=3 时校验收据与文档哈希，未过门禁直接拒绝派 `backend-dev` / `frontend-dev`。DSH 独立升 **1.3.0**，ZCode / MiniMax 侧零改动。
+
+### Breaking
+
+- **docTier=3 项目在文档未就绪时无法派开发**：`steward_dispatch` 对 `backend-dev` / `frontend-dev` 先读项目根 `steward.config.json` 的 `docTier`，为 3 则校验 `.steward/docs-state.json` 收据——文件缺失、`ok !== true`、评审未 approved、或收据哈希与当前文档树不一致，一律拒绝并在报文里给出缺漏码与修复命令。`architect` / `pm` / `reviewer` / `qa-engineer` / `browser-tester` 不受限（要留人补文档与评审）。**回滚：把 `docTier` 改回 1/2 即关闭整套门禁，无需改代码**（变更记进 `05-record.md`）。
+- **技能 `docs` → `docs-rules`**：`docs` 只保留规范正文、SSOT 地图、联动表与模板索引，不再作为入口；入口拆成 `docs-new`（新建项目）/ `docs-takeover`（接手存量）/ `docs-feature`（单个功能与需求变更），审查独立为 `docs-review`。技能总数 9 → **13**，`host/dsh/build.mjs` 的清单断言同步为 13（多一个通常是改名后没删的旧目录）。旧生成物 `dsh/skills/docs/` 已删除。
+
+### Added
+
+- **`scripts/docs-ready.mjs` + `scripts/lib/docs-state.mjs`**：`init`（按 scope 声明 required / na）/ `check`（阶段产物、缺件、空壳、占位符、`na` 无理由、FR↔FP 追溯、计划 `docsRead` 与 na 冲突、收据是否过期）/ `approve`（签发收据）/ `status`；`--json` 机读，退出码 0 / 1 / 2。CLI 与宿主派发共用同一套哈希与判据，不会出现「脚本绿、派发拒」。
+- **四个文档入口技能**：`docs-new` / `docs-takeover` / `docs-feature` / `docs-review`，每个都写清触发语、步骤与产物、门禁命令、出口判据与禁止项；`docs-review` 用 reviewer 全新实例（干净上下文、只读）评审，评审记录带 `<!-- docs-review:begin/end -->` 机读块。
+- **收据文件 `.steward/docs-state.json`**（schemaVersion 1）：`ok` + `docsHash` + `approvedAt` + 评审引用。哈希只覆盖口径类文档，`执行步骤.md` / `评审状态.md` / `评审记录/` 已排除，日常销项不会触发重审。
+- **`/steward-roster`** 增加一行文档入口与门禁说明。
+
+### Changed
+
+- `host/dsh/build.mjs`：`SPLIT_RULES` 的文档项改为 `docs-rules` + 新指针文案；`LIGHT_SKILLS` 增加四个入口；清单断言 9 → 13 并给出「旧目录没删」的排障提示。
+- `host/dsh/index.js`：派发前 `assertDocsReady`；头注更新为 13 技能；名册补文档入口说明。
+- `host/dsh/skills/steward/{banner,entry-points,frontmatter}.md`、`using-steward`、`docs-governance`：banner 版本行 1.2.0 → 1.3.0，入口映射表按四个入口重写，`docs-governance` 改为与四入口分工。
+- `host/dsh/package.json` 1.2.0 → **1.3.0**；README（zh/en）新增「文档入口与开发硬门」节与入口对照表。
+
+### 验证
+
+- `node host/dsh/build.mjs` → PASS；`node host/dsh/build.mjs --check` → PASS。
+- `node --test host/dsh/tests/` → **99 pass / 0 fail**（新增 `docs-ready.test.mjs` 17 例 + 派发门禁 6 例；技能清单 9 → 13 与主技能指针断言同步）。
+- 端到端（临时项目）：`init --scope feature` → `check` 报 `E-PHASE-DIR` / `E-DOC-MISSING` → 补契约文档与评审记录 → `approve` 签发收据 → 派 `backend-dev` 放行 → 改一份契约文档 → `check` 与派发同时报 `E-STATE-STALE`。
+
 ## [DSH 1.2.0] - 2026-11-13
 
 > **看板搬家**：DSH 侧的 Steward 看板从「左侧导航里的整页」改成**每个会话一份的右侧栏（right sidebar）面板**——任务 DAG、子代理实时状态、`tmp/steward/` 产物都在同一列里按会话打开；模型配置收进「设置 → Steward」，只保留模型表格。DSH 独立升 **1.2.0**，ZCode / MiniMax 侧零改动。

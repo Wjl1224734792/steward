@@ -5,7 +5,7 @@ description: Steward 文档治理（DSH，docTier=3 增量层）。当项目文�
 
 # Steward · 文档治理（DSH）
 
-> **与 `docs` 技能的分工**：`docs` 管七阶段流水线怎么**建树**（PRD/FRD/架构/契约/页面/测试/治理与模板索引）；本技能管树建起来之后**怎么别长成屎山**——拆分、归档、版本、读契约、门禁。两者叠加使用，本技能是增量层，不替换 `docs`。
+> **与文档入口的分工**：`docs-new` / `docs-takeover` / `docs-feature` 管七阶段文档怎么**建与补**（PRD/FRD/架构/契约/页面/测试/治理，写作规范在 `docs-rules`），`docs-review` 管独立评审与收据；本技能管树建起来之后**怎么别长成屎山**——拆分、归档、版本、读契约、门禁。两者叠加使用，本技能是增量层，不替换入口技能。
 > **宿主边界**：本技能正文是 DSH 侧实现。ZCode / MiniMax 侧与通用 harness 技能各自单独实现（语义对齐、措辞可异）；不要为了「统一」去改 `shared/`、`zcode/`、`host/zcode/`、`host/minimax/`——DSH 构建器只读引用它们。
 > **不动七阶段编号**：本技能不给 docs 加第八个阶段目录，只给 `07-治理/` 加内部分层、给各基线域加 `history/` 快照区。
 
@@ -255,7 +255,7 @@ node <插件>/scripts/docs-gate.mjs . check
 
 ## 12. 项目侧落地清单
 
-**新项目**：`docs-gate <root> init` → 补 `steward.config.json` 的 `docsGovernance` → 按 `docs` 技能建七阶段树 → 每份文档加 frontmatter → `docs-gate check` 绿 → 进实现。
+**新项目**：`docs-gate <root> init` → 补 `steward.config.json` 的 `docsGovernance` → 按 `docs-new` 入口建七阶段树（`docs-ready.mjs init --scope new --write`，写作规范见 `docs-rules`）→ 每份文档加 frontmatter → `docs-gate check` 绿 → 进实现。
 
 **接手存量**：先按接手 SOP 盘点映射 → 存量记基线（`--baseline-write`）→ 07 分层改造（`init` + 移文件）→ `fix` 重建索引 → `docs-gate check` 绿（允许基线内超限）→ 逐批 burn-down。
 

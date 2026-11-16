@@ -2,7 +2,8 @@
  * DSH 侧 Steward 插件（生成物 dsh/）的宿主契约测试。
  *
  * 覆盖 DSH 原生机制：
- *  - host-only：两个工具（`steward_dispatch` / `steward_board`）+ `/steward-roster` 名册命令 + 9 个技能，没有 Config、没有浏览器半
+ *  - host-only：两个工具（`steward_dispatch` / `steward_board`）+ `/steward-roster` 名册命令 + 13 个技能，没有 Config、没有浏览器半
+ *  - docTier=3 时 `steward_dispatch` 校验文档收据（`.steward/docs-state.json`），未过门禁拒绝派开发
  *  - 角色是派单时注入的章程，**不注册 Agent Preset**（模式选择器必须保持干净）
  *  - 模型路由只来自项目 `steward.config.json` 的 `modelRouting.<role>`，缺失则继承主代理
  *  - 子代理固定以内置 `standard` 组合启动；缺失/损坏时拒绝派发
@@ -10,9 +11,10 @@
  * 不启动宿主：用假 ctx 驱动 apply()。
  */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -219,8 +221,12 @@ test('apply registers the two tools, one command and the bundled skills — noth
   assert.deepEqual(bucket.state.commands.map((command) => command.name), ['steward-roster']);
   assert.deepEqual(bucket.state.skills.map((skill) => skill.name).sort(), [
     'agent-settings',
-    'docs',
+    'docs-feature',
     'docs-governance',
+    'docs-new',
+    'docs-review',
+    'docs-rules',
+    'docs-takeover',
     'inline',
     'steward',
     'systematic-debugging',
@@ -239,20 +245,34 @@ test('apply registers the two tools, one command and the bundled skills — noth
   assert.equal(bucket.state.presets?.length ?? 0, 0, 'the plugin must not register agent presets');
 });
 
-test('the main skill points at the split-out inline and docs skills', async () => {
+test('the main skill points at the split-out inline, docs-rules and the four documentation entries', async () => {
   const bucket = await boot();
   const main = bucket.state.skills.find((skill) => skill.name === 'steward');
   assert.match(main.content, /加载 `inline` 技能/);
-  assert.match(main.content, /加载 `docs` 技能/);
+  assert.match(main.content, /`docs-new`/);
+  assert.match(main.content, /`docs-rules`/);
   // The extracted sections moved out of the main body.
   assert.doesNotMatch(main.content, /^## 执行模式（/m);
   assert.doesNotMatch(main.content, /^## 文档流水线（/m);
   const inline = bucket.state.skills.find((skill) => skill.name === 'inline');
   assert.match(inline.content, /^## 执行模式（/m);
   assert.match(inline.content, /inline 的硬动作|硬动作/);
-  const docs = bucket.state.skills.find((skill) => skill.name === 'docs');
-  assert.match(docs.content, /^## T3 文档按需升级（/m);
-  assert.match(docs.content, /^## 文档流水线（/m);
+  // docs-rules is the rules library, not an entry: it keeps the pipeline sections
+  // and says so in its own body.
+  const rules = bucket.state.skills.find((skill) => skill.name === 'docs-rules');
+  assert.match(rules.content, /^## T3 文档按需升级（/m);
+  assert.match(rules.content, /^## 文档流水线（/m);
+  assert.match(rules.content, /不是入口/);
+  // The four entries point at the readiness gate instead of repeating the pipeline.
+  for (const [name, needle] of [
+    ['docs-new', /docs-ready\.mjs/],
+    ['docs-takeover', /docs-ready\.mjs/],
+    ['docs-feature', /docs-ready\.mjs/],
+    ['docs-review', /docs-ready\.mjs/],
+  ]) {
+    const skill = bucket.state.skills.find((entry) => entry.name === name);
+    assert.match(skill.content, needle, `${name} must route through the readiness gate`);
+  }
 });
 
 test('every role charter is a dispatch payload, not a mode', async () => {
@@ -378,6 +398,190 @@ test('a malformed modelRouting entry degrades to inherit instead of half-applyin
   const value = await tool.execute({ role: 'qa-engineer', description: 'QA', prompt: '跑门禁。', cwd: projectDir }, execFor());
   assert.equal(value.source, 'inherit');
   assert.equal(bucket.state.activations.at(-1).agentOptions, undefined);
+});
+
+// --- documentation gate (docTier=3) ------------------------------------------------
+
+const DOCS_READY = new URL('../../../dsh/scripts/docs-ready.mjs', import.meta.url);
+const DOC_REVIEW_REL = 'docs/07-治理/评审记录/评审记录-20261116-契约.md';
+
+const DOC_API = `# API 接口契约
+
+## 基础约定
+
+- BaseURL：/api
+- 认证：Bearer token，权限主体一律从凭据解析，不信任请求体
+- 统一信封：{ code, data, message }
+- 分页：page / pageSize，默认 20，最大 200
+
+## 错误码号段
+
+| 号段 | 含义 |
+|---|---|
+| 4001 | 参数校验失败 |
+| 4002 | 权限不足 |
+| 4003 | 资源不存在 |
+
+## 端点清单
+
+| 方法 | 路径 | 入参 | 出参 | 错误码 | 权限 |
+|---|---|---|---|---|---|
+| GET | /api/items | q、page | list | 4001 | read |
+| POST | /api/items | body | item | 4001、4002 | write |
+| DELETE | /api/items/:id | id | null | 4003 | write |
+
+## 变更纪律
+
+改端点必须同批更新本文档与版本修订记录；错误码只增不删，废弃号段保留并标注。
+`;
+
+const DOC_MODEL = `# 数据模型
+
+## ER 总览
+
+- items：主表，含 tenant_id 行级隔离字段
+- item_logs：审计表，只追加
+
+## DDL
+
+| 表 | 字段 | 类型 | 约束 |
+|---|---|---|---|
+| items | id | uuid | pk |
+| items | tenant_id | uuid | 非空，行级隔离 |
+| items | code | varchar(64) | 非空 |
+| items | deleted_at | timestamptz | 软删，进唯一约束 |
+| item_logs | id | bigserial | pk |
+| item_logs | item_id | uuid | 逻辑关联，不建物理外键 |
+
+## 口径注释
+
+唯一约束含 deleted_at：unique (tenant_id, code, deleted_at)。
+审计表只追加不更新，PII 字段落库前脱敏，查询走索引并 EXPLAIN 验证。
+`;
+
+const DOC_REVIEW = `# 评审记录：契约冻结
+
+## 结论（先行）
+
+可进入开发。
+
+<!-- docs-review:begin -->
+{"status":"approved","blocking":0,"scope":"feature","reviewedAt":"2026-11-16T22:40:00+08:00"}
+<!-- docs-review:end -->
+`;
+
+function docsReady(...args) {
+  return spawnSync(process.execPath, [fileURLToPath(DOCS_READY), ...args], { encoding: 'utf8' });
+}
+
+function writeDoc(root, rel, text) {
+  const abs = join(root, rel);
+  mkdirSync(dirname(abs), { recursive: true });
+  writeFileSync(abs, text, 'utf8');
+}
+
+/**
+ * Build a docTier=3 project whose documentation receipt is green (or not).
+ * @param {string} name directory name under the test work dir.
+ * @param {{approve?: boolean}} [options] issue the receipt or leave it pending.
+ */
+function stageDocsProject(name, { approve = true } = {}) {
+  const root = join(workDir, name);
+  mkdirSync(root, { recursive: true });
+  writeFileSync(join(root, 'steward.config.json'), JSON.stringify({ docTier: 3 }, null, 2));
+  const init = docsReady(root, 'init', '--scope', 'feature', '--require', '03-契约', '--write');
+  assert.equal(init.status, 0, init.stderr);
+  writeDoc(root, 'docs/03-契约/API接口.md', DOC_API);
+  writeDoc(root, 'docs/03-契约/数据模型.md', DOC_MODEL);
+  writeDoc(root, 'docs/07-治理/评审状态.md', '# 评审状态\n\n| 阶段 | 结论 | 日期 | 评审记录 |\n|---|---|---|---|\n| 契约 | 通过 | 2026-11-16 | 评审记录-20261116-契约.md |\n');
+  writeDoc(root, DOC_REVIEW_REL, DOC_REVIEW);
+  if (approve) {
+    const res = docsReady(root, 'approve', '--review', DOC_REVIEW_REL);
+    assert.equal(res.status, 0, `${res.stdout}${res.stderr}`);
+  }
+  return root;
+}
+
+test('docTier=3 blocks implementers until a documentation receipt exists', async () => {
+  const bucket = await boot();
+  const tool = bucket.state.tools.find((entry) => entry.name === 'steward_dispatch');
+  const root = join(workDir, 'docs-gate-none');
+  mkdirSync(root, { recursive: true });
+  writeFileSync(join(root, 'steward.config.json'), JSON.stringify({ docTier: 3 }));
+
+  await assert.rejects(
+    () => tool.execute({ role: 'backend-dev', description: '实施', prompt: '写代码', cwd: root }, execFor()),
+    /docs gate blocked/,
+  );
+  await assert.rejects(
+    () => tool.execute({ role: 'frontend-dev', description: '实施', prompt: '写代码', cwd: root }, execFor()),
+    /docs gate blocked/,
+  );
+  // Document authors and reviewers must stay dispatchable, otherwise nobody can
+  // ever satisfy the gate.
+  const architect = await tool.execute({ role: 'architect', description: '方案', prompt: '出方案', cwd: root }, execFor());
+  assert.equal(architect.role, 'architect');
+});
+
+test('docTier=3 lets implementers through once the receipt is green', async () => {
+  const bucket = await boot();
+  const tool = bucket.state.tools.find((entry) => entry.name === 'steward_dispatch');
+  const root = stageDocsProject('docs-gate-green');
+
+  const value = await tool.execute({ role: 'backend-dev', description: '实施', prompt: '写代码', cwd: root }, execFor());
+  assert.equal(value.role, 'backend-dev');
+  assert.equal(bucket.state.activations.length, 1);
+});
+
+test('editing a rule-bearing document turns the receipt stale and blocks again', async () => {
+  const bucket = await boot();
+  const tool = bucket.state.tools.find((entry) => entry.name === 'steward_dispatch');
+  const root = stageDocsProject('docs-gate-stale');
+  writeDoc(root, 'docs/03-契约/API接口.md', `${DOC_API}\n新增一条口径变更。\n`);
+
+  await assert.rejects(
+    () => tool.execute({ role: 'backend-dev', description: '实施', prompt: '写代码', cwd: root }, execFor()),
+    /E-STATE-STALE/,
+  );
+});
+
+test('bookkeeping-only edits keep the receipt valid for implementers', async () => {
+  const bucket = await boot();
+  const tool = bucket.state.tools.find((entry) => entry.name === 'steward_dispatch');
+  const root = stageDocsProject('docs-gate-bookkeeping');
+  writeDoc(root, 'docs/07-治理/执行步骤.md', '# 执行步骤\n\n| 项 | 状态 |\n|---|---|\n| T1 契约 | 完成 |\n');
+
+  const value = await tool.execute({ role: 'backend-dev', description: '实施', prompt: '写代码', cwd: root }, execFor());
+  assert.equal(value.role, 'backend-dev');
+});
+
+test('a hand-edited receipt without an approved review stays blocked', async () => {
+  const bucket = await boot();
+  const tool = bucket.state.tools.find((entry) => entry.name === 'steward_dispatch');
+  const root = stageDocsProject('docs-gate-forged', { approve: false });
+
+  // Forge the flags but not the hash: the gate compares the receipt with the tree.
+  const stateFile = join(root, '.steward/docs-state.json');
+  const state = JSON.parse(readFileSync(stateFile, 'utf8'));
+  state.ok = true;
+  state.review = { status: 'approved', record: DOC_REVIEW_REL, at: '2026-11-16T00:00:00Z' };
+  writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+
+  await assert.rejects(
+    () => tool.execute({ role: 'backend-dev', description: '实施', prompt: '写代码', cwd: root }, execFor()),
+    /docs gate blocked/,
+  );
+});
+
+test('docTier below 3 keeps the old dispatch behaviour', async () => {
+  const bucket = await boot();
+  const tool = bucket.state.tools.find((entry) => entry.name === 'steward_dispatch');
+  const root = join(workDir, 'docs-gate-off');
+  mkdirSync(root, { recursive: true });
+  writeFileSync(join(root, 'steward.config.json'), JSON.stringify({ docTier: 1 }));
+
+  const value = await tool.execute({ role: 'backend-dev', description: '实施', prompt: '写代码', cwd: root }, execFor());
+  assert.equal(value.role, 'backend-dev');
 });
 
 test('dispatch fails loudly when the child composition or preset support is missing', async () => {

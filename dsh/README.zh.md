@@ -32,11 +32,14 @@ plugin_manager(action="install_bundle", target="<repo>/dsh")
 | 模型与档位 | 项目根 `steward.config.json` 的 `modelRouting.<role>`（仓库优先，跑 `scripts/validate-config.mjs`）；没写的角色用**设置 → Steward** 里的该角色 / 默认配置；都没有则继承主代理 |
 | **右侧栏看板** | 每会话一份，三种打开方式（会话标题栏的 Steward 图标 / 右侧栏引导页 / 首次派发自动打开）：运行卡片（完成环 + 分段进度 + `完成/总数` + 任务数 / 依赖数 + 子代理数 + run 状态徽标 + 运行目录）、任务区（依赖图 / 列表 / 归属矩阵切换 + 点节点看详情）、子代理区（**点一行打开子会话**）、产物区（`tmp/steward/<run>/`，**点一行打开文件**）；任务来源按 `共享任务板 > run.json > 待办清单` 回落。只配模型的逐角色表格在「设置 → Steward」 |
 | 主技能 | `steward`：Tech Lead 调度手册（定级 / DAG / 派单 / 门禁 / 收尾） |
-| 按需技能 | `inline`（主代理自己动手时的硬动作与范围）、`docs`（docTier=3 七阶段文档流水线）、`docs-governance`（文档拆分 / 归档 / 版本快照与 `docs-gate` / `doc-snapshot` 门禁的增量层）——从主技能拆出，只在需要时加载 |
+| 文档入口（4 个） | `docs-new`（新建项目，01→07 建基线）、`docs-takeover`（接手存量，先盘点落位再补）、`docs-feature`（单个功能 / 需求变更，只改受影响阶段）、`docs-review`（派 reviewer 独立评审 + 签发收据）。**一个场景一个入口，不再「一个技能全走」** |
+| 文档规范总库 | `docs-rules`：七阶段规范正文、SSOT 地图、变更联动表、模板索引（**不是入口**） |
+| 文件就绪硬门 | `scripts/docs-ready.mjs`：阶段产物 / 空壳 / 占位符 / `na` 理由 / FR↔FP 追溯 / 计划 `docsRead` / 评审机读结论逐项机检；收据 `.steward/docs-state.json` 通过后 `backend-dev` / `frontend-dev` 才允许派发 |
+| 按需技能 | `inline`（主代理自己动手时的硬动作与范围）、`docs-governance`（文档拆分 / 归档 / 版本快照与 `docs-gate` / `doc-snapshot` 门禁的增量层） |
 | 配套技能 | `using-steward`（路由）、`agent-settings`（模型配置）、`systematic-debugging`、`tdd`、`verification-before-completion` |
 | 共享任务板 | `steward_board(action="sync"/"status"/"brief")`：把 `03-plan.json` 变成 Agent Teams 板上的门禁 + 工作单，状态在原生 Team 面板与右侧栏看板里直接看 |
 | 命令 | `/steward-roster`：回显名册与路由口径（不负责派活）；`/steward` 是触发 `steward` 技能的斜杠手势 |
-| 门禁脚本 | `scripts/`：`validate-plan.mjs`、`verify.mjs`（含 `baseline record/check`）、`run-state.mjs`、`maintain.mjs`、`take-over.mjs`、`validate-config.mjs`、`docs-gate.mjs` / `doc-snapshot.mjs`（文档治理），以及 `doc/` 文档流水线工具 |
+| 门禁脚本 | `scripts/`：`validate-plan.mjs`、`verify.mjs`（含 `baseline record/check`）、`run-state.mjs`、`maintain.mjs`、`take-over.mjs`、`validate-config.mjs`、`docs-ready.mjs`（文档就绪收据）、`docs-gate.mjs` / `doc-snapshot.mjs`（文档治理），以及 `doc/` 文档流水线工具 |
 
 ## 为什么不注册模式（Agent Preset）
 
@@ -63,9 +66,33 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 - 派活：`steward_board(action="brief", role="backend-dev", task="T1")` 取自包含任务书 → `spawn_teammate` → `team_task_update(action="reassign", owner=<teammate>)`；teammate 先 claim 再动手。
 - 没启用团队时没有 `agentTeams` 服务，`steward_board` 直接报错，回到 `steward_dispatch` + `run.json` 的单人模式；右侧栏看板此时回落到 `run.json` / 待办清单，仍然有内容。
 
+## 文档入口与开发硬门（docTier=3）
+
+文档不再是一个「全走」的技能：按场景分成三个入口 + 一个审查入口，规范与模板单独成库。
+
+| 你说的 | 加载 | 管到哪 |
+|---|---|---|
+| 新建项目 / 从零搭文档基线 | `docs-new` | 01-需求（PRD→FRD）→ 02-架构 → 03-契约（+05-页面）→ 06-测试基线 → 07-治理件 → 闭环 → 审查 → 收据 |
+| 接手存量仓库 | `docs-takeover` | `take-over.mjs` 生成 T1 → 盘点与落位映射（需拍板）→ `docs-gate --baseline-write` 记基线 → 按缺口补齐 |
+| 单个功能 / 需求变更 | `docs-feature` | 影响面扫描 → 打包需拍板项 → 只改受影响的阶段（其余 `na` + 理由）→ 联动表同批落档 |
+| 审查 / 能不能开工 | `docs-review` | reviewer 全新实例（干净上下文、只读）→ 结论落 `docs/07-治理/评审记录/` + 机读块 → `approve` |
+
+**硬门不是提示词**：`steward.config.json` 配了 `docTier: 3` 后，`steward_dispatch` 在派 `backend-dev` / `frontend-dev` 前会校验 `.steward/docs-state.json` 的收据与文档哈希，未通过直接拒绝（`architect` / `reviewer` / `qa-engineer` / `browser-tester` 不受限，留人补文档与评审）。收据只由脚本签发：
+
+```bash
+node scripts/docs-ready.mjs <root> init --scope new|takeover|feature --write   # 声明范围
+node scripts/docs-ready.mjs <root> check [--plan <03-plan.json>] [--strict]    # 闭环机检
+node scripts/docs-ready.mjs <root> approve --review <评审记录>                  # 签发收据
+node scripts/docs-ready.mjs <root> status                                      # 现状（含 stale）
+```
+
+判据与错误码（`E-DOC-MISSING` / `E-DOC-PLACEHOLDER` / `E-DOC-THIN` / `E-NA-REASON` / `E-PLAN-DOCSREAD` / `E-PLAN-NA-CONFLICT` / `E-STATE-STALE` / `E-REVIEW-*`）都在 `docs-ready --help` 与 `docs-rules` 技能里。口径类文档（PRD / FRD / 架构 / 契约 / 页面 / 测试方案）改一次收据即失效——`执行步骤.md`、`评审状态.md`、`评审记录/` 已从哈希里排除，日常销项不会触发重审。
+
+**回滚**：把 `docTier` 改回 1/2 即关闭整套门禁（不需要改代码），变更记进 `05-record.md`。
+
 ## 文档治理（`docs-governance`，增量层）
 
-`docs` 技能管**建树**（七阶段 + 模板），`docs-governance` 管树建好之后**别长成屎山**：拆分、归档、版本、读契约。触发语：「文档太长了」「评审记录堆在 07-治理」「需求文档要留版本」。
+`docs-new` / `docs-takeover` / `docs-feature` 管**建与补**，`docs-governance` 管树建好之后**别长成屎山**：拆分、归档、版本、读契约。触发语：「文档太长了」「评审记录堆在 07-治理」「需求文档要留版本」。
 
 | 三类文档 | 生长方式 | 治理手段 |
 |---|---|---|
@@ -138,7 +165,11 @@ DSH 里 preset 就是**用户可选的会话模式**，没有「内部 preset」
 | 只出计划 | 「只出方案，先别写代码」→ 到批准门停止，不实施 |
 | 维护循环 | 「做一次维护扫描」→ 八类扫描 + 评分 backlog + 小修 |
 | 接手存量 | 「接手这个仓库，先盘点再动手」→ T1 项目记忆 + 首轮健康扫描 |
-| 文档流水线 | `docTier: 3`（随 `steward` 技能）→ 七阶段文档树 + 全量模板 |
+| 新建项目文档 | 「新建项目 / 初始化七阶段文档」→ `docs-new`：01→07 建基线，审查通过后签发收据 |
+| 接手存量文档 | 「接手这个仓库 / 存量项目补文档」→ `docs-takeover`：先盘点落位，再按缺口补齐 |
+| 单个功能文档 | 「给这个功能写文档 / 这个需求要动哪些文档」→ `docs-feature`：影响面 → 只改受影响阶段 |
+| 审查文档 | 「审查文档 / 文档齐了吗 / 能不能开工」→ `docs-review`：reviewer 全新实例评审 → 评审记录 → `approve` |
+| 文档规范与模板 | 「PRD/FRD/契约怎么写」→ `docs-rules`（总库，不是入口） |
 | 文档治理 | 「文档太长了 / 评审堆在 07 / 需求文档要留版本」→ `docs-governance`：拆分、归档、`history/` 快照、`docs-gate` / `doc-snapshot` |
 | 改模型 / 档位 | 「配置子代理模型」→ `agent-settings`：改项目根 `steward.config.json` 的 `modelRouting` 并跑 `validate-config.mjs` |
 | 不知道用哪个入口 | 加载 `using-steward` 做路由 |
