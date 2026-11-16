@@ -37,7 +37,7 @@ Steward 是面向 ZCode / MiniMax / DeepSeek Harness（DSH）的多角色研发�
 | 接手存量 | `/steward:take-over` | 0.7.0 可用（扫描生成 T1 + 首轮健康扫描；MiniMax / DSH 用自然语言触发） |
 | 文档流水线 | `docTier: 3`（随 `/steward`） | 0.8.0 起双宿主可用（七阶段树 + 全量模板 + 文档检查；MiniMax 1.6.0 同步） |
 | 主技能按需拆分 | 加载 `steward:inline` / `steward:docs-rules` | 1.0.0 起 MiniMax 可用（DSH 0.5.0 同款：主技能只留指针，小节按需加载） |
-| 文档四入口 | 加载 `steward:docs-new` / `steward:docs-takeover` / `steward:docs-feature` / `steward:docs-review` | MiniMax 1.2.0 起可用（对齐 DSH 1.3.0：写文档分场景走入口，审查独立成入口） |
+| 文档四入口 | ZCode 1.3.1 起 `/steward:docs-new` / `/steward:docs-takeover` / `/steward:docs-feature` / `/steward:docs-review`；MiniMax / DSH 自然语言触发对应 `steward:docs-*` 技能 | MiniMax 1.2.0 起可用（对齐 DSH 1.3.0：写文档分场景走入口，审查独立成入口） |
 | 文档就绪硬门 | `docTier: 3` 时收据 `.steward/docs-state.json` | MiniMax 1.2.0 起可用（`scripts/docs-ready.mjs` 机检 + 派 `backend-dev` / `frontend-dev` 前置校验） |
 | 文档治理 | 加载 `steward:docs-governance` | 1.0.0 起 MiniMax 可用（DSH 0.9.0 同款：三类文档分治 + G1–G11 门禁 + 基线快照） |
 | 技能路由 | 加载 `steward:using-steward` | 0.8.1 起双宿主可用（不知道用哪个入口/技能时先做路由） |

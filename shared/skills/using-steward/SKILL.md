@@ -39,4 +39,4 @@ description: Steward 技能路由。当用户不知道用 Steward 的哪个入�
 ## 边界
 
 - 本技能只做「把用户带到正确入口」，不执行流程；路由表与主技能冲突时以主技能正文为准。
-- 文档流水线与需求澄清是主技能内的两节（docTier=3 / Stage 0.1），不是独立入口。
+- 需求澄清（Stage 0.1）是主技能内的一节；文档流水线在 docTier=3 有四个独立入口——新建项目 `steward:docs-new` / 接手存量 `steward:docs-takeover` / 单个功能与需求变更 `steward:docs-feature` / 审查与闭环 `steward:docs-review`（规范总库 `steward:docs-rules`，治理增量层 `steward:docs-governance`），按路由表选，流程在各入口技能正文。
