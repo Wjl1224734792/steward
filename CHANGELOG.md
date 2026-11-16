@@ -6,6 +6,25 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [ZCode 1.3.1] - 2026-11-17
+
+> **文档四入口命令化**：ZCode 1.2.0 拆出的四个文档入口此前只有技能形态（靠触发语 + `using-steward` 路由自动命中），本版补齐 ZCode 斜杠命令，与 `/steward:fix` / `:plan` / `:take-over` / `:maintain` / `:inline` 的既有形态对齐；技能描述保留，自动触发兜底不丢。同时修正 `using-steward` 的 ZCode 路由表——拆分时漏更，仍把文档需求指向旧形态「`/steward` + `docTier: 3` 读 `references/doc-pipeline/README.md`」。`steward:docs-rules`（规范总库）与 `steward:docs-governance`（增量层）维持纯技能，不做命令。
+
+### Added
+
+- `/steward:docs-new`（新建项目）/ `/steward:docs-takeover`（接手存量）/ `/steward:docs-feature`（单个功能与需求变更）/ `/steward:docs-review`（审查与闭环）：`zcode/commands/steward/` 下四个薄命令包装，加载对应 `steward:docs-*` 技能并按其流程执行；命令内带 docTier=3 前置说明与门禁动作清单（`docs-ready check` → `steward:reviewer` 全新实例独立评审 → `docs-ready approve` 签发收据，收据绿之前不派开发）。命令总数 6 → 10。
+
+### Changed
+
+- **路由表修正**：`host/zcode/skills/using-steward/routing-table.md` 文档行由旧形态改为四入口命令 + `steward:docs-governance` 技能行；`/steward:take-over` 标注「开发侧」，与 `/steward:docs-takeover`（文档基线）区分。
+- **版本**：`zcode/.zcode-plugin/plugin.json` 1.3.0 → **1.3.1**（不领先发布列车 1.4.0）；banner 与两份 README 版本行同步；命令表补四入口（zcode/README 排障节命令数顺带修正 5 → 10，补记此前漏列的 `/steward:inline`）；根 README「工作模式」表文档四入口行补 ZCode 命令形态。
+
+### 验证
+
+- `node zcode/scripts/build.mjs` / `--check` → PASS。
+- `node --test zcode/scripts/tests/` → 全绿。
+- `zcode commands list` → 列出 10 条命令（含 4 条 `/steward:docs-*`）。
+
 ## [ZCode 1.3.0 / MiniMax 1.4.0 / DSH 1.4.0] - 2026-11-17
 
 > **通用 harness 技能对齐 DSH 1.3.0（跨宿主）**：三宿主各自的「文档入口拆分 + 文档就绪硬门」已在 1.2.0–1.3.0 陆续落地，但**通用 harness 侧**——不装整包、直接投放 `shared/skills/` 下 4 个宿主无关技能的任意 harness——仍停在 DSH 0.9.0 的文档治理口径。本版把「文档就绪硬门」通用化并去掉宿主专有字段名；版本随发布列车推进：**DSH / MiniMax 同号 1.4.0，ZCode 1.3.0**（不领先列车）。
