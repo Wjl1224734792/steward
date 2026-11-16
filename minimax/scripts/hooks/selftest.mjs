@@ -49,7 +49,9 @@ const run = (mode, event, cwd = dir) => {
 };
 
 let failed = 0;
+let total = 0;
 const check = (name, r, expect) => {
+  total++;
   const ok = r.code === expect && r.stdout === '' && (expect === 0 || r.stderr.length > 0);
   if (!ok) failed++;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  exit=${r.code}${ok ? '' : `  stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`}`);
@@ -60,7 +62,47 @@ check('所有权：白名单外 → 阻断', run('ownership', { tool_name: 'Edit
 check('所有权：白名单内 → 放行', run('ownership', { tool_name: 'Edit', tool_input: { file_path: 'src/ok.mjs' } }), 0);
 check('所有权：无派发上下文 → 放行', run('ownership', { tool_name: 'Edit', tool_input: { file_path: 'README.md' } }, tmpdir()), 0);
 check('坏 JSON → fail-open 放行', run('dangerous', 'not json'), 0);
-rmSync(dir, { recursive: true, force: true });
 
-console.log(failed ? `\n[selftest] FAIL — ${failed} 例失败` : `\n[selftest] PASS — ${cases.length + 4} 例全部符合宿主契约（exit 0 放行 / exit 2 阻断 / stdout 为空）`);
+// docs 模式：文档就绪硬门（docTier=3 项目派 backend-dev / frontend-dev 前校验收据）。
+// 项目 tier3 = docTier=3 无收据；tier1 = docTier=1；green = docTier=3 + 已签发全绿收据。
+const READY = resolve(import.meta.dirname, '..', 'docs-gov', 'docs-ready.mjs');
+const docsRoot = mkdtempSync(join(tmpdir(), 'steward-docs-'));
+const mkProject = (name, config) => {
+  const p = join(docsRoot, name);
+  mkdirSync(join(p, 'docs', '03-契约'), { recursive: true });
+  mkdirSync(join(p, 'docs', '07-治理', '评审记录'), { recursive: true });
+  writeFileSync(join(p, 'steward.config.json'), JSON.stringify(config));
+  return p;
+};
+const tier3 = mkProject('tier3', { docTier: 3 });
+const tier1 = mkProject('tier1', { docTier: 1 });
+const green = mkProject('green', { docTier: 3 });
+const API_DOC = `# API 接口契约\n\n## 基础约定\n\n- BaseURL：/api\n- 认证：Bearer\n- 统一信封：{ code, data, message }\n\n## 错误码号段\n\n| 号段 | 含义 |\n|---|---|\n| 4001 | 参数校验失败 |\n| 4002 | 权限不足 |\n\n## 端点清单\n\n| 方法 | 路径 | 入参 | 出参 | 错误码 | 权限 |\n|---|---|---|---|---|---|\n| GET | /api/items | q | list | 4001 | read |\n| POST | /api/items | body | item | 4002 | write |\n`;
+const MODEL_DOC = `# 数据模型\n\n## ER 总览\n\n- items：主表，含 tenant_id 行级隔离字段\n\n## DDL\n\n| 表 | 字段 | 类型 | 约束 |\n|---|---|---|---|\n| items | id | uuid | pk |\n| items | tenant_id | uuid | 非空，行级隔离 |\n| items | deleted_at | timestamptz | 软删，进唯一约束 |\n\n## 口径注释\n\n软删与唯一约束组合：unique (tenant_id, code, deleted_at)。审计表只追加不更新，不做物理删除。\n`;
+const REVIEW_DOC = `# 评审记录：契约冻结\n\n## 结论（先行）\n可进入开发。\n\n## 一、机械修复项\n\n| # | 位置 | 问题 | 修法 | 状态 |\n|---|---|---|---|---|\n| 1 | API接口.md:12 | 错误码未列号段 | 补号段表 | 已修 |\n\n<!-- docs-review:begin -->\n{"status":"approved","blocking":0,"scope":"feature","reviewedAt":"2026-11-16T22:40:00+08:00"}\n<!-- docs-review:end -->\n`;
+for (const p of [tier1, green]) {
+  writeFileSync(join(p, 'docs', '03-契约', 'API接口.md'), API_DOC);
+  writeFileSync(join(p, 'docs', '03-契约', '数据模型.md'), MODEL_DOC);
+  writeFileSync(join(p, 'docs', '07-治理', '评审状态.md'), '# 评审状态\n\n| 阶段 | 最新结论 | 日期 | 评审记录 |\n|---|---|---|---|\n| 契约 | 通过 | 2026-11-16 | 评审记录-20261116-契约.md |\n');
+  writeFileSync(join(p, 'docs', '07-治理', '评审记录', '评审记录-20261116-契约.md'), REVIEW_DOC);
+}
+{
+  const init = spawnSync(process.execPath, [READY, green, 'init', '--scope', 'feature', '--require', '03-契约', '--write'], { encoding: 'utf8' });
+  const approve = spawnSync(process.execPath, [READY, green, 'approve', '--review', 'docs/07-治理/评审记录/评审记录-20261116-契约.md'], { encoding: 'utf8' });
+  if (init.status !== 0 || approve.status !== 0) {
+    failed++;
+    total++;
+    console.log(`FAIL  文档门禁：green 项目收据签发失败  init=${init.status} approve=${approve.status}  ${JSON.stringify(approve.stderr || approve.stdout)}`);
+  } else {
+    check('文档门禁：docTier=3 缺收据 → 阻断', run('docs', { tool_name: 'Agent', tool_input: { subagent_type: 'steward:backend-dev' } }, tier3), 2);
+    check('文档门禁：非实现角色 → 放行', run('docs', { tool_name: 'Agent', tool_input: { subagent_type: 'steward:reviewer' } }, tier3), 0);
+    check('文档门禁：docTier≠3 → 放行', run('docs', { tool_name: 'Task', tool_input: { subagent_type: 'backend-dev' } }, tier1), 0);
+    check('文档门禁：收据已签发且绿 → 放行', run('docs', { tool_name: 'Task', tool_input: { subagent_type: 'steward:frontend-dev' } }, green), 0);
+    check('文档门禁：坏 JSON → fail-open 放行', run('docs', 'not json', tier3), 0);
+  }
+}
+rmSync(dir, { recursive: true, force: true });
+rmSync(docsRoot, { recursive: true, force: true });
+
+console.log(failed ? `\n[selftest] FAIL — ${failed} 例失败` : `\n[selftest] PASS — ${total} 例全部符合宿主契约（exit 0 放行 / exit 2 阻断 / stdout 为空）`);
 process.exit(failed ? 1 : 0);

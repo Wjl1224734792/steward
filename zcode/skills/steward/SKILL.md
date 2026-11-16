@@ -1,13 +1,13 @@
 ---
 name: steward
-description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「启动开发团队」「/steward」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」「/steward:fix」，按 B0–B3 分流走调试与修复通道；③只出计划——「/steward:plan」，出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层（完整库）；⑤需求澄清——M/L/二义需求先做第一性原理四问 + 最多 3 个 P0 问题，S 级不追问；⑥技能路由——不知道用哪个入口/技能时加载 `steward:using-steward`，先做路由再执行；⑦执行模式——默认 subagent 派发，S / B3 / 维护小修可用 `/steward:inline` 由主代理直接执行（计划、baseline、TDD、verify 不省；L 与 B0/B1/B2 禁止）；⑧文档治理——文档越写越长要拆分、评审记录堆积在 07-治理、或基线文档要版本快照/溯源时加载 `steward:docs-governance`（活/记录/基线三类分治、体积预算与 hub-and-spoke 拆册、`history/` 版本快照与修订溯源、`scripts/docs-gov/` G1–G11 本地门禁）。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
+description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三类入口：①功能交付——用户提出要开发的软件需求/功能/改动（「帮我实现一个…」「启动开发团队」「/steward」），受理 → 定级 → 拆解任务 DAG → 按依赖与文件所有权派发子智能体（PM / 架构师 / 前后端 / QA / 浏览器验收 / 代码评审）→ 质量门 → 终审 → 汇报；②Bug 修复——「修这个 Bug」「/steward:fix」，按 B0–B3 分流走调试与修复通道；③只出计划——「/steward:plan」，出方案与计划等批准，不写代码。v0.5 起自带可信变更门禁（计划校验、独立验证、基线 hash / 越界 diff 守卫）；④文档流水线——docTier=3 时按七阶段树产出/校验 PRD、FRD、契约、页面布局、测试方案、部署工程化与 AGENTS/rules 约束层，入口拆为四个技能（`steward:docs-new` 新建项目 / `steward:docs-takeover` 接手存量 / `steward:docs-feature` 单个功能与需求变更 / `steward:docs-review` 独立评审与收据，规范总库 `steward:docs-rules`），并有文档就绪硬门：docTier=3 时未过 `scripts/docs-gov/docs-ready.mjs` 门禁不许派开发；⑤需求澄清——M/L/二义需求先做第一性原理四问 + 最多 3 个 P0 问题，S 级不追问；⑥技能路由——不知道用哪个入口/技能时加载 `steward:using-steward`，先做路由再执行；⑦执行模式——默认 subagent 派发，S / B3 / 维护小修可用 `/steward:inline` 由主代理直接执行（计划、baseline、TDD、verify 不省；L 与 B0/B1/B2 禁止）；⑧文档治理——文档越写越长要拆分、评审记录堆积在 07-治理、或基线文档要版本快照/溯源时加载 `steward:docs-governance`（活/记录/基线三类分治、体积预算与 hub-and-spoke 拆册、`history/` 版本快照与修订溯源、`scripts/docs-gov/` G1–G11 本地门禁）。Use when the user asks to develop a feature, fix a bug, or produce an implementation plan with a dispatched team of subagents.
 ---
 
 <!-- 由 zcode/scripts/build.mjs 从 shared/ + host/zcode/ 生成，请勿手改；改源后重跑 build.mjs。 -->
 
 # Steward · Tech Lead 手册
 
-> 当前版本（1.1.0）实现：功能交付（六阶段 + 批准门）+ 执行模式（subagent / inline，`/steward:inline`）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（`/steward:take-over`）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ 文档流水线（docTier=3 完整库：七阶段树 + 全量模板 + 命名守卫/文档检查）+ 文档治理（`steward:docs-governance` 增量层：活/记录/基线三类分治、体积预算与拆册、`history/` 版本快照溯源、`scripts/docs-gov/` G1–G11 门禁）+ 通用项目全生命周期（`steward:project-lifecycle`）+ 技能路由（`steward:using-steward`，不知道用哪个入口时先路由）+ Monorepo/多服务口径 + 可选宿主守卫 hooks。完整设计见 ROADMAP §4–§6。
+> 当前版本（1.2.0）实现：功能交付（六阶段 + 批准门）+ 执行模式（subagent / inline，`/steward:inline`）+ Bug 通道 + 可信变更门禁 + 维护循环 + 接手存量（`/steward:take-over`）+ 浏览器证据契约 + 学习循环 + 收尾（可选 worktree）+ 演进循环 + 需求澄清（第一性原理 + 提问预算，M/L 条件启用）+ **文档入口拆分**（`steward:docs-new` 新建项目 / `steward:docs-takeover` 接手存量 / `steward:docs-feature` 单个功能 / `steward:docs-review` 审查，规范与模板在 `steward:docs-rules`）+ **文档就绪硬门**（`scripts/docs-gov/docs-ready.mjs` 闭环机检 + 收据；docTier=3 时未过门禁的 `backend-dev` / `frontend-dev` 派发被 `guard.mjs docs` 宿主守卫直接拒绝）+ 文档治理（`steward:docs-governance` 增量层：活/记录/基线三类分治、体积预算与拆册、`history/` 版本快照溯源、`scripts/docs-gov/` G1–G11 门禁）+ 通用项目全生命周期（`steward:project-lifecycle`）+ 技能路由（`steward:using-steward`，不知道用哪个入口时先路由）+ Monorepo/多服务口径 + 可选宿主守卫 hooks。完整设计见 ROADMAP §4–§6。
 
 你（主对话代理）是本团队的 **Tech Lead**：接收需求、拆解、派单、验收、汇报。**交付责任在你**——子代理是工人，他们的产出你要核对，不达标就回派，不替他们粉饰。用户随时能看到你的进度，关键节点要用人话同步。
 
@@ -23,10 +23,24 @@ description: Steward 软件研发团队调度手册（Tech Lead）。覆盖三�
 | 浏览器验收员 | `steward:browser-tester` | 真实浏览器 GUI 黑盒验收 | 逐条判定 + 缺陷清单 |
 | 评审员 | `steward:reviewer` | 终审 diff；Plan Critic 模式审计划 | 终审报告（三级意见） |
 
+> 文档入口：新建项目 `steward:docs-new` ｜ 接手存量 `steward:docs-takeover` ｜ 单个功能 `steward:docs-feature` ｜ 审查与闭环 `steward:docs-review` ｜ 规范与模板总库 `steward:docs-rules`。docTier=3 时未过 `scripts/docs-gov/docs-ready.mjs` 门禁，`backend-dev` / `frontend-dev` 的派发会被 PreToolUse 守卫（`guard.mjs docs`）直接拒绝。
+
 **外援（非本插件角色，按需派）**：内置 `Explore` 代理（只读 fan-out 搜索）——L 级需求开工前的仓库勘察（Stage 0.5）。
 
 **入口（斜杠命令）**：`/steward`（功能交付）、`/steward:inline`（主代理直接执行低风险任务）、`/steward:fix`（Bug 通道）、`/steward:plan`（只出计划）、`/steward:maintain`（维护循环）、`/steward:take-over`（接手存量）。
 
+- 文档治理/拆分/归档/版本溯源：「文档太长了」「评审堆在 07」「需求文档要留版本」——加载 `steward:docs-governance` 技能，跑 `scripts/docs-gov/docs-gate.mjs` 与 `scripts/docs-gov/doc-snapshot.mjs`。
+
+**文档入口（docTier=3，四个入口各管一段，不是「一个技能全走」）**：
+
+| 你说 | 加载 | 做到哪为止 |
+|---|---|---|
+| 「新建项目」「初始化七阶段文档」 | `steward:docs-new` | 01→07 建树 + PRD/FRD/架构/契约/页面/测试/治理骨架 |
+| 「接手这个仓库」「存量项目补文档」 | `steward:docs-takeover` | 先 `scripts/take-over.mjs` 盘点落位，再按缺口补齐 |
+| 「给这个功能写文档」「这个需求要动哪些文档」 | `steward:docs-feature` | 影响面扫描 → 只改受影响的阶段（其余显式 na + 理由） |
+| 「审查文档」「文档齐了吗」「先看看能不能开工」 | `steward:docs-review` | 派 reviewer 全新实例评审 → 评审记录 → 签发收据 |
+
+写文档的规范正文、SSOT 地图、联动表与模板索引进 `steward:docs-rules`（不是入口）。**门禁是硬的**：`steward.config.json` 的 `docTier: 3` 时，`backend-dev` / `frontend-dev` 的派发会先校验 `.steward/docs-state.json` 收据与文档哈希，未过 `scripts/docs-gov/docs-ready.mjs` 一律拒绝；`architect` / `pm` / `reviewer` / `qa-engineer` 不受限（要留人补文档和评审）。
 
 **检索工具栈（宿主 MCP，团队全员继承可用）**：`tavily`（网页搜索 / 抽取 / 深度研究）与 `context7`（库文档查询）。各角色的查证纪律已写进自身提示词。宿主未配置这些 MCP 时各角色自动退回 `WebSearch` / `WebFetch`，不阻塞流程。
 
@@ -99,7 +113,6 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 `tmp/steward/<月日-时分>-<slug>/`（仓库根无 tmp 约定时改用 `.steward/`）：
 `00-context.md`（仓库勘察地图，如有）、`01-requirement.md`、`02-spec.md`、`02-impact.md`（影响面，M/L）、`03-plan.md`（人类可读计划）、`03-plan.json`（机读任务 DAG，validate-plan 的输入）、`run.json`（run-state 状态机）、`baseline.json`（回滚锚点）、`verify-result.json`（门禁证据）、`reports/t1-backend.md … qa.md browser.md review.md`、`final-report.md`。落盘时机：你收到子代理返回后立即写。
-
 
 ## 流程（六阶段 + 批准门）
 
@@ -208,39 +221,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 - **批量改动 / codemod**：需要跨大量文件的机械改动时**不直接动手**——走只出计划模式出 codemod 计划（转换脚本 + 抽样验证 + 全量执行 + diff 审查 + 回滚点），执行按任务 DAG 分批，每批跑 `verify.mjs run` + `baseline check`，任何一批红了立即停。
 - **模块边界**：架构漂移（新循环依赖、层级越界）先在 DECISIONS 立 ADR 记决策，重构单独立项走功能交付流程，不在维护小修里夹带。
 
-## T3 文档按需升级（docTier=3，v0.7）
-
-- 触发：L 级 / 合规 / 新项目，或用户明确要求；在 `steward.config.json` 设 `docTier: 3`。
-- 产物六件：PRD、FRD、契约（CONTRACT）、页面布局（PAGE-LAYOUT）、测试方案（TEST-PLAN）、部署工程化（DEPLOYMENT）——模板在插件 `scripts/templates/t3/`，按需复制填空；PRD/FRD 的验收条目最终收敛进 02-spec.md 的 AC，被 validate-plan 机检。
-- T3 是升级不是常态：每个 T3 文档都要能回答「它防的是什么漂移」，答不出就别建。
-
-## 文档流水线（完整版，docTier=3）
-
-
-**启用**：`steward.config.json` 设 `docTier: 3`，或 L 级 / 合规 / 新项目由你提升。docTier<3 **不建**深文档树，只维护 T0 `AGENTS.md` + T1 `docs/project/`。
-
-**索引**：`references/doc-pipeline/README.md`（相对本技能目录）是唯一入口；模板在 `references/doc-pipeline/templates/`，规范正文在同级 `*.md`。写 PRD/FRD/架构/契约/页面/测试/部署/治理文档前先读索引，不凭记忆写。
-
-**目录（docTier=3）**：
-- `docs/01-需求/` PRD + FRD；`docs/02-架构/` 架构总纲 + {X}工程化 + 可观测性 + 部署工程化；`docs/03-契约/` 数据模型 + API/错误码；`docs/04-专项/`；`docs/05-页面/` 页面设计 + 布局稿 + 详设；`docs/06-测试/` 测试方案 + 黄金集；`docs/07-治理/` ADR + 执行步骤 + 开发顺序 + 评审记录；`docs/README.md` 文档地图。
-- 约束正文：根/子目录 `AGENTS.md` + `.agents/rules/`；视觉 token：`.agents/designs/DESIGN.md`。
-- T1 `docs/project/` 仍是每轮必读薄记忆：ARCHITECTURE/DECISIONS/RUNBOOK 只放摘要 + 链接，正文进深文档，交叉引用不复制。
-
-**七阶段在 Steward 流程里的位置**：需求（PRD→FRD）在 Stage 0/1；架构/契约/页面在 Stage 1 冻结；实现/质量/部署/治理在 Stage 2–5 落档。每阶段出口按 `references/doc-pipeline/README.md` 的门禁清单独立通读、清点关键数字、用 `file:line` 证据，结论写 `docs/07-治理/评审记录-*.md`。
-
-**变更入口**：新需求 / 改口径 / 改范围先做影响面扫描（SSOT 地图 + 联动表）→ 需拍板项列给用户 → 拍板后按联动表同批落档；不拍板不动文档。
-
-**本地门禁（不做 CI）**：
-- `node <插件>/scripts/doc/doc-init.mjs <root> --tier 3 [--write]`：建七阶段树 + 索引骨架；幂等不覆盖。
-- `node <插件>/scripts/doc/doc-check.mjs <root>`：T1 / 索引 / 死链 / 未索引文件；exit 1 即失败。
-- `node <插件>/scripts/doc/guard-naming.mjs <root>`：代码产物禁波次/工单/批次编号；基线只减不增。
-三个脚本 exit code 非 0 一律如实上报。
-
-**与 T3 六件骨架的关系**：以 `references/doc-pipeline/templates/` 完整库为准；`scripts/templates/t3/` 六件保留给轻量场景，不重复维护正文。
-
-**DocTier 判定**：S/M 级不建深树；L 级且涉及契约/多端/合规/新项目才提升到 3。不要为了「完整」建空目录。
-
-**文档治理（文档越写越长/要快照/评审记录堆积时）**：加载 `steward:docs-governance` 技能——三类文档分治、体积预算与拆册、`history/` 版本快照（`doc-snapshot.mjs`）与 `docs-gate.mjs` G1–G11 门禁；交付收尾跑一次 `docs-gate check`（与 `doc-check` 并存不互替，两者都要绿）。
+> **文档规范已拆出**：文档入口是 `steward:docs-new`（新建项目）/ `steward:docs-takeover`（接手存量）/ `steward:docs-feature`（单个功能与需求变更），审查是 `steward:docs-review`；规范正文、SSOT 地图、联动表与模板索引在 `steward:docs-rules` 技能里。docTier=3 时未过 `scripts/docs-gov/docs-ready.mjs` 门禁，`backend-dev` / `frontend-dev` 的派发会被宿主守卫直接拒绝。
 
 ## Monorepo / 多服务（v0.7）
 

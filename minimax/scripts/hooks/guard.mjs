@@ -7,19 +7,22 @@
  * 两个宿主都是「exit 2 + stderr」语义（MiniMax PreToolUse：exit 2 即 deny，stderr 是给 Agent 看的理由），
  * 所以这里不写 stdout JSON：宿主对 stdout 走严格 JSON 校验，多余键会判失败。
  *
- * 用法（hooks.json 里按事件配三种模式）：
+ * 用法（hooks.json 里按事件配四种模式）：
  *   node guard.mjs ownership   # Edit/Write 的文件必须在 .steward/ownership.json 的白名单内（该文件由 Tech Lead 派发时生成）
  *   node guard.mjs dangerous   # Bash 命令命中危险模式（rm -rf /、force push、reset --hard、DROP TABLE 等）→ 阻止
  *   node guard.mjs secret      # Write/Edit 内容疑似密钥（sk-、ghp_、AKIA、PEM 私钥、.env 提交）→ 阻止
+ *   node guard.mjs docs        # Agent/Task 派发 backend-dev / frontend-dev 时校验文档就绪收据（docTier=3 项目）→ 未过则阻止
  *
  * 任何解析失败都 fail-open（exit 0），不阻塞正常工作；守卫只做加分项。
+ * docs 模式的判据与 scripts/docs-gov/lib/docs-state.mjs（scripts/docs-gov/docs-ready.mjs CLI 共用）同源；
+ * lib 经动态 import 加载，缺失或异常也 fail-open，不影响其余三种模式。
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 const mode = process.argv[2];
-if (!['ownership', 'dangerous', 'secret'].includes(mode)) {
-  console.error('[guard] 未知模式（ownership | dangerous | secret）'); process.exit(0); // fail-open
+if (!['ownership', 'dangerous', 'secret', 'docs'].includes(mode)) {
+  console.error('[guard] 未知模式（ownership | dangerous | secret | docs）'); process.exit(0); // fail-open
 }
 
 let raw = '';
@@ -97,4 +100,57 @@ if (mode === 'ownership') {
     block(`所有权守卫：${rel} 不在当前任务白名单（${allowed.join(', ')}）。需要扩权时报告 Tech Lead。`);
   }
   process.exit(0);
+}
+
+// --- docs ---
+// 文档就绪硬门（1.2.0 对齐 DSH 1.3.0）：docTier=3 的项目在派 backend-dev / frontend-dev 前
+// 必须持有有效收据（.steward/docs-state.json，由 scripts/docs-gov/docs-ready.mjs 签发）——缺失、机检不过、
+// 评审未 approved 或哈希与文档树不一致都直接拒绝；architect / pm / reviewer / qa-engineer /
+// browser-tester 不受限（要留人补文档与评审）。回滚 = 把 steward.config.json 的 docTier 改回 1/2。
+if (mode === 'docs') {
+  const roleRaw = String(input.subagent_type ?? input.agent_type ?? '').trim();
+  const role = roleRaw.replace(/^steward:/, '');
+  if (!['backend-dev', 'frontend-dev'].includes(role)) process.exit(0);
+  // 项目根：事件 cwd 优先，向上最多 6 层找 steward.config.json / .git（与宿主派发口径一致）
+  let current = resolve(typeof evt.cwd === 'string' && evt.cwd !== '' ? evt.cwd : process.cwd());
+  let root = current;
+  for (let depth = 0; depth < 6; depth += 1) {
+    if (existsSync(join(current, 'steward.config.json')) || existsSync(join(current, '.git'))) { root = current; break; }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  try {
+    const { checkReadiness, formatGaps, readState } = await import('../docs-gov/lib/docs-state.mjs');
+    let config = null;
+    try { config = JSON.parse(readFileSync(join(root, 'steward.config.json'), 'utf8')); } catch { /* 无配置 → 不启用门禁 */ }
+    if (config?.docTier !== 3) process.exit(0);
+
+    const read = readState(root);
+    if (read.state === null) {
+      block(
+        `文档就绪门禁拦截：${read.error ?? `缺 ${join(root, '.steward/docs-state.json')}`}。`
+        + `docTier=3 项目派 ${role} 前需要文档收据：跑 "node <插件>/scripts/docs-gov/docs-ready.mjs ${root} init --scope new|takeover|feature --write"，`
+        + '按 docs-new / docs-takeover / docs-feature 入口补文档，docs-review 审查后再 approve。architect / pm / reviewer / qa-engineer 不受限。',
+      );
+    }
+    const result = checkReadiness({ root, gate: 'dev' });
+    if (!result.ok) {
+      block(
+        `文档就绪门禁拦截（${result.errors.length} 处缺漏，根目录 ${root}）：${formatGaps(result.errors)}。`
+        + `修复后（入口技能：docs-new / docs-takeover / docs-feature）跑 docs-review 审查，再 `
+        + `"node <插件>/scripts/docs-gov/docs-ready.mjs ${root} approve --review <评审记录>"。${role} 在收据变绿前保持拦截。`,
+      );
+    }
+    if (read.state.ok !== true || read.state.review?.status !== 'approved') {
+      block(
+        `文档就绪门禁拦截：${join(root, '.steward/docs-state.json')} 没有已通过的收据`
+        + `（ok=${JSON.stringify(read.state.ok)}，review=${JSON.stringify(read.state.review?.status ?? 'none')}）。`
+        + '加载 steward:docs-review 技能审查后 approve；手改收据绕不过门禁（哈希会校验）。',
+      );
+    }
+    process.exit(0);
+  } catch {
+    process.exit(0); // lib 缺失 / 异常 → fail-open，不阻塞正常工作
+  }
 }

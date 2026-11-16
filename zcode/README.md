@@ -1,8 +1,8 @@
 # Steward · ZCode 插件
 
-角色化研发团队插件：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体；也可切换 inline 由 Tech Lead 自己执行低风险任务。当前版本（1.1.0）覆盖功能交付（subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，ZCode 侧含 docTier=3 完整文档流水线（七阶段树 + 全量模板 + 命名守卫/文档检查）、文档治理（`steward:docs-governance`）、项目全生命周期（`steward:project-lifecycle`）、M/L 需求澄清（第一性原理 + 提问预算）与 `steward:using-steward` 技能路由，并自带可信变更门禁、演进循环与单一正文源构建（门禁脚本单一源自 1.1.0 起在仓库 `shared/scripts/`）；演进细节见 [路线图](../docs/ROADMAP.md)。
+角色化研发团队插件：主对话代理担任 **Tech Lead**，把需求拆成任务 DAG，按「依赖 + 文件所有权」串行/并行派发子智能体；也可切换 inline 由 Tech Lead 自己执行低风险任务。当前版本（1.2.0）覆盖功能交付（subagent / inline 两种执行模式）、Bug 修复（B0–B3 分流）、只出计划、维护循环与接手存量，ZCode 侧含 docTier=3 完整文档流水线（七阶段树 + 全量模板 + 命名守卫/文档检查，1.2.0 起拆为 `steward:docs-new` / `steward:docs-takeover` / `steward:docs-feature` / `steward:docs-review` 四个入口 + `steward:docs-rules` 规范总库，并带文档就绪硬门：docTier=3 时未过 `scripts/docs-gov/docs-ready.mjs` 门禁不许派开发）、文档治理（`steward:docs-governance`）、项目全生命周期（`steward:project-lifecycle`）、M/L 需求澄清（第一性原理 + 提问预算）与 `steward:using-steward` 技能路由，并自带可信变更门禁、演进循环与单一正文源构建（门禁脚本单一源自 1.1.0 起在仓库 `shared/scripts/`）；演进细节见 [路线图](../docs/ROADMAP.md)。
 
-> A role-based engineering team plugin for ZCode. Release 1.1.0 covers feature delivery with subagent / inline execution modes, the B0–B3 bug track, plan-only mode, the maintenance loop, and takeover, with a full docTier=3 documentation pipeline, a lightweight first-principles clarification step (max 3 P0 questions), and a using-steward router skill on the ZCode side, trusted-change gates, single-source generation and the evolution loop built in.
+> A role-based engineering team plugin for ZCode. Release 1.2.0 covers feature delivery with subagent / inline execution modes, the B0–B3 bug track, plan-only mode, the maintenance loop, and takeover, with a full docTier=3 documentation pipeline split into four entry skills (docs-new / docs-takeover / docs-feature / docs-review) plus a docs-rules library and a hard readiness gate (docs-ready receipt + guard.mjs docs hook refusing implementer dispatches until the receipt is green), a lightweight first-principles clarification step (max 3 P0 questions), and a using-steward router skill on the ZCode side, trusted-change gates, single-source generation and the evolution loop built in.
 
 ## 团队名册（7 角色 + 外援）
 
@@ -28,6 +28,7 @@
 - **需求澄清（M/L 条件启用）**：第一性原理四问（问题/约束/备选/非目标+成功指标）+ 最多 3 个 P0 提问预算；S 级不追问；模板 `references/doc-pipeline/templates/01-REQUIREMENT.md`。
 - **技能路由（0.8.1，ZCode 侧）**：不知道用哪个入口/技能时加载 `steward:using-steward`；它只做路由，不替代主技能。
 - **文档流水线（docTier=3，ZCode 侧）**：`references/doc-pipeline/` 七阶段文档树全量模板（PRD/FRD/契约/页面/测试/部署）+ AGENTS/rules 约束层；`scripts/doc/` 提供 `doc-init` / `doc-check` / `guard-naming` 本地门禁（MiniMax 侧 1.6.0 同步）。
+- **文档入口与开发硬门（1.2.0 对齐 DSH 1.3.0）**：文档拆成四个入口技能——`steward:docs-new`（新建项目）/ `steward:docs-takeover`（接手存量）/ `steward:docs-feature`（单个功能与需求变更）/ `steward:docs-review`（独立评审 + 签发收据），写作规范、SSOT 地图、联动表与模板索引下沉为 `steward:docs-rules` 总库；`scripts/docs-gov/docs-ready.mjs`（init / check / approve / status）把「文档能不能支撑开发」做成机检收据（`.steward/docs-state.json`，哈希排除执行步骤/评审状态/评审记录，日常销项不触发重审）；`steward.config.json` 的 `docTier: 3` 时，PreToolUse 守卫 `guard.mjs docs` 校验收据与文档哈希，未过门禁直接拒绝派 `steward:backend-dev` / `steward:frontend-dev`（`architect` / `pm` / `reviewer` / `qa-engineer` 不受限；回滚 = 把 `docTier` 改回 1/2）。
 - **修复回派**：QA / 浏览器 / 评审发现的缺陷按归属回派原开发，循环上限 2 轮。
 
 ## 命令

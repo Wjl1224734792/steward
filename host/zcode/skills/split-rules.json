@@ -1,0 +1,9 @@
+{
+  "splits": [
+    {
+      "skill": "docs-rules",
+      "headings": ["## T3 文档按需升级（", "## 文档流水线（"],
+      "pointer": "> **文档规范已拆出**：文档入口是 `steward:docs-new`（新建项目）/ `steward:docs-takeover`（接手存量）/ `steward:docs-feature`（单个功能与需求变更），审查是 `steward:docs-review`；规范正文、SSOT 地图、联动表与模板索引在 `steward:docs-rules` 技能里。docTier=3 时未过 `scripts/docs-gov/docs-ready.mjs` 门禁，`backend-dev` / `frontend-dev` 的派发会被宿主守卫直接拒绝。"
+    }
+  ]
+}

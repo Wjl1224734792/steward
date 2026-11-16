@@ -337,10 +337,10 @@ const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-comple
 const HOST_ONLY_LIGHT_SKILLS = { zcode: ['project-lifecycle'], minimax: ['project-lifecycle'] };
 // 宿主全文技能：正文是 host/<host>/skills/<name>/SKILL.md（各宿主各自实现，语义对齐、措辞可异），
 // 只渲染进本宿主插件包。ZCode / MiniMax / DSH 的 docs-governance 是三份并列实现。
+// docs-new / docs-takeover / docs-feature / docs-review 是两侧的文档四入口（对齐 DSH 1.3.0）：
+// ZCode 1.2.0 正文在 host/zcode（技能 13 项），MiniMax 1.3.0 正文在 host/minimax（技能 15 项）。
 const HOST_ONLY_SKILLS = {
-  zcode: ['docs-governance'],
-  // MiniMax 侧对齐 DSH 1.3.0：文档拆四个入口（新建项目 / 接手存量 / 单个功能 / 审查）。
-  // 规范总库 docs-rules 由 split-rules 拆出，四个入口是宿主全文技能，正文在 host/minimax/skills/。
+  zcode: ['docs-governance', 'docs-new', 'docs-takeover', 'docs-feature', 'docs-review'],
   minimax: ['docs-governance', 'docs-new', 'docs-takeover', 'docs-feature', 'docs-review'],
 };
 // 宿主随包资源：shared 技能的 references/ assets/ 附属目录（只对声明的宿主生效）。
