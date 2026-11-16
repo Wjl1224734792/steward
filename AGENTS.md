@@ -13,6 +13,7 @@
 | `shared/scripts/` | 三宿主共享（门禁脚本单一源，v1.1.0 起） | 6 个门禁脚本（`maintain` / `run-state` / `take-over` / `validate-config` / `validate-plan` / `verify`）+ `templates/` + `doc/` 的**唯一正文源**；由构建器回写/同步进 `zcode/scripts/`、`minimax/scripts/`、`dsh/scripts/`——三处同名文件都是生成物，不手改。改动按跨宿主处理：构建 + 测试三宿主都要跑 |
 | `zcode/scripts/` | ZCode / MiniMax 专有工具 + 生成物 | 仅剩 4 个专有脚本（`build.mjs`、`agent-config.mjs`、`agent-config-core.mjs`、`trigger.mjs`，正文源，同步到 `minimax/scripts/`）与 `hooks/`、`docs-gov/`、`tests/`；六个门禁脚本与 `templates/`、`doc/` 已迁 `shared/scripts/`，此处同名文件是回写生成物，不手改。**DSH 自 v1.1.0 起不再读取本目录** |
 | `host/<宿主>/scripts/` | 宿主侧 | 宿主自有门禁脚本的正文源（如 `host/dsh/scripts/`、`host/minimax/scripts/`）；**不进** `shared/scripts/` 共享源，由各宿主构建器同步进自己的包（`minimax/scripts/` 等）。与 `shared/scripts/` 同名冲突会让构建器判失败 |
+| `host/<宿主>/hooks/` | 宿主侧 | 宿主钩子配置的正文源（如 `host/minimax/hooks/hooks.json`）；包内 `<宿主>/hooks/hooks.json` 是生成物，由构建器同步，**不手改**。宿主钩子脚本本身仍放 `host/<宿主>/scripts/hooks/`（随包落 `<宿主>/scripts/hooks/`） |
 
 ## 开发与测试
 

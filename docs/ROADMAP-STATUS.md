@@ -5,6 +5,32 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
+## MiniMax 1.3.0（对齐 DSH 1.3.0 的文档入口拆分 + 文档就绪硬门）— 2026-11-16
+
+> 用户指示「根据 dsh 的新功能更新，同步对齐 minimaxcode 这边然后升级」：DSH 1.3.0 把文档拆成四个入口 + 一个总库，并加了「文档未就绪不许派开发」的硬门。MiniMax 侧按**自己的机制**对齐——MiniMax 没有 DSH 的 `steward_dispatch` 工具（派发走通用 `task` 工具 + 子代理 frontmatter），所以硬门落在 `task` 的 `PreToolUse` 钩子上，判据与 CLI 共用同一套 `lib/docs-state.mjs`。DSH / ZCode 侧零改动。
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| MX1 | 文档四入口 + 规范总库（技能 11 → 15） | 已实现 | `host/minimax/skills/{docs-new,docs-takeover,docs-feature,docs-review}/SKILL.md` + `docs-rules/frontmatter.md`；主技能 split-rules 改名 `docs` → `docs-rules` 并换四入口指针；`minimax/.minimax-plugin/plugin.json` skills 11 → 15 项；构建器新增「MiniMax 技能数量应恰好 15 项」硬校验（抓改名后残留的旧目录） | 入口技能是宿主全文技能（正文在 `host/minimax/skills/`），总库由 split-rules 从共享正文拆出；旧生成物 `minimax/skills/docs/` 已删除 |
+| MX2 | 随包 `docs-ready.mjs` + `lib/docs-state.mjs` | 已实现 | `minimax/scripts/docs-ready.mjs`、`minimax/scripts/lib/docs-state.mjs` 与 `host/minimax/scripts/` 逐字节一致（测试断言）；init / check / approve / status 四命令，`--json` 机读 | 宿主自有脚本，不进 `shared/scripts/` 共享单源，不灌 ZCode / DSH 包 |
+| MX3 | 派发硬门（`task` 的 PreToolUse 钩子） | 已实现 | `host/minimax/scripts/hooks/docs-tier-gate.mjs`；`host/minimax/hooks/hooks.json` 注册 `task` matcher（钩子配置归宿主所有，构建器同步进包）；`node --test host/minimax/tests/docs-gate.test.mjs` 14 例全绿：非 task 放行 / docTier≠3 放行 / 缺收据拒绝 / 未签发拒绝 / 哈希过期拒绝 / 签发且一致放行 / 非开发角色不受限 / 裸角色名同样受门禁 / 事件解析失败 fail-open / 子目录仍能找到项目根 | 放行 exit 0 且 stdout 空、拒绝 exit 2 且理由写 stderr、任何异常 fail-open；拒因含缺漏码 + 修复命令 + 「docTier 改回 1/2」回滚提示 |
+| MX4 | 入口文案与路由对齐 | 已实现 | `host/minimax/skills/steward/{banner,entry-points,frontmatter}.md`、`skills/using-steward/SKILL.md`（新增宿主覆盖版）+ `routing-table.md`、`skills/docs-governance/SKILL.md` 均改为四入口口径；共享构建器支持宿主整体覆盖轻量技能（无覆盖文件的宿主输出逐字节不变） | ZCode 侧无覆盖文件，`zcode/skills/` 输出逐字节不变（已隔离校验） |
+| MX5 | 版本升 1.3.0 并安装 | 已实现 | `minimax/.minimax-plugin/plugin.json` version 1.1.0 → 1.3.0（与 DSH 1.3.0 同号）；`node zcode/scripts/agent-config.mjs install --apply` 镜像 122 个文件到 `%USERPROFILE%/.minimax/plugins/steward`；核验技能 15 项、旧 `skills/docs/` 已清除、`hooks/hooks.json` 含 `task` matcher | 改动在新会话生效 |
+| MX6 | 门禁复跑与隔离校验 | 已实现 | `node zcode/scripts/build.mjs --check` PASS；`node --test host/minimax/tests/` **22 pass / 0 fail**（改造前基线 6 pass / 1 fail）；`node --test zcode/scripts/tests/` **76 pass / 0 fail**；`git status --short shared/ host/dsh/ dsh/` 空、`git status --short zcode/` 仅 `zcode/scripts/build.mjs` | 唯一 warning：两宿主版本不一致（ZCode 1.1.0 / MiniMax 1.3.0）——ZCode 侧补发 1.3.0 是 ZCode 侧任务 |
+
+### DSH → MiniMax 能力映射（语义对齐、机制各自原生）
+
+| DSH 侧能力 | DSH 机制 | MiniMax 侧落法 | 状态 |
+|---|---|---|---|
+| 文档入口拆分（docs-new / takeover / feature / review + docs-rules） | `host/dsh/build.mjs` SPLIT_RULES + LIGHT_SKILLS | `host/minimax/skills/split-rules.json` + 宿主全文技能（共享构建器 `HOST_ONLY_SKILLS`） | 本次实施 |
+| 文档就绪机检与收据 | `host/dsh/scripts/docs-ready.mjs` + `lib/docs-state.mjs` | 同名脚本落 `host/minimax/scripts/` → 随包 | 本次实施 |
+| 派发硬门（`steward_dispatch` 内抛错） | DSH 原生工具 | `task` 的 `PreToolUse` 钩子（`scripts/hooks/docs-tier-gate.mjs`），判据共用同一 lib | 本次实施 |
+| 评审机读块与收据签发 | `docs-review` 技能 + `approve` | 同语义，措辞按 MiniMax 派发方式（`task` + `steward:reviewer`） | 本次实施 |
+
+### 已知偏差（归属他侧，非本轮引入）
+
+- **ZCode 侧版本未跟上**：DSH 1.3.0 单方面升版后，仓库「三宿主同号」约定已被打破（ZCode 仍 1.1.0）；MiniMax 侧测试原硬断言「ZCode 版本 == DSH 版本」长期为红。本次按宿主侧隔离把该断言改为「MiniMax 必须与 DSH 同号 + ZCode 版本合法且不领先列车」，**ZCode 侧补发 1.3.0 仍是待办**。
+
 ## DSH 1.2.0（看板迁到右侧栏 + 派发图）— 2026-11-13
 
 > 用户反馈：旧看板是左侧导航里的整页，且只有启用 Agent Teams 才有内容，「没出现我要的看板」；随后又指出任务卡片之间没有连线、「不喜欢这种样子」。1.2.0 因此做两件事：① 看板改为**每会话一份的右侧栏（right sidebar）面板**，由会话标题栏图标 / 引导页 / 首次 Steward 派发自动打开；② 依赖图重做为**派发图**（`Lead` 根节点 + 派发箭头 + 任务依赖连线，树干式布线、列宽自适应居中）。ZCode / MiniMax 零改动。

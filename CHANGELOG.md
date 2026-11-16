@@ -6,6 +6,42 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [MiniMax 1.3.0] - 2026-11-16
+
+> **MiniMax Code 侧对齐 DSH 1.3.0**：文档不再是「一个技能全走」——新建项目、接手存量、单个功能各一个入口技能，审查独立成入口，写作规范下沉为总库；新增 `scripts/docs-ready.mjs` 把「阶段产物齐不齐、有没有空壳 / 占位符 / 追溯断链、计划引用了没写的阶段」做成机检收据，并落成**派发硬门**：docTier=3 时派 `steward:backend-dev` / `steward:frontend-dev` 先校验收据，没过就拒绝派发。MiniMax 升 **1.3.0**（与 DSH 1.3.0 同号），ZCode 侧零改动。
+
+### Breaking
+
+- **技能 `docs` → `docs-rules`**：`steward:docs` 只保留规范正文、SSOT 地图、联动表与模板索引，不再作为入口；入口拆成 `steward:docs-new`（新建项目）/ `steward:docs-takeover`（接手存量）/ `steward:docs-feature`（单个功能与需求变更），审查独立为 `steward:docs-review`。技能 11 → **15**；主技能 `split-rules.json` 同步改名并换成四入口指针文案；旧生成物 `minimax/skills/docs/` 已删除。旧引用 `steward:docs` 一律改为按场景选入口。
+- **docTier=3 项目在文档未就绪时无法派开发**：`task` 派发时先读项目根 `steward.config.json` 的 `docTier`，为 3 则校验 `.steward/docs-state.json` 收据——文件缺失、`ok !== true`、评审未 approved、或收据哈希与当前文档树不一致，一律拒绝派发并在理由里给出缺漏码与修复命令。`steward:architect` / `steward:reviewer` / `steward:qa-engineer` / `steward:pm` / `steward:browser-tester` 不受限（要留人补文档与评审）。**回滚：把 `docTier` 改回 1/2 即关闭整套门禁，无需改代码**。
+
+### Added
+
+- **`scripts/docs-ready.mjs` + `scripts/lib/docs-state.mjs`**：`init`（按 scope 声明 required / na）/ `check`（阶段产物、缺件、空壳、占位符、`na` 无理由、FR↔FP 追溯、计划 `docsRead` 与 na 冲突、收据是否过期）/ `approve`（签发收据）/ `status`；`--json` 机读，退出码 0 / 1 / 2。
+- **文档就绪硬门 Hook `scripts/hooks/docs-tier-gate.mjs`**：挂在 `task` 上的 `PreToolUse` 钩子（`hooks/hooks.json` 新增 `task` matcher）。MiniMax 没有 DSH 的 `steward_dispatch` 工具，派发走通用 `task` 工具，所以硬门落在钩子上：**判据与 CLI 共用同一套 `lib/docs-state.mjs`**，不会出现「脚本绿、派发拒」。宿主契约：放行 exit 0 且 stdout 空、拒绝 exit 2 且理由写 stderr、任何异常 fail-open。`hooks/hooks.json` 归宿主所有，正文源移到 `host/minimax/hooks/hooks.json`，构建器同步进包（生成物禁手改）。
+- **四个文档入口技能**：`steward:docs-new` / `steward:docs-takeover` / `steward:docs-feature` / `steward:docs-review`，每个都写清触发语、步骤与产物、门禁命令、出口判据与禁止项；`docs-review` 用 `steward:reviewer` 全新实例独立评审，评审记录带 `<!-- docs-review:begin/end -->` 机读块。
+- **收据文件 `.steward/docs-state.json`**（schemaVersion 1）：`ok` + `docsHash` + `approvedAt` + 评审引用。哈希只覆盖口径类文档，`执行步骤.md` / `评审状态.md` / `评审记录/` 已排除，日常销项不会触发重审。
+
+### Changed
+
+- `host/minimax/skills/split-rules.json`：文档项改名 `docs-rules` + 四入口指针文案；`host/minimax/skills/docs-rules/frontmatter.md` 替代原 `docs/frontmatter.md`。
+- `host/minimax/skills/using-steward/SKILL.md`（新增宿主覆盖版）+ `skills/using-steward/routing-table.md`：路由表按四入口 + 总库重写；共享构建器支持宿主整体覆盖轻量技能（无覆盖文件的宿主输出逐字节不变，ZCode 侧不受影响）。
+- `host/minimax/skills/steward/{banner,entry-points,frontmatter}.md`、`host/minimax/skills/docs-governance/SKILL.md`：入口映射表按四入口重写，banner 版本行 1.1.0 → 1.3.0，`docs-governance` 改为与四入口分工。
+- `zcode/scripts/build.mjs`：注册 MiniMax 宿主全文技能（四个入口）、新增 `host/minimax/hooks/hooks.json` 同步链、MiniMax 技能数量硬校验（15 项，抓改名后残留的旧目录）、轻量技能支持宿主覆盖。
+- `minimax/.minimax-plugin/plugin.json`：version 1.1.0 → **1.3.0**，skills 清单 11 → 15 项。
+
+### Fixed
+
+- **三宿主同号断言从「硬失败」改为「可解释的校验」**：MiniMax 侧测试原先硬断言 ZCode 清单版本必须等于 DSH 版本；DSH 1.3.0 单方面升版后该断言长期为红，且违反宿主侧隔离（MiniMax 侧任务不得改 `zcode/`）。现在 MiniMax 侧硬断言「MiniMax == DSH」并校验 ZCode 版本合法且不领先当前发布列车；**ZCode 侧补发 1.3.0 仍是待办**（ZCode 侧任务）。
+
+### 验证
+
+- `node zcode/scripts/build.mjs` → PASS；`node zcode/scripts/build.mjs --check` → PASS（唯一告警：两宿主版本不一致，ZCode 1.1.0 / MiniMax 1.3.0——ZCode 侧待补发）。
+- `node --test host/minimax/tests/` → **22 pass / 0 fail**（新增硬门 14 例 + 随包产物契约 1 例；改造前基线为 6 pass / 1 fail）。
+- `node --test zcode/scripts/tests/` → **76 pass / 0 fail**（ZCode 侧零改动，输出逐字节不变）。
+- 隔离校验：`git status --short shared/ host/dsh/ dsh/` → 空；`git status --short zcode/` → 仅 `zcode/scripts/build.mjs`（双宿主共用构建器源码）。
+- 安装：`node zcode/scripts/agent-config.mjs install --apply` → 镜像 122 个文件到 `C:\Users\12247\.minimax\plugins\steward`；核验技能 15 项、旧 `skills/docs/` 已清除、`hooks/hooks.json` 含 `task` matcher、版本 1.3.0。改动在新会话生效。
+
 ## [DSH 1.3.0] - 2026-11-16
 
 > **文档入口拆分 + 开发硬门**：文档不再是「一个技能全走」。新建项目、接手存量、单个功能各有一个入口技能，审查单独成入口，写作规范与模板下沉为总库；`scripts/docs-ready.mjs` 把「阶段产物齐不齐、有没有空壳 / 占位符 / 追溯断链、计划引用了没写的阶段」做成机检收据，`steward_dispatch` 在 docTier=3 时校验收据与文档哈希，未过门禁直接拒绝派 `backend-dev` / `frontend-dev`。DSH 独立升 **1.3.0**，ZCode / MiniMax 侧零改动。

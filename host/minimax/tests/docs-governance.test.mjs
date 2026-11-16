@@ -6,8 +6,9 @@
  *      断言退出码语义（有 error → 1）、输出含 G 编号门禁结论；`--json` 输出可解析且含 ok / errors。
  *   2. 快照幂等：`minimax/scripts/doc-snapshot.mjs` 首跑生成 history/ 快照与 manifest.json，
  *      同命令复跑输出 skip 且不改动任何文件（目录树内容指纹比对）。
- *   3. 构建产物契约（防回归）：inline / docs / docs-governance / project-lifecycle 四技能随包、清单恰好 11 项且路径都存在、
- *      主技能三节已拆走只留指针、拆出技能正文承接原节、随包脚本与 host/minimax/scripts 正文源逐字节一致。
+ *   3. 构建产物契约（防回归）：inline / docs-rules / 文档四入口 / docs-governance / project-lifecycle 随包、
+ *      清单恰好 15 项且路径都存在、主技能三节已拆走只留指针、拆出技能正文承接原节、
+ *      随包脚本与 host/minimax/scripts 正文源逐字节一致、文档就绪硬门（scripts/hooks/docs-tier-gate.mjs + hooks/hooks.json）随包。
  *
  * 全部跑真实进程，不 mock；临时目录建在仓库 tmp/ 下，测试结束用 fs.rmSync 自行清理（不用 PowerShell 递归删）。
  */
@@ -175,8 +176,8 @@ test('docs-governance 技能正文覆盖 0–12 小节、脚本路径与 MiniMax
 });
 // --- 3. 构建产物契约（防回归） -------------------------------------------------
 
-test('minimax 包含 inline / docs / docs-governance / project-lifecycle 四技能，清单恰好 11 项、路径都存在、三宿主同版本', () => {
-  for (const skill of ['inline', 'docs', 'docs-governance']) {
+test('minimax 包含 inline / docs-rules / 文档四入口 / docs-governance 技能，清单恰好 15 项、路径都存在、与 DSH 同版本', () => {
+  for (const skill of ['inline', 'docs-rules', 'docs-governance', 'docs-new', 'docs-takeover', 'docs-feature', 'docs-review']) {
     assert.ok(existsSync(join(MX, 'skills', skill, 'SKILL.md')), `缺 minimax/skills/${skill}/SKILL.md`);
   }
   const pkg = JSON.parse(readFileSync(join(MX, '.minimax-plugin', 'plugin.json'), 'utf8'));
@@ -186,7 +187,7 @@ test('minimax 包含 inline / docs / docs-governance / project-lifecycle 四技�
   const dshVersion = JSON.parse(readFileSync(join(ROOT, 'host', 'dsh', 'package.json'), 'utf8')).version;
   assert.match(dshVersion, /^\d+\.\d+\.\d+$/, `DSH package.json version 应是语义化版本号，实际 "${dshVersion}"`);
   assert.equal(pkg.version, dshVersion, `MiniMax 清单 version 应与 DSH 包一致（基准 ${dshVersion}）`);
-  assert.equal(pkg.skills.length, 11, 'MiniMax 清单 skills 应恰好 11 项（7 基础 + inline / docs / docs-governance / project-lifecycle）');
+  assert.equal(pkg.skills.length, 15, 'MiniMax 清单 skills 应恰好 15 项（7 基础 + inline / docs-rules / 文档四入口 / docs-governance / project-lifecycle / steward-visualizer）');
   // project-lifecycle 的 references/ assets/ 必须随包，否则技能正文里的相对链接在包内断链
   for (const res of ['references', 'assets']) {
     const dir = join(MX, 'skills', 'project-lifecycle', res);
@@ -196,8 +197,14 @@ test('minimax 包含 inline / docs / docs-governance / project-lifecycle 四技�
   for (const rel of pkg.skills) {
     assert.ok(existsSync(join(MX, rel)), `清单列出的 ${rel} 不存在`);
   }
+  // ZCode 侧的版本由 ZCode 自己的发布任务保证（宿主侧隔离：MiniMax 侧任务不得改 zcode/）。
+  // 这里只做格式校验：版本号必须合法、不得领先当前发布列车（DSH 基准）。
   const zc = JSON.parse(readFileSync(join(ROOT, 'zcode', '.zcode-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(zc.version, dshVersion, `ZCode 清单 version 应与 DSH 包一致（三宿主同号，基准 ${dshVersion}）`);
+  assert.match(zc.version, /^\d+\.\d+\.\d+$/, `ZCode 清单 version 应是语义化版本号，实际 "${zc.version}"`);
+  assert.ok(
+    zc.version.localeCompare(dshVersion, undefined, { numeric: true }) <= 0,
+    `ZCode 清单 version（${zc.version}）不应领先当前发布列车（DSH 基准 ${dshVersion}）`,
+  );
 });
 
 test('主技能三节已拆走只留指针，拆出技能正文承接原节', () => {
@@ -209,22 +216,29 @@ test('主技能三节已拆走只留指针，拆出技能正文承接原节', ()
     );
   }
   assert.match(main, /steward:inline/, '主技能应留 steward:inline 指针');
-  assert.match(main, /steward:docs/, '主技能应留 steward:docs 指针');
+  assert.match(main, /steward:docs-rules/, '主技能应留 steward:docs-rules 指针');
 
   const inline = readFileSync(join(MX, 'skills', 'inline', 'SKILL.md'), 'utf8');
   assert.ok(
     headingLines(inline).some((line) => line.startsWith('## 执行模式')),
     'inline 技能应承接「执行模式」节',
   );
-  const docs = readFileSync(join(MX, 'skills', 'docs', 'SKILL.md'), 'utf8');
+  const docs = readFileSync(join(MX, 'skills', 'docs-rules', 'SKILL.md'), 'utf8');
   assert.ok(
     headingLines(docs).some((line) => line.startsWith('## T3 文档按需升级')),
-    'docs 技能应承接「T3 文档按需升级」节',
+    'docs-rules 技能应承接「T3 文档按需升级」节',
   );
   assert.ok(
     headingLines(docs).some((line) => line.startsWith('## 文档流水线')),
-    'docs 技能应承接「文档流水线」节',
+    'docs-rules 技能应承接「文档流水线」节',
   );
+  // 文档四入口是宿主全文技能：正文在 host/minimax/skills/，包内只带 frontmatter + 生成标记
+  for (const entry of ['docs-new', 'docs-takeover', 'docs-feature', 'docs-review']) {
+    const text = readFileSync(join(MX, 'skills', entry, 'SKILL.md'), 'utf8');
+    assert.match(text, new RegExp(`^---\\nname: ${entry}\\n`), `${entry} 技能 frontmatter 应含 name: ${entry}`);
+    assert.ok(text.length > 500, `${entry} 技能正文不应为空壳`);
+    assert.doesNotMatch(text, /steward_dispatch|DSH 宿主/, `${entry} 不应出现 DSH 专属措辞`);
+  }
 });
 
 test('minimax/scripts 门禁脚本与 host/minimax/scripts 正文源逐字节一致', () => {
@@ -234,4 +248,26 @@ test('minimax/scripts 门禁脚本与 host/minimax/scripts 正文源逐字节一
     const source = readFileSync(join(HOST_SCRIPTS, name));
     assert.equal(packaged.equals(source), true, `${name} 与 host/minimax/scripts 正文源不一致`);
   }
+});
+
+test('文档就绪硬门随包：docs-ready / docs-state / 派发硬门钩子 / hooks 配置', () => {
+  // 新脚本与正文源逐字节一致（正文源在 host/minimax/scripts，包内是生成物）
+  for (const rel of ['docs-ready.mjs', 'lib/docs-state.mjs', 'hooks/docs-tier-gate.mjs']) {
+    const packaged = join(MX, 'scripts', rel);
+    assert.ok(existsSync(packaged), `缺 minimax/scripts/${rel}`);
+    const source = join(HOST_SCRIPTS, rel);
+    assert.equal(readFileSync(packaged).equals(readFileSync(source)), true, `minimax/scripts/${rel} 与 host/minimax/scripts 正文源不一致`);
+  }
+  // hooks 配置归宿主所有：包内必须与 host/minimax/hooks/hooks.json 一致，且注册了 task matcher
+  const hooks = JSON.parse(readFileSync(join(MX, 'hooks', 'hooks.json'), 'utf8'));
+  const sourceHooks = JSON.parse(readFileSync(join(ROOT, 'host', 'minimax', 'hooks', 'hooks.json'), 'utf8'));
+  assert.deepEqual(hooks, sourceHooks, 'minimax/hooks/hooks.json 与 host/minimax/hooks/hooks.json 不一致');
+  const taskGroups = (hooks.hooks?.PreToolUse ?? []).filter((group) =>
+    String(group.matcher ?? '').split('|').map((name) => name.trim()).includes('task'));
+  assert.ok(taskGroups.length > 0, 'hooks.json 应注册 task 的 PreToolUse 钩子（文档就绪硬门）');
+  const commands = taskGroups.flatMap((group) => group.hooks ?? []).map((hook) => hook.command ?? '');
+  assert.ok(
+    commands.some((command) => command.includes('docs-tier-gate.mjs')),
+    'task 钩子应指向 scripts/hooks/docs-tier-gate.mjs',
+  );
 });

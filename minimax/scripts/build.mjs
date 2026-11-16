@@ -231,6 +231,20 @@ for (const [host, pkgDir] of [['zcode', zc], ['minimax', mx]]) {
   }
 }
 
+// --- 1.3 MiniMax 宿主钩子配置：host/minimax/hooks/hooks.json → minimax/hooks/hooks.json ---
+// 钩子配置是宿主契约（事件名 + matcher + 命令），归宿主所有；正文源放在 host/minimax/hooks/，
+// minimax/hooks/hooks.json 是生成物，禁手改。
+{
+  const src = join(hostsRoot, 'minimax', 'hooks', 'hooks.json');
+  const dst = join(mx, 'hooks', 'hooks.json');
+  if (!existsSync(src)) {
+    errors.push('[hooks] 缺源文件 host/minimax/hooks/hooks.json（MiniMax 宿主钩子配置的唯一正文源）');
+  } else if (!existsSync(dst) || !sameContent(readFileSync(src, 'utf8'), readFileSync(dst, 'utf8'))) {
+    if (checkOnly) errors.push('[hooks] minimax/hooks/hooks.json 与 host/minimax/hooks/hooks.json 不一致（跑 node zcode/scripts/build.mjs 同步）');
+    else { mkdirSync(dirname(dst), { recursive: true }); copyFileSync(src, dst); synced.push('minimax/hooks/hooks.json'); }
+  }
+}
+
 // --- 2. 渲染引擎：shared/ + host/<host>/ → 技能与 agent 两版 ---
 const bannerOf = (host) => `<!-- 由 zcode/scripts/build.mjs 从 shared/ + host/${host}/ 生成，请勿手改；改源后重跑 build.mjs。 -->`;
 
@@ -323,7 +337,12 @@ const LIGHT_SKILLS = ['systematic-debugging', 'tdd', 'verification-before-comple
 const HOST_ONLY_LIGHT_SKILLS = { zcode: ['project-lifecycle'], minimax: ['project-lifecycle'] };
 // 宿主全文技能：正文是 host/<host>/skills/<name>/SKILL.md（各宿主各自实现，语义对齐、措辞可异），
 // 只渲染进本宿主插件包。ZCode / MiniMax / DSH 的 docs-governance 是三份并列实现。
-const HOST_ONLY_SKILLS = { zcode: ['docs-governance'], minimax: ['docs-governance'] };
+const HOST_ONLY_SKILLS = {
+  zcode: ['docs-governance'],
+  // MiniMax 侧对齐 DSH 1.3.0：文档拆四个入口（新建项目 / 接手存量 / 单个功能 / 审查）。
+  // 规范总库 docs-rules 由 split-rules 拆出，四个入口是宿主全文技能，正文在 host/minimax/skills/。
+  minimax: ['docs-governance', 'docs-new', 'docs-takeover', 'docs-feature', 'docs-review'],
+};
 // 宿主随包资源：shared 技能的 references/ assets/ 附属目录（只对声明的宿主生效）。
 // 两宿主都随包带全，避免技能正文里的相对链接在包内断链（ZCode 侧 1.0.0 曾只随包 SKILL.md）。
 const HOST_SKILL_RESOURCES = {
@@ -387,7 +406,10 @@ for (const host of ['zcode', 'minimax']) {
 
   const lightSkills = [...LIGHT_SKILLS, ...(HOST_ONLY_LIGHT_SKILLS[host] ?? [])];
   for (const s of lightSkills) {
-    const src = readText(join(root, 'shared/skills', s, 'SKILL.md'));
+    // 宿主可整体覆盖某个轻量技能（正文与入口是宿主事实，不适合槽位拼接）；否则用 shared 正文。
+    // 没有覆盖文件的宿主行为与旧版逐字节相同（ZCode 侧无覆盖文件）。
+    const override = readText(join(hostDir, 'skills', s, 'SKILL.md'));
+    const src = override ?? readText(join(root, 'shared/skills', s, 'SKILL.md'));
     if (src === null) { errors.push(`[render] 缺 shared/skills/${s}/SKILL.md`); continue; }
     targets.push({ out: join(pluginDir, 'skills', s, 'SKILL.md'), text: withBanner(renderSlots(src, host, `skills/${s} (${host})`), host) });
   }
@@ -449,6 +471,19 @@ if (zm && mm) {
   // 版本：两宿主同号发布，直接比较清单 version 字段
   if (zm.version !== mm.version) {
     warnings.push(`[manifest] 两宿主版本不一致：ZCode ${zm.version} / MiniMax ${mm.version}（期望一致）`);
+  }
+}
+
+// MiniMax 技能清单数量：技能改名后没删掉的旧目录（如 docs/ 残留）会让宿主加载到过期技能，
+// 宿主侧看不出问题、只会「多一个没人用的技能」。数量对不上直接判失败。
+{
+  const MX_SKILL_COUNT = 15; // 主技能 + inline + docs-rules + docs-governance + 文档四入口 + 六个通用轻量技能 + steward-visualizer
+  const dirs = readdirSync(join(mx, 'skills')).filter((d) => existsSync(join(mx, 'skills', d, 'SKILL.md')));
+  if (dirs.length !== MX_SKILL_COUNT) {
+    errors.push(
+      `[manifest] minimax 技能清单应有 ${MX_SKILL_COUNT} 项，实际 ${dirs.length} 项（${dirs.join('、')}）；`
+      + '多出来的多半是改名后没删掉的旧目录（minimax/skills/<旧名>/）',
+    );
   }
 }
 

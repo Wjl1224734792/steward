@@ -8,7 +8,7 @@ description: Steward 文档治理（MiniMax，docTier=3 增量层）。当项目
 # Steward · 文档治理（MiniMax）
 
 > **什么时候加载**：用户说「文档太长了」「评审堆在 07-治理」「需求文档要留版本」时加载 `steward:docs-governance` 技能。MiniMax 宿主没有斜杠命令，入口是自然语言；不确定该走哪个入口时先加载 `steward:using-steward` 做路由，再回到本技能。
-> **与主技能文档流水线的分工**：主技能的 docTier=3 流水线管七阶段树怎么**建树**（PRD / FRD / 架构 / 契约 / 页面 / 测试 / 治理，模板与索引见 `skills/steward/references/doc-pipeline/README.md`）；本技能管树建起来之后**怎么别长成屎山**——拆分、归档、版本、读契约、门禁。两者叠加使用，本技能是增量层，不替换主技能流水线。
+> **与文档入口的分工**：`steward:docs-new` / `steward:docs-takeover` / `steward:docs-feature` 管七阶段文档怎么**建与补**（PRD / FRD / 架构 / 契约 / 页面 / 测试 / 治理，写作规范与模板索引在 `steward:docs-rules`），`steward:docs-review` 管独立评审与收据；本技能管树建起来之后**怎么别长成屎山**——拆分、归档、版本、读契约、门禁。两者叠加使用，本技能是增量层，不替换入口技能。
 > **宿主边界**：本技能正文是 MiniMax 侧实现，与 DSH 侧**语义对齐、措辞可异**；ZCode 侧与通用 harness 技能各自单独实现。不要为了「统一」去改 `shared/`、`zcode/`、`host/zcode/`、`host/dsh/`——MiniMax 侧构建器只读引用它们。
 > **不动七阶段编号**：本技能不给文档树加第八个阶段目录，只给 `07-治理/` 加内部分层、给各基线域加 `history/` 快照区。
 
@@ -258,7 +258,7 @@ node <插件>/scripts/docs-gate.mjs . check
 
 ## 12. 项目侧落地清单
 
-**新项目**：`docs-gate <root> init` → 补 `steward.config.json` 的 `docsGovernance` → 按主技能 docTier=3 流水线建七阶段树 → 每份文档加 frontmatter → `docs-gate check` 绿 → 进实现。
+**新项目**：`docs-gate <root> init` → 补 `steward.config.json` 的 `docsGovernance` → 按 `steward:docs-new` 入口建七阶段树（`docs-ready.mjs init --scope new --write`，写作规范见 `steward:docs-rules`）→ 每份文档加 frontmatter → `docs-gate check` 绿 → 进实现。
 
 **接手存量**：先按接手 SOP 盘点映射 → 存量记基线（`--baseline-write`）→ 07 分层改造（`init` + 移文件）→ `fix` 重建索引 → `docs-gate check` 绿（允许基线内超限）→ 逐批 burn-down。
 
