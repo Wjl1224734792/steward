@@ -1315,14 +1315,22 @@ test('the panel draws one agent card per dispatch on a DAG canvas', async () => 
     assert.equal(panelText.indexOf(subject) < 0, true, `task text must not leak into the panel: ${subject}`);
   }
 
-  // 4) Clicking a node opens its child session; the chevron opens the facts.
+  // 4) Clicking a node opens its child session; the detail chip opens the facts on the card.
   runMain.props.onClick();
   assert.deepEqual(opened[0], ['child-run', 'one-shot'], 'a node opens its child session');
   const runBox = boxOf('T1 导出接口');
-  harness.collect([runBox], harness.byClass('stwd-gnode-more'))[0].props.onClick();
+  const more = harness.collect([runBox], harness.byClass('stwd-gnode-more'))[0];
+  assert.ok(more, 'the card has a detail control');
+  assert.equal(harness.textOf(more), '详情', 'the detail control is a labeled button');
+  assert.equal(more.props['aria-expanded'], 'false');
+  more.props.onClick();
   host = await harness.settle(render);
-  const detail = harness.collect(host, harness.byClass('stwd-gdetail'))[0];
-  assert.ok(detail, 'the detail block appears');
+  const openBox = boxOf('T1 导出接口');
+  const detail = harness.collect([openBox], harness.byClass('stwd-gdetail'))[0];
+  assert.ok(detail, 'the detail block appears on the card');
+  assert.equal(harness.collect(host, harness.byClass('stwd-gdetail')).length, 1, 'details are not duplicated below the graph');
+  const moreOn = harness.collect([openBox], harness.byClass('stwd-gnode-more'))[0];
+  assert.equal(moreOn.props['aria-expanded'], 'true', 'the open detail chip is marked expanded');
   const detailText = harness.textOf(detail);
   assert.match(detailText, /deepseek-v4\.1/, 'the detail names the model');
   assert.match(detailText, /deepseek/, 'the detail names the provider');
@@ -1582,6 +1590,78 @@ function isolatedStorage() {
   return { store, storage };
 }
 
+/**
+ * Hide-pending is an independent all-view toggle: it hides not-started cards
+ * without moving the ones that remain, and the choice survives a remount.
+ */
+test('hide-pending hides pending cards without reflow and persists across remounts', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const { store, storage } = isolatedStorage();
+  const previousWindow = globalThis.window;
+  globalThis.window = { localStorage: storage };
+  try {
+    const props = {
+      now: () => 1700000000000,
+      loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+      useProjection: (key) => (key === 'subagentCatalog' ? [
+        { id: 'child-pend', mode: 'one-shot', label: 'pm · 待开始规格', createdAt: 1 },
+        { id: 'child-run', mode: 'one-shot', label: 'backend-dev · 写接口', createdAt: 2 },
+      ] : undefined),
+      useSessions: (selector) => selector({
+        byId: {},
+        projectionsBySession: {},
+      }),
+      useSessionStatus: (selector) => selector(new Map([
+        ['child-pend', { running: false }],
+        ['child-run', { running: true }],
+      ])),
+      openSession: () => {},
+      openFile: () => {},
+    };
+    const render = () => panelRender(registered, 'session-hide-pending', props);
+    let host = await harness.settle(render());
+    assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 2, 'pending and running cards both start visible');
+    const kept = harness.collect(host, harness.byClass('stwd-gnode'))
+      .find((node) => harness.textOf(node).indexOf('写接口') >= 0);
+    assert.ok(kept, 'the running card is on the board');
+    const keptLeft = pxOf(kept, 'left');
+    const keptTop = pxOf(kept, 'top');
+    const hide = harness.collect(host, harness.byClass('stwd-filter'))
+      .find((node) => harness.textOf(node).indexOf('隐藏待开始') >= 0);
+    assert.ok(hide, 'the hide-pending toggle is present');
+    assert.equal(hide.props.disabled, false, 'the toggle is available in the all view');
+    hide.props.onClick();
+    host = await harness.settle(render());
+    const cards = harness.collect(host, harness.byClass('stwd-gnode'));
+    assert.equal(cards.length, 1, 'the pending card is hidden');
+    assert.ok(harness.textOf(cards[0]).indexOf('写接口') >= 0, 'the running card remains');
+    assert.ok(harness.textOf(host[0]).indexOf('待开始规格') < 0, 'the pending task is gone from the board');
+    assert.equal(pxOf(cards[0], 'left'), keptLeft, 'hiding a pending card does not move the ones that remain');
+    assert.equal(pxOf(cards[0], 'top'), keptTop);
+    assert.ok(harness.collect(host, harness.byClass('stwd-leadnode')).length === 1, 'the Lead stays visible');
+    const stored = JSON.parse(store.get('dsh-steward.panel.filters'));
+    assert.equal(stored.view, 'all', 'the all view is persisted');
+    assert.equal(stored.hidePending, true, 'the hide-pending toggle is persisted');
+    assert.ok(harness.collect(host, harness.byClass('stwd-filter-on')).map(harness.textOf).includes('隐藏待开始'), 'the active toggle is marked');
+
+    harness.reset();
+    host = await harness.settle(render());
+    assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 1, 'the stored hide-pending filter applies on mount');
+    const remounted = harness.collect(host, harness.byClass('stwd-gnode'))[0];
+    assert.equal(pxOf(remounted, 'left'), keptLeft, 'remaining cards keep their place after remount');
+    assert.equal(pxOf(remounted, 'top'), keptTop);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+});
+
+
 function pxOf(node, key) {
   return Number(String(node.props.style[key]).replace('px', ''));
 }
@@ -1783,18 +1863,31 @@ test('the canvas remembers its zoom across remounts for the same session', async
       openFile: () => {},
     };
     const stageOf = (tree) => harness.collect(tree, harness.byClass('stwd-graph-stage'))[0];
+    const viewOf = (tree) => harness.collect(tree, harness.byClass('stwd-graph-view'))[0];
     let host = await harness.settle(panelRender(registered, 'session-zoom-a', props));
     toolByLabel(harness, host, '放大').props.onClick();
     host = await harness.settle(panelRender(registered, 'session-zoom-a', props));
+    const view = viewOf(host);
+    view.props.onPointerDown({ button: 0, clientX: 120, clientY: 120, pointerId: 1, target: null, currentTarget: null });
+    view.props.onPointerMove({ clientX: 40, clientY: 60, pointerId: 1, target: null, currentTarget: null });
+    view.props.onPointerUp({ pointerId: 1, target: null, currentTarget: null });
+    host = await harness.settle(panelRender(registered, 'session-zoom-a', props));
+    const savedTransform = String(stageOf(host).props.style.transform);
     assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '112%');
-    assert.match(String(stageOf(host).props.style.transform), /scale\(1\.12\)/);
+    assert.match(savedTransform, /scale\(1\.12\)/);
+    assert.match(savedTransform, /translate\(/);
     const stored = JSON.parse(store.get('dsh-steward.panel.camera'));
     assert.equal(stored['session-zoom-a'].zoom, 1.12, 'zoom is written per session');
+
+    toolByLabel(harness, host, '鱼骨').props.onClick();
+    host = await harness.settle(panelRender(registered, 'session-zoom-a', props));
+    assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '112%', 'tidying does not change zoom');
+    assert.equal(String(stageOf(host).props.style.transform), savedTransform, 'tidying keeps the same camera position');
 
     harness.reset();
     host = await harness.settle(panelRender(registered, 'session-zoom-a', props));
     assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '112%', 'the same session remounts at 112%');
-    assert.match(String(stageOf(host).props.style.transform), /scale\(1\.12\)/);
+    assert.equal(String(stageOf(host).props.style.transform), savedTransform, 'remount restores zoom and pan');
 
     harness.reset();
     host = await harness.settle(panelRender(registered, 'session-zoom-b', props));
@@ -1804,6 +1897,41 @@ test('the canvas remembers its zoom across remounts for the same session', async
     if (previousWindow === undefined) delete globalThis.window;
     else globalThis.window = previousWindow;
   }
+});
+
+test('the graph viewport stays short enough to reach artifacts below', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const catalog = [];
+  const roles = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'reviewer'];
+  for (let index = 0; index < 24; index += 1) {
+    catalog.push({
+      id: 'child-tall-' + index,
+      mode: 'one-shot',
+      label: roles[index % roles.length] + ' · 任务' + (index + 1),
+      createdAt: index + 1,
+    });
+  }
+  const host = await harness.settle(panelRender(registered, 'session-viewport', {
+    now: () => 1700000000000,
+    loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+    useProjection: (key) => (key === 'subagentCatalog' ? catalog : undefined),
+    useSessions: (selector) => selector({ byId: {}, projectionsBySession: {} }),
+    useSessionStatus: (selector) => selector(new Map()),
+    openSession: () => {},
+    openFile: () => {},
+  }));
+  const view = harness.collect(host, harness.byClass('stwd-graph-view'))[0];
+  const height = Number(String(view.props.style.height).replace('px', ''));
+  assert.ok(height <= 400, 'the graph window is capped so the panel can still scroll to artifacts');
+  assert.ok(height >= 220, 'the graph window still has a usable height');
+  const stageHeight = Number(String(harness.collect(host, harness.byClass('stwd-graph-stage'))[0].props.style.height).replace('px', ''));
+  assert.ok(stageHeight > height, 'the graph content can be taller than the window and panned inside it');
+  assert.equal(harness.collect(host, harness.byClass('stwd-artifacts')).length, 1, 'artifacts stay below the graph');
 });
 
 /**
@@ -2312,3 +2440,175 @@ test('the panel stylesheet stays scoped and uses only host theme tokens', async 
   }
 });
 
+
+/**
+ * Layout helpers the board exposes for unit tests.
+ * @param {Function} factory the loaded client factory.
+ * @returns {object} resolveDagPositions, dagLayout and size constants.
+ */
+function clientLayoutApi(factory) {
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  assert.ok(instance.__test, 'the client exports layout helpers for tests');
+  return instance.__test;
+}
+
+/**
+ * A card without a saved position sits next to the actual Lead, even when the
+ * Lead (and other cards) were dragged far from the virgin default cluster.
+ * Saved coordinates stay put; leftover non-finite values are ignored.
+ */
+test('a new agent without a saved position is placed near the actual Lead', async () => {
+  const { factory } = await loadClientFactory();
+  const t = clientLayoutApi(factory);
+  const leadId = t.LEAD_NODE_ID;
+  const rows = [
+    { id: 'child-old', state: 'running', role: 'pm' },
+    { id: 'child-new', state: 'pending', role: 'backend-dev' },
+  ];
+  const oldSlot = { x: 800 + t.NODE_W + t.NODE_GAP_Y, y: 600 };
+  const positions = t.resolveDagPositions(rows, 'map', {
+    [leadId]: { x: 800, y: 600 },
+    'child-old': oldSlot,
+    leftover: { x: Number.POSITIVE_INFINITY, y: 12 },
+  });
+  assert.equal(positions[leadId].x, 800, 'the dragged Lead stays where it is');
+  assert.equal(positions[leadId].y, 600);
+  assert.deepEqual(positions['child-old'], oldSlot, 'existing overrides must not move');
+  const placed = positions['child-new'];
+  assert.ok(placed, 'the new agent receives a position');
+  assert.ok(Number.isFinite(placed.x) && Number.isFinite(placed.y), 'the new position is finite');
+  const dist = Math.hypot(placed.x - 800, placed.y - 600);
+  const cluster = t.NODE_W + t.NODE_GAP_Y;
+  assert.ok(dist > 40, 'the new card is not stacked on the Lead');
+  assert.ok(dist <= cluster + t.NODE_H + t.NODE_GAP_Y, `the new card stays in the Lead cluster, dist=${dist}`);
+  assert.ok(placed.x > 400 && placed.y > 200, 'the new card is not left at the virgin origin cluster');
+
+  const keptFar = t.resolveDagPositions(rows, 'map', {
+    [leadId]: { x: 800, y: 600 },
+    'child-old': { x: 5000, y: 4000 },
+  });
+  assert.deepEqual(keptFar['child-old'], { x: 5000, y: 4000 }, 'a far saved position is not teleported');
+  const recovered = t.resolveDagPositions(rows, 'map', {
+    [leadId]: { x: 800, y: 600 },
+    'child-new': { x: 'nope', y: 1 },
+  });
+  const recoveredDist = Math.hypot(recovered['child-new'].x - 800, recovered['child-new'].y - 600);
+  assert.ok(Number.isFinite(recovered['child-new'].x), 'non-finite leftovers are ignored');
+  assert.ok(recoveredDist <= cluster + t.NODE_H + t.NODE_GAP_Y, 'a broken override is placed near the Lead');
+});
+
+/**
+ * First generation (no overrides) stays in one tight map around the Lead. When
+ * only the Lead has been moved, the same compact arrangement translates to it.
+ */
+test('initial generation stays in a compact cluster around the actual Lead', async () => {
+  const { factory } = await loadClientFactory();
+  const t = clientLayoutApi(factory);
+  const leadId = t.LEAD_NODE_ID;
+  const roles = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'browser-tester', 'reviewer'];
+  const rows = roles.map((role, index) => ({ id: 'child-' + role, state: 'pending', role, createdAt: index + 1 }));
+  const fresh = t.resolveDagPositions(rows, 'map', {});
+  const ids = [leadId].concat(rows.map((row) => row.id));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const id of ids) {
+    const pos = fresh[id];
+    assert.ok(pos && Number.isFinite(pos.x) && Number.isFinite(pos.y), id + ' has a finite position');
+    minX = Math.min(minX, pos.x);
+    minY = Math.min(minY, pos.y);
+    maxX = Math.max(maxX, pos.x + t.NODE_W);
+    maxY = Math.max(maxY, pos.y + t.NODE_H);
+  }
+  const bboxW = maxX - minX;
+  const bboxH = maxY - minY;
+  assert.ok(bboxW < 1600 && bboxH < 1600, `the default map is compact, bbox=${bboxW}x${bboxH}`);
+  assert.ok(maxX < 2000 && maxY < 2000 && minX > -200 && minY > -200, 'no card is thousands of px away');
+
+  const moved = t.resolveDagPositions(rows, 'map', { [leadId]: { x: 800, y: 600 } });
+  assert.equal(moved[leadId].x, 800);
+  assert.equal(moved[leadId].y, 600);
+  for (const row of rows) {
+    assert.equal(moved[row.id].x - moved[leadId].x, fresh[row.id].x - fresh[leadId].x, row.id + ' keeps its map offset from Lead');
+    assert.equal(moved[row.id].y - moved[leadId].y, fresh[row.id].y - fresh[leadId].y, row.id + ' keeps its map offset from Lead');
+  }
+});
+
+/**
+ * Geometry ignores duration, token and description changes, so a 1s tick can
+ * refresh labels without moving any card.
+ */
+test('a duration-only update does not change layout positions', async () => {
+  const { factory } = await loadClientFactory();
+  const t = clientLayoutApi(factory);
+  const first = [{ id: 'child-run', state: 'running', role: 'backend-dev', elapsedMs: 1000, tokens: { total: 10 }, description: 'first' }];
+  const later = [{ id: 'child-run', state: 'running', role: 'backend-dev', elapsedMs: 5000, tokens: { total: 88 }, description: 'later' }];
+  assert.equal(t.layoutRowsSignature(first), t.layoutRowsSignature(later), 'elapsed and tokens are not part of the layout signature');
+  const a = t.dagLayout({ rows: first, positions: {}, layout: 'map' });
+  const b = t.dagLayout({ rows: later, positions: {}, layout: 'map' });
+  assert.equal(a.lead.x, b.lead.x);
+  assert.equal(a.lead.y, b.lead.y);
+  assert.equal(a.nodes[0].x, b.nodes[0].x);
+  assert.equal(a.nodes[0].y, b.nodes[0].y);
+});
+
+/**
+ * The same near-Lead placement shows up on the canvas when a new specialist
+ * is dispatched onto a board whose Lead was already dragged away.
+ */
+test('a newly dispatched card appears near the dragged Lead on the canvas', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const t = instance.__test;
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const { storage } = isolatedStorage();
+  const previousWindow = globalThis.window;
+  globalThis.window = { localStorage: storage };
+  try {
+    storage.setItem('dsh-steward.panel.positions', JSON.stringify({
+      'session-spawn-near': {
+        [t.LEAD_NODE_ID]: { x: 800, y: 600 },
+        'child-old': { x: 800 + t.NODE_W + t.NODE_GAP_Y, y: 600 },
+      },
+    }));
+    let catalog = [
+      { id: 'child-old', mode: 'one-shot', label: 'pm · 已有规格', createdAt: 1 },
+    ];
+    const props = {
+      now: () => 1700000000000,
+      loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+      useProjection: (key) => (key === 'subagentCatalog' ? catalog : undefined),
+      useSessions: (selector) => selector({ byId: {}, projectionsBySession: {} }),
+      useSessionStatus: (selector) => selector(new Map()),
+      openSession: () => {},
+      openFile: () => {},
+    };
+    const render = panelRender(registered, 'session-spawn-near', props);
+    let host = await harness.settle(render);
+    const leadBefore = boxMetrics(harness.collect(host, harness.byClass('stwd-leadnode'))[0]);
+    const oldBefore = boxMetrics(harness.collect(host, harness.byClass('stwd-gnode'))[0]);
+    catalog = [
+      catalog[0],
+      { id: 'child-new', mode: 'one-shot', label: 'backend-dev · 新来的接口', createdAt: 2 },
+    ];
+    host = await harness.settle(render);
+    const leadAfter = boxMetrics(harness.collect(host, harness.byClass('stwd-leadnode'))[0]);
+    const cards = harness.collect(host, harness.byClass('stwd-gnode'));
+    const oldAfter = boxMetrics(cards.find((node) => harness.textOf(node).indexOf('已有规格') >= 0));
+    const neu = boxMetrics(cards.find((node) => harness.textOf(node).indexOf('新来的接口') >= 0));
+    assert.equal(oldAfter.left - leadAfter.left, oldBefore.left - leadBefore.left, 'the existing card keeps its offset from the Lead');
+    assert.equal(oldAfter.top - leadAfter.top, oldBefore.top - leadBefore.top, 'the existing card keeps its offset from the Lead');
+    const dist = Math.hypot(neu.left - leadAfter.left, neu.top - leadAfter.top);
+    const cluster = t.NODE_W + t.NODE_GAP_Y;
+    assert.ok(dist <= cluster + t.NODE_H + t.NODE_GAP_Y, `the new canvas card is near the Lead, dist=${dist}`);
+    assert.ok(dist > 40, 'the new card is not stacked on the Lead');
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+});

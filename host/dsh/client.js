@@ -110,6 +110,7 @@ window.__ModuleLoader__.load({
         filterAll: '全部',
         filterHideDone: '隐藏已完成',
         filterHideIdle: '隐藏空闲',
+        filterHidePending: '隐藏待开始',
         filterActive: '只看活跃',
         metricDuration: '时长',
         metricTokens: '用量',
@@ -253,6 +254,7 @@ window.__ModuleLoader__.load({
         filterAll: 'All',
         filterHideDone: 'Hide done',
         filterHideIdle: 'Hide idle',
+        filterHidePending: 'Hide pending',
         filterActive: 'Active only',
         metricDuration: 'Time',
         metricTokens: 'Usage',
@@ -660,9 +662,10 @@ window.__ModuleLoader__.load({
 
     const ZOOM_MIN = 0.4;
     const NODE_W = 252;
-    const NODE_H = 144;
+    const NODE_H = 166;
     const NODE_GAP_X = 28;
     const NODE_GAP_Y = 72;
+    const DETAIL_PANEL_H = 280;
     const LEAD_NODE_ID = '__lead__';
     const ROLE_COLOR = {
       lead: '#5B5CFF',
@@ -675,6 +678,8 @@ window.__ModuleLoader__.load({
       reviewer: '#EF4444',
     };
     const ZOOM_MAX = 1.8;
+    const VIEW_MIN_H = 220;
+    const VIEW_MAX_H = 400;
 
     function clampZoom(value) {
       const number = Number(value);
@@ -717,8 +722,9 @@ window.__ModuleLoader__.load({
     }
 
     // --- graph filters --------------------------------------------------------------
-    // A view (all / active) plus independent hide-done and hide-idle toggles in the
-    // all view. The choice survives a reload; older `filter: hide-done` values migrate.
+    // A view (all / active) plus independent hide-done, hide-idle and hide-pending
+    // toggles in the all view. The choice survives a reload; older `filter: hide-done`
+    // values migrate.
 
     const FILTER_KEY = 'dsh-steward.panel.filters';
     const POSITION_KEY = 'dsh-steward.panel.positions';
@@ -732,16 +738,25 @@ window.__ModuleLoader__.load({
     }
 
     function normalizePanelPrefs(parsed) {
-      const fallback = { view: 'all', hideDone: false, hideIdle: false, layout: LAYOUT_DEFAULT };
+      const fallback = { view: 'all', hideDone: false, hideIdle: false, hidePending: false, layout: LAYOUT_DEFAULT };
       if (!parsed || typeof parsed !== 'object') return fallback;
       const layout = normalizeLayoutMode(parsed.layout);
-      if (parsed.filter === 'hide-done') return { view: 'all', hideDone: true, hideIdle: Boolean(parsed.hideIdle), layout };
-      if (parsed.filter === 'active') return { view: 'active', hideDone: false, hideIdle: false, layout };
+      if (parsed.filter === 'hide-done') {
+        return {
+          view: 'all',
+          hideDone: true,
+          hideIdle: Boolean(parsed.hideIdle),
+          hidePending: Boolean(parsed.hidePending),
+          layout,
+        };
+      }
+      if (parsed.filter === 'active') return { view: 'active', hideDone: false, hideIdle: false, hidePending: false, layout };
       const view = parsed.view === 'active' ? 'active' : 'all';
       return {
         view,
         hideDone: view === 'all' && Boolean(parsed.hideDone),
         hideIdle: view === 'all' && Boolean(parsed.hideIdle),
+        hidePending: view === 'all' && Boolean(parsed.hidePending),
         layout,
       };
     }
@@ -753,12 +768,13 @@ window.__ModuleLoader__.load({
       return list.filter((row) => {
         if (next.hideDone && row.state === 'done') return false;
         if (next.hideIdle && row.state === 'idle' && !row.lead) return false;
+        if (next.hidePending && row.state === 'pending' && !row.lead) return false;
         return true;
       });
     }
 
     function readPanelPrefs() {
-      const fallback = { view: 'all', hideDone: false, hideIdle: false, layout: LAYOUT_DEFAULT };
+      const fallback = { view: 'all', hideDone: false, hideIdle: false, hidePending: false, layout: LAYOUT_DEFAULT };
       try {
         const storage = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
         if (!storage || typeof storage.getItem !== 'function') return fallback;
@@ -1028,6 +1044,103 @@ window.__ModuleLoader__.load({
       return defaultMapPositions(rows);
     }
 
+    const PLACE_GAP = NODE_GAP_X;
+
+    function boxesConflict(left, right, gap) {
+      return left.x < right.x + right.w + gap
+        && left.x + left.w + gap > right.x
+        && left.y < right.y + right.h + gap
+        && left.y + left.h + gap > right.y;
+    }
+
+    function slotConflicts(pos, placed) {
+      const box = { x: pos.x, y: pos.y, w: NODE_W, h: NODE_H };
+      for (const id of Object.keys(placed)) {
+        const other = placed[id];
+        if (boxesConflict(box, { x: other.x, y: other.y, w: NODE_W, h: NODE_H }, PLACE_GAP)) return true;
+      }
+      return false;
+    }
+
+    /**
+     * Tight mind-map slots around the Lead: right, left, below, above, then
+     * stacked along those sides, then further rings. Never a distant jump.
+     */
+    function nearestFreeSlot(lead, placed) {
+      const stepX = NODE_W + NODE_GAP_Y;
+      const stepY = NODE_H + NODE_GAP_Y;
+      const stackX = NODE_W + NODE_GAP_X;
+      const stackY = NODE_H + NODE_GAP_X;
+      const tryPos = (x, y) => {
+        const pos = { x, y };
+        return slotConflicts(pos, placed) ? null : pos;
+      };
+      const sides = [
+        { x: 1, y: 0 },
+        { x: -1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 0, y: -1 },
+      ];
+      for (let ring = 1; ring <= 16; ring += 1) {
+        for (const side of sides) {
+          const found = tryPos(lead.x + side.x * stepX * ring, lead.y + side.y * stepY * ring);
+          if (found) return found;
+        }
+        for (const side of sides) {
+          for (let slot = -ring; slot <= ring; slot += 1) {
+            if (slot === 0) continue;
+            const found = side.x !== 0
+              ? tryPos(lead.x + side.x * stepX * ring, lead.y + slot * stackY)
+              : tryPos(lead.x + slot * stackX, lead.y + side.y * stepY * ring);
+            if (found) return found;
+          }
+        }
+      }
+      return { x: lead.x, y: lead.y + stepY * 17 };
+    }
+
+    /**
+     * Merge a layout preset with saved / dragged coordinates. Existing finite
+     * overrides stay put (even if they are far away). Ids without a position
+     * are placed by translating the preset offset from the default Lead onto
+     * the actual Lead, then nudged to the nearest tight free slot on overlap.
+     */
+    function resolveDagPositions(rows, layout, overrides) {
+      const list = (rows || []).filter(Boolean);
+      const defaults = defaultDagPositions(list, layout);
+      const saved = cleanPositions(overrides);
+      const defaultLead = defaults[LEAD_NODE_ID] || { x: LAYOUT_PAD, y: LAYOUT_PAD };
+      const lead = saved[LEAD_NODE_ID]
+        ? { x: saved[LEAD_NODE_ID].x, y: saved[LEAD_NODE_ID].y }
+        : { x: defaultLead.x, y: defaultLead.y };
+      const dx = lead.x - defaultLead.x;
+      const dy = lead.y - defaultLead.y;
+      const placed = { [LEAD_NODE_ID]: { x: lead.x, y: lead.y } };
+      for (const id of Object.keys(saved)) {
+        if (id === LEAD_NODE_ID) continue;
+        placed[id] = { x: saved[id].x, y: saved[id].y };
+      }
+      for (const row of list) {
+        if (saved[row.id]) continue;
+        const base = defaults[row.id] || { x: defaultLead.x, y: defaultLead.y };
+        const candidate = { x: base.x + dx, y: base.y + dy };
+        placed[row.id] = slotConflicts(candidate, placed)
+          ? nearestFreeSlot(lead, placed)
+          : candidate;
+      }
+      return placed;
+    }
+
+    /** Stable key for graph geometry: ids, states and roles, not elapsed or tokens. */
+    function layoutRowsSignature(rows) {
+      return (rows || []).map((row) => {
+        const id = row && row.id != null ? String(row.id) : '';
+        const state = row && row.state != null ? String(row.state) : '';
+        const role = row && row.role != null ? String(row.role) : '';
+        return id + '\t' + state + '\t' + role;
+      }).join('\n');
+    }
+
     /** Fallback edges when the host does not expose a parent for each dispatch. */
     function defaultDagEdges(rows) {
       // Every specialist is dispatched by the Lead, so every edge starts there.
@@ -1164,22 +1277,20 @@ window.__ModuleLoader__.load({
 
     /**
      * Lay the team out as a free-position DAG. `positions` are absolute overrides
-     * (from a drag); missing ids fall back to the current layout preset. Filtering
+     * (from a drag); missing ids are placed near the actual Lead. Filtering
      * should pass every row so remaining cards keep their coordinates.
      * @returns geometry for the Lead, the cards and every agent-to-agent edge.
      */
     function dagLayout(options) {
       const input = options || {};
       const rows = Array.isArray(input.rows) ? input.rows : [];
-      const defaults = defaultDagPositions(rows, input.layout);
-      const overrides = input.positions && typeof input.positions === 'object' ? input.positions : {};
+      const resolved = resolveDagPositions(rows, input.layout, input.positions);
       const geoOf = (id) => {
-        const base = defaults[id] || { x: 0, y: 0 };
-        const next = overrides[id];
+        const pos = resolved[id] || { x: 0, y: 0 };
         return {
           id,
-          x: next && Number.isFinite(Number(next.x)) ? Number(next.x) : base.x,
-          y: next && Number.isFinite(Number(next.y)) ? Number(next.y) : base.y,
+          x: pos.x,
+          y: pos.y,
           w: NODE_W,
           h: NODE_H,
         };
@@ -1238,6 +1349,21 @@ window.__ModuleLoader__.load({
         width: Math.max(NODE_W + pad * 2, maxX - minX + pad * 2),
         height: Math.max(NODE_H + pad * 2, maxY - minY + pad * 2),
       };
+    }
+
+    /** Grow the stage under an open detail panel so it is not clipped; other cards stay put. */
+    function expandLayoutForDetail(layout, selectedId) {
+      if (!layout || selectedId == null || selectedId === '') return layout;
+      const node = (layout.nodes || []).find((item) => item.id === selectedId);
+      if (!node) return layout;
+      const bottom = node.y + node.h + DETAIL_PANEL_H + LAYOUT_PAD;
+      const needed = bottom - (Number(layout.originY) || 0);
+      if (!(needed > layout.height)) return layout;
+      return { ...layout, height: needed };
+    }
+
+    function stopCanvasDrag(event) {
+      if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
     }
 
     // --- subagents ------------------------------------------------------------------
@@ -1625,6 +1751,13 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function statusChip(text, row) {
+      return h('span', { className: 'stwd-gnode-state stwd-gnode-state-' + row.state },
+        h(StatusDot, { tone: stateTone(row.state) }),
+        stateLabelOf(row.state, text),
+      );
+    }
+
     /** The Session the panel is docked in: it heads the DAG. */
     function LeadNode({ text, row, geo, delay }) {
       return h('div', {
@@ -1641,19 +1774,16 @@ window.__ModuleLoader__.load({
         h('span', { className: 'stwd-leadnode-body stwd-gnode-card' },
           h('span', { className: 'stwd-gnode-top' },
             h('span', { className: 'stwd-leadnode-title stwd-gnode-role' }, text.lead),
-            h('span', { className: 'stwd-gnode-state stwd-gnode-state-' + row.state },
-              h(StatusDot, { tone: stateTone(row.state) }),
-              stateLabelOf(row.state, text),
-            ),
           ),
           modelRow(text, row),
           h('span', { className: 'stwd-leadnode-task stwd-gnode-task' }, row.description === '' ? text.leadHere : row.description),
           metricLine(text, row),
+          h('span', { className: 'stwd-gnode-foot' }, statusChip(text, row)),
         ),
       );
     }
 
-    /** One dispatched agent: role, model, effort, task, state, and two real buttons. */
+    /** One dispatched agent: role, model, effort, task, state, and a detail chip. */
     function AgentNode({ text, row, geo, selected, delay, onOpen, onToggle }) {
       let aria = (row.roleName === '' ? text.subagentRole : row.roleName)
         + (row.role === '' ? '' : ' ' + row.role)
@@ -1667,33 +1797,46 @@ window.__ModuleLoader__.load({
           top: geo.y + 'px',
           width: geo.w + 'px',
           height: geo.h + 'px',
+          zIndex: selected ? 6 : undefined,
           '--stwd-role': colorOf(row),
         },
       },
         h(AgentFace, { color: colorOf(row), delay: delay || 0 }),
-        h('button', {
-          type: 'button',
-          className: 'stwd-gnode-main stwd-gnode-card',
-          'aria-label': aria,
-          title: aria,
-          onClick: () => onOpen(row),
-        },
-          h('span', { className: 'stwd-gnode-top' },
-            h('span', { className: 'stwd-gnode-role' }, row.roleName === '' ? text.subagentRole : row.roleName),
-            h('span', { className: 'stwd-gnode-state stwd-gnode-state-' + row.state }, h(StatusDot, { tone: stateTone(row.state) }), stateLabelOf(row.state, text)),
+        h('span', { className: 'stwd-gnode-card' },
+          h('button', {
+            type: 'button',
+            className: 'stwd-gnode-main',
+            'aria-label': aria,
+            title: aria,
+            onClick: () => onOpen(row),
+          },
+            h('span', { className: 'stwd-gnode-top' },
+              h('span', { className: 'stwd-gnode-role' }, row.roleName === '' ? text.subagentRole : row.roleName),
+            ),
+            modelRow(text, row),
+            h('span', { className: 'stwd-gnode-task' }, row.description === '' ? text.noDescription : row.description),
+            metricLine(text, row),
           ),
-          modelRow(text, row),
-          h('span', { className: 'stwd-gnode-task' }, row.description === '' ? text.noDescription : row.description),
-          metricLine(text, row),
+          h('span', { className: 'stwd-gnode-foot' },
+            statusChip(text, row),
+            h('button', {
+              type: 'button',
+              className: 'stwd-gnode-more' + (selected ? ' stwd-gnode-more-on' : ''),
+              'aria-expanded': selected ? 'true' : 'false',
+              'aria-pressed': selected ? 'true' : 'false',
+              'aria-label': text.detailToggle,
+              title: text.detailToggle,
+              onPointerDown: stopCanvasDrag,
+              onClick: (event) => { stopCanvasDrag(event); onToggle(row.id); },
+            }, text.detailToggle),
+          ),
         ),
-        h('button', {
-          type: 'button',
-          className: 'stwd-gnode-more',
-          'aria-expanded': selected ? 'true' : 'false',
-          'aria-label': text.detailToggle,
-          title: text.detailToggle,
-          onClick: () => onToggle(row.id),
-        }, selected ? '⌃' : '⌄'),
+        selected ? h(AgentDetail, {
+          text,
+          row,
+          onClose: () => onToggle(row.id),
+          onOpen,
+        }) : null,
       );
     }
 
@@ -1721,6 +1864,7 @@ window.__ModuleLoader__.load({
       const [graphView, setGraphView] = useState(prefs.view);
       const [hideDone, setHideDone] = useState(prefs.hideDone);
       const [hideIdle, setHideIdle] = useState(prefs.hideIdle);
+      const [hidePending, setHidePending] = useState(prefs.hidePending);
       const [layoutMode, setLayoutMode] = useState(() => normalizeLayoutMode(prefs.layout));
       useEffect(() => {
         const host = wrapRef.current;
@@ -1736,8 +1880,8 @@ window.__ModuleLoader__.load({
       }, []);
 
       useEffect(() => {
-        writePanelPrefs({ view: graphView, hideDone, hideIdle, layout: layoutMode });
-      }, [graphView, hideDone, hideIdle, layoutMode]);
+        writePanelPrefs({ view: graphView, hideDone, hideIdle, hidePending, layout: layoutMode });
+      }, [graphView, hideDone, hideIdle, hidePending, layoutMode]);
 
       const positionSessionRef = useRef(sessionKey);
       useEffect(() => {
@@ -1761,20 +1905,56 @@ window.__ModuleLoader__.load({
         writePanelCamera(sessionKey, view);
       }, [sessionKey, view]);
 
-      const filterPrefs = { view: graphView, hideDone, hideIdle };
+      const filterPrefs = useMemo(
+        () => ({ view: graphView, hideDone, hideIdle, hidePending }),
+        [graphView, hideDone, hideIdle, hidePending],
+      );
       const totalRows = (props.rows || []).filter(Boolean).length;
-      const visibleRows = useMemo(() => filterAgentRows(props.rows, filterPrefs), [props.rows, graphView, hideDone, hideIdle]);
+      const visibleRows = useMemo(() => filterAgentRows(props.rows, filterPrefs), [props.rows, filterPrefs]);
       const hiddenCount = totalRows - visibleRows.length;
-      const layout = useMemo(() => dagLayout({
-        rows: props.rows,
+      const layoutRowsKey = useMemo(() => layoutRowsSignature(props.rows), [props.rows]);
+      const layoutRows = useMemo(
+        () => (props.rows || []).map((row) => ({ id: row.id, state: row.state, role: row.role })),
+        [layoutRowsKey],
+      );
+      const baseLayout = useMemo(() => dagLayout({
+        rows: layoutRows,
         positions,
         layout: layoutMode,
-      }), [props.rows, positions, layoutMode]);
+      }), [layoutRows, positions, layoutMode]);
+
+      // Remember every card's first computed slot so a later drag cannot shove
+      // an un-saved neighbour, and only a brand-new id is placed near the Lead.
+      useEffect(() => {
+        setPositions((current) => {
+          const saved = cleanPositions(current);
+          const resolved = resolveDagPositions(layoutRows, layoutMode, saved);
+          let changed = false;
+          const next = { ...saved };
+          const ids = [LEAD_NODE_ID];
+          for (const row of layoutRows) ids.push(row.id);
+          for (const id of ids) {
+            if (!saved[id] && resolved[id]) {
+              next[id] = { x: resolved[id].x, y: resolved[id].y };
+              changed = true;
+            }
+          }
+          return changed ? next : current;
+        });
+      }, [layoutRows, layoutMode, positions]);
+      const layout = useMemo(
+        () => expandLayoutForDetail(baseLayout, props.selectedId),
+        [baseLayout, props.selectedId],
+      );
+      const visibleIdKey = useMemo(
+        () => visibleRows.map((row) => row.id).join('\n') + (visibleRows.length > 0 ? '\n' + LEAD_NODE_ID : ''),
+        [visibleRows],
+      );
       const visibleIds = useMemo(() => {
         const ids = new Set(visibleRows.map((row) => row.id));
         if (visibleRows.length > 0) ids.add(LEAD_NODE_ID);
         return ids;
-      }, [visibleRows]);
+      }, [visibleIdKey]);
       const placed = useMemo(() => layout.nodes.filter((node) => visibleIds.has(node.id)), [layout.nodes, visibleIds]);
       const visibleLinks = useMemo(
         () => visibleDagLinks(layout, visibleIds),
@@ -1796,8 +1976,7 @@ window.__ModuleLoader__.load({
         return { tokens, elapsed };
       }, [props.rows, props.lead]);
 
-      const minimumView = totalRows === 0 ? 110 : 220;
-      const viewHeight = Math.min(Math.max(layout.height + 10, minimumView), 2200);
+      const viewHeight = totalRows === 0 ? 110 : Math.min(VIEW_MAX_H, Math.max(VIEW_MIN_H, layout.height + 10));
       const viewWidth = Math.max(120, width);
       dimsRef.current = {
         width: viewWidth,
@@ -1824,10 +2003,6 @@ window.__ModuleLoader__.load({
           y: Math.round(Math.min(maxY, Math.max(minY, Number(next.y) || 0))),
         };
       };
-
-      useEffect(() => {
-        setViewState((current) => clampToDims(current));
-      }, [layout.width, layout.height]);
 
       const resetView = () => setViewState(clampToDims({ zoom: 1, x: 0, y: 0 }));
 
@@ -1934,10 +2109,12 @@ window.__ModuleLoader__.load({
       };
 
       const hitBoxes = useMemo(() => {
-        const boxes = placed.slice();
+        const boxes = placed.map((node) => (
+          node.id === props.selectedId ? { ...node, h: node.h + DETAIL_PANEL_H } : node
+        ));
         if (visibleIds.has(LEAD_NODE_ID)) boxes.push({ ...layout.lead, id: LEAD_NODE_ID });
         return boxes;
-      }, [placed, layout.lead, visibleIds]);
+      }, [placed, layout.lead, visibleIds, props.selectedId]);
 
       /** Which card (if any) is under this pointer, in layout units. */
       const nodeAt = (event) => {
@@ -1953,13 +2130,13 @@ window.__ModuleLoader__.load({
       };
 
       const interactiveTarget = (target) => Boolean(target && typeof target.closest === 'function'
-        && target.closest('.stwd-gnode, .stwd-leadnode, .stwd-graph-tools, .stwd-graph-filters'));
+        && target.closest('.stwd-gnode, .stwd-leadnode, .stwd-gdetail, .stwd-gnode-more, .stwd-graph-tools, .stwd-graph-filters'));
 
       const onPointerDown = (event) => {
         if (!event || (event.button !== undefined && event.button !== 0)) return;
         const target = event.target;
         if (target && typeof target.closest === 'function'
-          && target.closest('.stwd-graph-tools, .stwd-graph-filters')) return;
+          && target.closest('.stwd-graph-tools, .stwd-graph-filters, .stwd-gnode-more, .stwd-gdetail')) return;
         const nodeId = nodeAt(event);
         const origin = nodeId === '' ? null : (positions[nodeId] || (nodeId === LEAD_NODE_ID ? layout.lead : placed.find((node) => node.id === nodeId)) || { x: 0, y: 0 });
         dragRef.current = {
@@ -2058,6 +2235,7 @@ window.__ModuleLoader__.load({
         if (next === 'active') {
           setHideDone(false);
           setHideIdle(false);
+          setHidePending(false);
         }
       };
 
@@ -2065,6 +2243,7 @@ window.__ModuleLoader__.load({
         setGraphView('all');
         setHideDone(false);
         setHideIdle(false);
+        setHidePending(false);
       };
 
       const zoomPercent = Math.round(view.zoom * 100) + '%';
@@ -2216,6 +2395,13 @@ window.__ModuleLoader__.load({
                 disabled: graphView !== 'all',
                 onClick: () => { if (graphView === 'all') setHideIdle((current) => !current); },
               }, text.filterHideIdle),
+              h('button', {
+                type: 'button',
+                className: 'stwd-filter' + (hidePending && graphView === 'all' ? ' stwd-filter-on' : ''),
+                'aria-pressed': hidePending && graphView === 'all' ? 'true' : 'false',
+                disabled: graphView !== 'all',
+                onClick: () => { if (graphView === 'all') setHidePending((current) => !current); },
+              }, text.filterHidePending),
             ),
             h('div', { className: 'stwd-graph-stats' },
               h('span', { className: 'stwd-graph-stat' }, h('span', null, text.statDuration), fmtDuration(totals.elapsed)),
@@ -2277,7 +2463,11 @@ window.__ModuleLoader__.load({
         [text.detailSession, shortId(row.id)],
       ];
       const tokens = row.tokens;
-      return h('section', { className: 'stwd-gdetail', 'aria-label': text.detailTitle },
+      return h('section', {
+        className: 'stwd-gdetail',
+        'aria-label': text.detailTitle,
+        onPointerDown: stopCanvasDrag,
+      },
         h('div', { className: 'stwd-gdetail-head' },
           h('span', { className: 'stwd-gdetail-title' }, text.detailTitle),
           h('span', { className: 'stwd-gdetail-role stwd-mono' }, row.role === '' ? row.roleName : row.role),
@@ -2286,7 +2476,8 @@ window.__ModuleLoader__.load({
             className: 'stwd-iconbtn stwd-gdetail-close',
             'aria-label': text.detailClose,
             title: text.detailClose,
-            onClick: onClose,
+            onPointerDown: stopCanvasDrag,
+            onClick: (event) => { stopCanvasDrag(event); onClose(); },
           }, '×'),
         ),
         row.waiting ? h('p', { className: 'stwd-gdetail-hint' }, text.stateWaitingHint) : null,
@@ -2304,7 +2495,8 @@ window.__ModuleLoader__.load({
         h('button', {
           type: 'button',
           className: 'stwd-btn',
-          onClick: () => onOpen(row),
+          onPointerDown: stopCanvasDrag,
+          onClick: (event) => { stopCanvasDrag(event); onOpen(row); },
         }, text.openSession),
       );
     }
@@ -2461,7 +2653,6 @@ window.__ModuleLoader__.load({
 
       const fleet = useMemo(() => fleetFacts(rows), [rows]);
       const progress = useMemo(() => taskProgressOf(team, todos), [team, todos]);
-      const selected = selectedId === null ? null : rows.find((row) => row.id === selectedId) || null;
 
       const active = rows.some((row) => row.running || row.waiting);
       useEffect(() => {
@@ -2534,14 +2725,6 @@ window.__ModuleLoader__.load({
             actions: rosterActions,
           }),
           h(ErrorBoundary, { fallbackTitle: text.sectionFailed }, rosterBody),
-          selected === null ? null : h(ErrorBoundary, { fallbackTitle: text.sectionFailed },
-            h(AgentDetail, {
-              text,
-              row: selected,
-              onClose: () => setSelectedId(null),
-              onOpen: openAgent,
-            }),
-          ),
           h('p', { className: 'stwd-note stwd-native-note' }, text.nativeListNote),
         ),
         h(ErrorBoundary, { fallbackTitle: text.sectionFailed }, h(Artifacts, {
@@ -2852,7 +3035,7 @@ window.__ModuleLoader__.load({
     // as part of the application, not as a page bolted onto it.
 
     function styles() {
-      return h('style', { key: 'stwd-css' }, STYLESHEET);
+      return STYLE_ELEMENT;
     }
 
     const STYLESHEET = [
@@ -2912,7 +3095,7 @@ window.__ModuleLoader__.load({
       '.stwd-dot-warn{background:var(--dsw-alias-state-warn-primary);animation:stwd-breathe 2s ease-in-out infinite}',
       '.stwd-dot-idle{background:var(--dsw-alias-state-idle-primary,var(--stwd-muted))}',
       '/* --- team graph --------------------------------------------------------- */',
-      '.stwd-graph{position:relative;min-width:0;width:100%}',
+      '.stwd-graph{position:relative;flex:none;min-width:0;width:100%}',
       '.stwd-graph-view{position:relative;overflow:hidden;border-radius:10px;border:.5px solid var(--stwd-border-soft);background:radial-gradient(circle at 1px 1px,color-mix(in srgb,var(--stwd-border-strong) 70%,transparent) 1px,transparent 0) 0 0 / 22px 22px,color-mix(in srgb,var(--dsw-alias-bg-layer-2) 70%,transparent);touch-action:none;cursor:grab;min-width:0}',
       '.stwd-graph-view-moving{cursor:grabbing}',
       '.stwd-graph-view:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}',
@@ -2948,7 +3131,7 @@ window.__ModuleLoader__.load({
       '.stwd-graph-empty-title{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary)}',
       '.stwd-graph-empty-hint{margin:0;font-size:11px;line-height:16px;color:var(--stwd-muted)}',
       '.stwd-graph-reset{margin-top:4px;height:24px;padding:0 10px;border:.5px solid var(--stwd-border-strong);border-radius:6px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;cursor:pointer}',
-      '.stwd-face{position:absolute;left:14px;top:-2px;width:44px;height:44px;z-index:2;pointer-events:none;filter:drop-shadow(0 3px 4px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent))}',
+      '.stwd-face{position:absolute;left:50%;top:-8px;width:44px;height:44px;margin-left:-22px;z-index:2;pointer-events:none;filter:drop-shadow(0 3px 4px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent))}',
       '.stwd-face-head{transform-origin:50% 70%}',
       '.stwd-face-eyes{transform-origin:32px 26px}',
       '.stwd-face-eye{transform-box:fill-box;transform-origin:50% 50%;animation:stwd-blink 8s ease-in-out infinite}',
@@ -2963,19 +3146,20 @@ window.__ModuleLoader__.load({
       '.stwd-gnode-waiting .stwd-face-eye,.stwd-leadnode-waiting .stwd-face-eye{animation:stwd-blink 8s ease-in-out infinite}',
       '.stwd-gnode-pending .stwd-face-head,.stwd-leadnode-pending .stwd-face-head{animation:stwd-sleepy 12s ease-in-out infinite}',
       '.stwd-gnode-pending .stwd-face-eye,.stwd-leadnode-pending .stwd-face-eye{transform:scaleY(.35);animation:none}',
-      '.stwd-leadnode,.stwd-gnode{position:absolute;display:block;min-width:0;background:transparent;border:0;box-shadow:none}',
-      '.stwd-gnode-card,.stwd-leadnode-body{box-sizing:border-box;display:flex;flex-direction:column;gap:4px;width:100%;margin-top:22px;padding:26px 12px 10px 14px;min-width:0;min-height:122px;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--stwd-border-soft);border-radius:16px;box-shadow:inset 3px 0 0 color-mix(in srgb,var(--stwd-role,var(--stwd-border-strong)) 80%,transparent),0 1px 2px color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent),0 8px 18px color-mix(in srgb,var(--dsw-alias-label-primary) 4%,transparent);color:inherit;font:inherit;text-align:left;overflow:hidden}',
+      '.stwd-leadnode,.stwd-gnode{position:absolute;display:block;min-width:0;background:transparent;border:0;box-shadow:none;overflow:visible;contain:layout style}',
+      '.stwd-gnode-selected{z-index:6}',
+      '.stwd-gnode-card,.stwd-leadnode-body{box-sizing:border-box;position:relative;display:flex;flex-direction:column;gap:5px;width:100%;margin-top:8px;padding:40px 12px 10px;min-width:0;min-height:158px;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--stwd-border-soft);border-radius:16px;box-shadow:inset 0 3px 0 color-mix(in srgb,var(--stwd-role,var(--stwd-border-strong)) 80%,transparent),0 1px 2px color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent),0 8px 18px color-mix(in srgb,var(--dsw-alias-label-primary) 4%,transparent);color:inherit;font:inherit;text-align:left;overflow:hidden}',
       '.stwd-gnode-running .stwd-gnode-card,.stwd-leadnode-running .stwd-leadnode-body{border-color:color-mix(in srgb,var(--stwd-live) 45%,var(--stwd-border-soft));background:linear-gradient(180deg,color-mix(in srgb,var(--stwd-live) 7%,var(--dsw-alias-bg-layer-1)) 0%,var(--dsw-alias-bg-layer-1) 70%)}',
       '.stwd-gnode-waiting .stwd-gnode-card,.stwd-leadnode-waiting .stwd-leadnode-body{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 55%,transparent);background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 6%,var(--dsw-alias-bg-layer-1))}',
       '.stwd-gnode-done .stwd-gnode-card,.stwd-leadnode-done .stwd-leadnode-body{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 35%,transparent)}',
       '.stwd-gnode-pending .stwd-gnode-card,.stwd-leadnode-pending .stwd-leadnode-body{border-style:dashed}',
       '.stwd-gnode-idle .stwd-gnode-card,.stwd-leadnode-idle .stwd-leadnode-body{background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 35%,var(--dsw-alias-bg-layer-1))}',
-      '.stwd-gnode-selected .stwd-gnode-card{box-shadow:0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary)),0 8px 18px color-mix(in srgb,var(--dsw-alias-label-primary) 8%,transparent)}',
-      '.stwd-gnode-main{width:100%;cursor:pointer}',
+      '.stwd-gnode-selected .stwd-gnode-card{box-shadow:inset 0 3px 0 color-mix(in srgb,var(--stwd-role,var(--stwd-border-strong)) 80%,transparent),0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary)),0 8px 18px color-mix(in srgb,var(--dsw-alias-label-primary) 8%,transparent)}',
+      '.stwd-gnode-main{display:flex;flex-direction:column;align-items:stretch;gap:5px;width:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;min-width:0}',
       '.stwd-gnode-main:hover{filter:brightness(1.02)}',
-      '.stwd-gnode-top{display:flex;align-items:center;gap:5px;min-width:0}',
-      '.stwd-gnode-role,.stwd-leadnode-title{font-size:12px;line-height:16px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-gnode-state{margin-left:auto;display:inline-flex;align-items:center;gap:4px;flex:none;font-size:10.5px;line-height:14px;color:var(--stwd-muted);white-space:nowrap;font-weight:650}',
+      '.stwd-gnode-top{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;width:100%}',
+      '.stwd-gnode-role,.stwd-leadnode-title{font-size:12px;line-height:16px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;width:100%}',
+      '.stwd-gnode-state{display:inline-flex;align-items:center;gap:4px;flex:none;font-size:10.5px;line-height:14px;color:var(--stwd-muted);white-space:nowrap;font-weight:650}',
       '.stwd-gnode-state-done{color:var(--dsw-alias-state-success-primary)}',
       '.stwd-gnode-state-running{color:var(--stwd-live)}',
       '.stwd-gnode-state-waiting{color:var(--dsw-alias-state-warn-primary)}',
@@ -2986,13 +3170,16 @@ window.__ModuleLoader__.load({
       '.stwd-effort-max{background:color-mix(in srgb,#8B5CF6 16%,var(--dsw-alias-bg-layer-1));color:#5b45c8}',
       '.stwd-effort-high{background:color-mix(in srgb,var(--stwd-live) 14%,var(--dsw-alias-bg-layer-1));color:var(--stwd-live)}',
       '.stwd-effort-medium{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}',
-      '.stwd-gnode-metrics{margin-top:auto;display:flex;align-items:center;flex-wrap:nowrap;gap:6px;padding-right:22px;min-width:0}',
+      '.stwd-gnode-metrics{margin-top:0;display:flex;align-items:center;flex-wrap:nowrap;gap:6px;min-width:0}',
       '.stwd-gnode-metric{display:inline-flex;align-items:baseline;gap:4px;padding:2px 7px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);font-size:10.5px;line-height:14px;color:var(--dsw-alias-label-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}',
       '.stwd-gnode-mlbl{color:var(--stwd-muted);font-weight:550}',
       '.stwd-gnode-metric b{font-weight:650;color:var(--dsw-alias-label-primary)}',
       '.stwd-gnode-task,.stwd-leadnode-task{margin-top:2px;font-size:12.5px;line-height:18px;font-weight:620;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-gnode-more{position:absolute;right:4px;bottom:6px;width:20px;height:18px;z-index:3;padding:0;border:0;border-radius:5px;background:transparent;color:var(--stwd-muted);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
+      '.stwd-gnode-foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}',
+      '.stwd-gnode-more{flex:none;height:20px;padding:0 8px;border:.5px solid var(--stwd-border-soft);border-radius:999px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:1;font-weight:550;cursor:pointer;white-space:nowrap}',
       '.stwd-gnode-more:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
+      '.stwd-gnode-more-on{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 14%,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);border-color:color-mix(in srgb,var(--dsw-alias-brand-primary) 45%,var(--stwd-border-soft));font-weight:650}',
+      '.stwd-gnode>.stwd-gdetail{margin-top:6px;max-width:100%;box-shadow:0 10px 24px color-mix(in srgb,var(--dsw-alias-label-primary) 10%,transparent)}',
       '/* --- agent rows --------------------------------------------------------- */',
       '.stwd-rows{display:flex;flex-direction:column;gap:2px;min-width:0}',
       '.stwd-row{display:flex;align-items:center;gap:7px;width:100%;padding:5px 7px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;min-width:0}',
@@ -3105,6 +3292,7 @@ window.__ModuleLoader__.load({
       '.stwd-root *{animation:none !important;transition:none !important}',
       '}',
     ].join('\n');
+    const STYLE_ELEMENT = h('style', { key: 'stwd-css' }, STYLESHEET);
     // --- plugin ---------------------------------------------------------------------
 
     /** Open this Session's board tab; false when the host offers no right Sidebar. */
@@ -3170,6 +3358,17 @@ window.__ModuleLoader__.load({
 
     return {
       inject: ['slots', 'locale', 'remote', 'remote.session', 'configForms', 'uiWorkspace'],
+      __test: {
+        LEAD_NODE_ID,
+        NODE_W,
+        NODE_H,
+        NODE_GAP_X,
+        NODE_GAP_Y,
+        LAYOUT_PAD,
+        resolveDagPositions,
+        dagLayout,
+        layoutRowsSignature,
+      },
       apply(ctx) {
         const lang = () => pickLang(ctx);
         const textOf = () => STRINGS[lang()] || STRINGS.zh;
