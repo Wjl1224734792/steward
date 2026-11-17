@@ -1,6 +1,6 @@
 ## 共享任务板（Agent Teams，DSH）
 
-宿主启用「智能体团队」后，Agent Teams 任务板是**权威来源**：会话页头的 Team 面板里有成员状态（provisioning / running / inactive / failed）与任务板（未开始 = 灰点、被依赖阻塞 = 橙点、进行中 = loading、完成 = 绿点），并显示负责人、依赖、就绪态、写入范围与**文件重叠告警**。Steward 的**右侧栏看板**把这张板和 `run.json` / 待办清单统一成同一张图（Agent Teams 未启用时按 `run.json` > 待办清单回落）；会话页头的原生 Team 面板仍然存在。Lead 不再靠脑子记「谁在做哪张单」。
+宿主启用「智能体团队」后，Agent Teams 任务板是任务的**权威来源**：会话页头的 Team 面板里有成员状态（provisioning / running / inactive / failed）与任务板（未开始 = 灰点、被依赖阻塞 = 橙点、进行中 = loading、完成 = 绿点），并显示负责人、依赖、就绪态、写入范围与**文件重叠告警**。Steward 的**右侧栏团队面板不再复刻任务**：它画的是智能体（角色 / 实际模型 / 任务 / 状态 / 耗时 / 用量），顶部只用一条进度条数任务（`完成/总数` + 进行中 / 被阻塞 + 来源）。读任务请用原生 Team 面板。Lead 不再靠脑子记「谁在做哪张单」。
 
 **建板（计划批准后一次）**：`steward_board(action="sync", plan="<工件目录>/03-plan.json", level="M")`。不要手写板上的任务：
 
@@ -20,6 +20,6 @@
 
 **回派与修复**：缺陷回派给**同一个** teammate（`send_message`），不要为同一角色反复 spawn（teammate 名字永久占用）；板上把该任务 `reopen` 回 `pending` 并在描述里记轮次。
 
-**看板自检**：`steward_board(action="status", plan="<…>")` 返回与面板一致的文本快照（门禁进度 / 每单状态·负责人·阻塞·就绪）。向用户同步进度时贴它，不要自己编。
+**任务板自检**：`steward_board(action="status", plan="<…>")` 返回与原生 Team 面板一致的文本快照（门禁进度 / 每单状态·负责人·阻塞·就绪）。向用户同步任务进度时贴它，不要自己编；右侧栏团队面板只负责「谁在用哪个模型做哪件事」。
 
-**没启用团队时**：会话里没有 `agentTeams` 服务，`steward_board` 会直接报错——此时走单人模式（`steward_dispatch` + `run.json`），照 DAG 派活；右侧栏看板回落到 `run.json` / 待办清单，仍然有内容。
+**没启用团队时**：会话里没有 `agentTeams` 服务，`steward_board` 会直接报错——此时走单人模式（`steward_dispatch` + `run.json`），照 DAG 派活；右侧栏团队面板的进度条回落到会话任务列表（`todo_write`），智能体图不受影响。

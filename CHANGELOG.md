@@ -6,6 +6,45 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [MiniMax 1.5.0 / DSH 1.5.0] - 2026-11-17
+
+> **面板重设计：从「任务看板」改成「智能体团队监视器 + 原生任务进度条」**。旧的右侧栏看板把任务 DAG / 任务列表 / 归属矩阵画进面板，用户实际想看的却是「哪个智能体、用什么模型、在做什么、到哪了」；而且面板里那份任务列表经常不更新。本版把任务展示交还 DSH 原生任务系统，面板只画智能体并数任务。随发布列车同号推进：**MiniMax 1.5.0 = DSH 1.5.0**（MiniMax 侧只随号，功能零改动），ZCode 1.3.2 不领先列车。
+
+### Added
+
+- **默认分层工作流树**：`Lead` 在左上作根，垂直主干串起各阶段枢纽（需求 → 架构 → 实施 → 质量 → 验收 → 评审，空阶段省略），每个枢纽向右**分叉**出该阶段卡片（宽面板自动 2–3 列），父 → 子单线、不交叉——18 个并发智能体也只多卡片、不多线；节点带角色 / 实际模型 / 任务 / 状态 / 耗时 / 用量，**点节点主体在右侧栏打开子会话**，点 `⌄` 原地展开详情（提供方 / 思考强度 / 四类 token / 轮次·步骤 / 模式 / 子会话 id / 打开按钮）。
+- **图是可拖拽 / 缩放的画布**：拖空白处平移（从节点上起手拖动也算平移，并用移动阈值吞掉那次点击，不误开子会话）；`Ctrl`/`⌘`+滚轮在指针处缩放（普通滚轮仍滚动面板）；右上角工具栏 `− / 100% / + / ⤢`（点百分数复位，`⤢` 适应窗口）；画布获得焦点后 `+` / `-` / `0` / `f` / 方向键可用；双击空白复位；内容小于视口时锚定左上，拖动有边界钳制。
+- **每个节点直接可见**：角色（中文名 + role id）、**实际模型**（`model @ effort`，读自该子会话的 `modelSelection` 投影，未发请求时显示「模型待定」）、任务描述、状态、实时耗时（1s 时钟，仅在有运行中行时启动）、tokens（四桶求和）。
+- **「等待输入」泳道**：子代理在等你确认 / 回答时自动置顶并橙色标注（源自会话 UI 状态的 `pendingInteraction`）。
+- **原生任务进度条**：`完成/总数` + 每任务一段（完成绿 / 进行中呼吸 / 待开始灰 / 被阻塞橙）+ 进行中/被阻塞计数 + 来源（`Agent Teams 任务板` → `会话任务列表`）。数据来自 `agentTeam` / `todos` 原生投影，**只给计数，不列任务名**。
+- **图 / 列表视图切换**（图默认），列表是同一份行的紧凑版，同样可点进子会话。
+- **注入 face 新增 `now()` 与 `refreshChild(id)`**：面板时钟由 face 提供（测试可注入固定时钟），并按需向宿主请求一次子会话投影（模型 / 用量 / 轮次步骤）。
+- 测试新增 7 例：工作流树渲染（主干 / 枢纽 / 分支 / 节点信息）、点击进会话 + 详情展开、画布缩放/平移/复位/适应窗口、过滤与枢纽折叠、节点拖动与重新布局、过滤持久化（localStorage）、原生任务计数（含来源优先级与「不泄漏任务名」回归）、列表视图与默认图、无投影数据的诚实降级；另有「面板绝不镜像任务列表」回归断言。
+
+### Changed
+
+- **数据来源全部改为原生实时投影**（`subagentCatalog` / `modelSelection` / `tokenUsage` / `subagentTiming` / `sessionStats` / `agentTeam` / `todos` + 会话 UI 状态），不再轮询 `03-plan.json` 推任务状态。
+- 面板标题 / tab / 引导页改名为「Steward 团队」；ROLE 名册与「设置 → Steward」模型表格不变。
+- 产物区改为默认折叠、保留运行目录；run 目录轮询从 4s 降到 15s（智能体本来就是实时投影）。
+- 包版本 1.4.1 → **1.5.0**；`package.json` description、`locale/{zh,en}.json` 的 `meta.description`、两份 README 的看板章节同步重写。
+- **MiniMax 侧随发布列车同号到 1.5.0**（`host/minimax/package.json`、`minimax/.minimax-plugin/plugin.json`、包内 README 版本行与技能 banner 版本行；功能与技能正文零改动）；ZCode 1.3.2 不变。
+
+### Removed
+
+- 面板内的任务依赖图（DAG）、归属矩阵、任务列表、任务详情与「共享任务板 > run.json > 待办清单」任务来源回落——任务明细回归 DSH 原生任务列表 / 原生 Team 面板。
+- `steward_board` 之外的 `03-plan.json` 读取（面板只把它当产物文件列出来）。
+- 运行卡片（完成环 / 分段进度 / run 状态徽标）与「子代理区」独立区块（已并入工作流图节点）。
+
+### 验证
+
+- `node zcode/scripts/build.mjs` → PASS（同步 `minimax/package.json`、重渲染 `minimax/skills/steward/SKILL.md`；唯一 warning：两宿主版本不一致 ZCode 1.3.2 / MiniMax 1.5.0，按设计 ZCode 不领先列车）；`--check` 同样 PASS。
+- `node --test zcode/scripts/tests/` → **97 pass / 0 fail**。
+- `node --test host/minimax/tests/` → **33 pass / 0 fail**（含「MiniMax 清单 version 与 DSH 包一致」断言，基准 1.5.0）。
+- `node host/dsh/build.mjs`（`--check` 同样 PASS）；`node --test host/dsh/tests/` → **104 pass / 0 fail**（面板 12 例，含阶段带 / 带间箭头、节点拖动与重新布局、过滤与折叠、过滤持久化、画布交互、「不镜像任务列表」与「无数据不编造」回归）。
+- `node zcode/scripts/agent-config.mjs install`（演练）→ 镜像计划正确（`minimax/` → `~/.minimax/plugins/steward`，真装加 `--apply`）。
+- **DSH 侧无需重装**：当前 profile 里的 `dsh-steward` 是 `link:` 到本仓库 `dsh/` 的安装（`plugin_manager` 已报 1.5.0 / installed），重启 DSH 即加载新代码；技能目录是会话级快照，请开新会话。
+- 宿主内实测未做：审批提示在本会话关闭，`install_bundle` 需要显式授权；装完按 AGENTS.md 的 DSH 验收句在真实会话里核对工作流图 / 模型 / 进度条 / 产物。
+
 ## [ZCode 1.3.2 / MiniMax 1.4.1 / DSH 1.4.1] - 2026-11-17
 
 > **MiniMax 侧 Mini App 起不来 + 子代理模型配置页失效的根因修复（跨宿主）**：Steward 的 Mini App 一直打不开（`miniapp open` 报 `RUNTIME_FAILED`），「设置里改不了子代理模型 / 思考强度」的本地配置页也打不开（`/` 返回 500）。两条症状都在同一个插件包上，但根因不同，本版一次修掉：① 宿主对插件清单 `description` 有长度上限，**超长即整包被拒**——本仓库该字段 2341 字且英文段被拼了两遍，宿主因此从未拉取过板子页面（而运行时本身是健康的：`runtime.ready`、端口在听、页面可服务）；② `agent-config-core.mjs` 的 `PACKAGE_ROOT` 在**安装布局**下多退两级 → 找不到页面资产目录 → 本地页 500。版本随发布列车推进：**MiniMax = DSH 1.4.1，ZCode 1.3.2**（不领先列车）。

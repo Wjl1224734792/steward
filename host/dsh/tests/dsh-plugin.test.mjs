@@ -956,15 +956,15 @@ function createClientContext(options) {
 }
 
 /** The registered board body plus the injected face for one Session. */
-function boardEntry(registered) {
+function panelEntry(registered) {
   const entry = registered.find((item) => item.options.name === 'sidebar.right.pane.tab');
   assert.ok(entry, 'the board body must register into sidebar.right.pane.tab');
   return entry;
 }
 
 /** Render the board for one Session with the given scope services. */
-function boardRender(registered, sessionId, props) {
-  const entry = boardEntry(registered);
+function panelRender(registered, sessionId, props) {
+  const entry = panelEntry(registered);
   const face = typeof entry.options.inject === 'function' ? entry.options.inject(sessionId) : {};
   return () => entry.component({ ...face, sessionId, ...(props || {}) });
 }
@@ -1018,25 +1018,26 @@ test('the client registers a right-sidebar board, its title, a header button and
   assert.equal(tabTypes.length, 1);
   assert.equal(tabTypes[0].id, 'dsh-steward');
   assert.equal(tabTypes[0].kind, 'steward', 'openTab() names the kind');
-  assert.match(tabTypes[0].title('sidebar://steward'), /看板/);
+  assert.match(tabTypes[0].title('sidebar://steward'), /团队/);
   assert.equal(tabTypes[0].guide.length, 1, 'the guide page offers a way in');
   assert.equal(tabTypes[0].guide[0].id, 'steward-board');
 
-  // The empty board explains itself instead of throwing.
-  const renderEmpty = boardRender(registered, 'session-empty', {});
+  // The empty panel explains itself instead of throwing.
+  const renderEmpty = panelRender(registered, 'session-empty', {});
   const emptyHost = await harness.settle(renderEmpty);
   const emptyText = emptyHost.map((node) => harness.textOf(node)).join('\n');
-  assert.match(emptyText, /Steward 运行看板/);
-  assert.match(emptyText, /还没有任务/);
-  assert.match(emptyText, /还没有派发子代理/);
+  assert.match(emptyText, /Steward 团队/);
+  assert.match(emptyText, /还没有派发智能体/);
+  assert.match(emptyText, /原生任务列表为空/);
+  assert.match(emptyText, /产物/);
 
   // The header button renders as a real control and calls the injected opener.
   const buttonEntry = registered[3];
   let opened = 0;
-  const buttonHost = harness.expand(buttonEntry.component({ text: { openPanel: '打开 Steward 看板' }, openPanel: () => { opened += 1; } }));
+  const buttonHost = harness.expand(buttonEntry.component({ text: { openPanel: '打开 Steward 团队面板' }, openPanel: () => { opened += 1; } }));
   const buttons = harness.collect(buttonHost, harness.byClass('stwd-headbtn'));
   assert.equal(buttons.length, 1);
-  assert.equal(buttons[0].props['aria-label'], '打开 Steward 看板');
+  assert.equal(buttons[0].props['aria-label'], '打开 Steward 团队面板');
   buttons[0].props.onClick();
   assert.equal(opened, 1);
 
@@ -1045,11 +1046,11 @@ test('the client registers a right-sidebar board, its title, a header button and
   const enInstance = factory((name) => (name === 'react' ? enHarness.stub : {}));
   const en = createClientContext({ locale: 'en-US' });
   enInstance.apply(en.ctx);
-  const enHost = await enHarness.settle(boardRender(en.registered, 'session-empty', {}));
+  const enHost = await enHarness.settle(panelRender(en.registered, 'session-empty', {}));
   const enText = enHost.map((node) => enHarness.textOf(node)).join('\n');
-  assert.match(enText, /Steward run board/);
-  assert.match(enText, /No tasks yet/);
-  assert.match(enText, /No subagent dispatched/);
+  assert.match(enText, /Steward team/);
+  assert.match(enText, /No agent dispatched/);
+  assert.match(enText, /native task list is empty/);
 });
 
 /**
@@ -1057,7 +1058,7 @@ test('the client registers a right-sidebar board, its title, a header button and
  * plain `subagent` call must not steal the panel, and closing it afterwards has to
  * stick for that Session.
  */
-test('the board opens itself once when a Steward dispatch appears', async () => {
+test('the panel opens itself once when a Steward dispatch appears', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
@@ -1105,7 +1106,7 @@ test('the board opens itself once when a Steward dispatch appears', async () => 
  * inside a Steward run, still opens the board: the run directory on disk is the
  * evidence, probed once per Session.
  */
-test('the board also opens when a run directory exists but the dispatch label carries no role', async () => {
+test('the panel also opens when a run directory exists but the dispatch label carries no role', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
@@ -1142,167 +1143,486 @@ test('the board also opens when a run directory exists but the dispatch label ca
  * ownership matrix for file conflicts and a row list as the complete text
  * alternative — plus live subagents and the files the run produced.
  */
-test('the board renders a dependency graph, an ownership matrix, a list, subagents and artifacts', async () => {
+/**
+ * The graph is the point of the panel: one node per dispatched agent, connected to
+ * the Lead, grouped into status lanes, and clickable into the child session.
+ */
+test('the panel draws one agent card per dispatch inside stage bands', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
   const { ctx, registered } = createClientContext();
   instance.apply(ctx);
 
+  const NOW = 1700000000000;
   const values = {
+    subagentCatalog: [
+      { id: 'child-run', mode: 'one-shot', label: 'backend-dev · T1 导出接口', createdAt: 1000 },
+      { id: 'child-run2', mode: 'continuable', label: 'backend-dev · T2 导出按钮', createdAt: 1500 },
+      { id: 'child-wait', mode: 'continuable', label: 'qa-engineer · T4 复跑门禁', createdAt: 2000 },
+      { id: 'child-done', mode: 'one-shot', label: 'reviewer · T5 终审', createdAt: 3000 },
+    ],
     agentTeam: {
       enabled: true,
       tasks: [
-        { id: 'g1', subject: 'G1 · 计划批准', status: 'completed', ownerName: '', blockedBy: [], writeScopes: [] },
-        { id: 't1', subject: 'T1 · backend-dev · 导出接口', status: 'in_progress', ownerName: 'backend-dev-t1', blockedBy: ['g1'], writeScopes: ['src/export.ts', 'test/export.test.ts'], description: '目标：导出接口返回 200' },
-        { id: 't2', subject: 'T2 · frontend-dev · 导出按钮', status: 'pending', ownerName: 'frontend-dev-t3', blockedBy: ['t1'], writeScopes: ['test/export.test.ts'], ready: false },
-        { id: 'g2', subject: 'G2 · QA 门禁', status: 'pending', ownerName: '', blockedBy: ['t1'], writeScopes: [] },
+        { id: 'b1', subject: 'T1 · 实现导出接口', status: 'completed' },
+        { id: 'b2', subject: 'T2 · 实现导出按钮', status: 'completed' },
+        { id: 'b3', subject: 'T3 · QA 门禁', status: 'in_progress' },
+        { id: 'b4', subject: 'T4 · 终审', status: 'pending', ready: false },
       ],
     },
-    subagentCatalog: [
-      { id: 'child-1', mode: 'one-shot', label: 'backend-dev · T1 导出接口', activity: 'running' },
-      { id: 'child-2', mode: 'one-shot', label: 'qa-engineer · T4 QA', activity: 'inactive' },
-    ],
   };
+  const leadValues = {
+    modelSelection: { lastUsed: { provider: 'deepseek', model: 'deepseek-v4.1', reasoningEffort: 'high' }, next: null },
+    tokenUsage: { uncachedInputTokens: 1000, outputTokens: 300 },
+    sessionStats: { turns: 4, steps: 11 },
+  };
+  const summaries = {
+    'child-run': {
+      title: 'T1 导出接口',
+      projectionValues: {
+        subagentTiming: { settledMs: 60000, active: { since: NOW - 222000, through: NOW } },
+        tokenUsage: { uncachedInputTokens: 5000, outputTokens: 1400, cacheReadTokens: 2000, cacheWriteTokens: 0 },
+        modelSelection: { lastUsed: { provider: 'deepseek', model: 'deepseek-v4.1', reasoningEffort: 'high' }, next: null },
+      },
+    },
+    'child-run2': {
+      title: 'T2 导出按钮',
+      projectionValues: {
+        subagentTiming: { settledMs: 45000, active: { since: NOW - 45000, through: NOW } },
+        tokenUsage: { uncachedInputTokens: 2000, outputTokens: 600 },
+        modelSelection: { lastUsed: { provider: 'deepseek', model: 'deepseek-chat' }, next: null },
+      },
+    },
+    'child-wait': {
+      title: 'T4 复跑门禁',
+      projectionValues: {
+        subagentTiming: { settledMs: 30000 },
+        tokenUsage: { uncachedInputTokens: 1000, outputTokens: 200 },
+        modelSelection: { lastUsed: { provider: 'deepseek', model: 'deepseek-chat' }, next: null },
+      },
+    },
+    'child-done': {
+      title: 'T5 终审',
+      projectionValues: {
+        subagentTiming: { settledMs: 90000, lastTurnCompleted: true },
+        tokenUsage: { uncachedInputTokens: 3000, outputTokens: 700 },
+        modelSelection: { lastUsed: { provider: 'deepseek', model: 'deepseek-v4.1', reasoningEffort: 'high' }, next: null },
+      },
+    },
+  };
+  const status = new Map([
+    ['child-run', { running: true }],
+    ['child-run2', { running: true }],
+    ['child-wait', { running: true, pendingInteraction: { kind: 'question' } }],
+    ['child-done', { running: false }],
+  ]);
   const opened = [];
   const props = {
-    loadRun: async () => sampleFacts(),
-    useProjection: (key) => values[key],
-    useSessions: (selector) => selector({ byId: { 'child-1': { title: 'T1 导出接口实现' } } }),
-    useSessionStatus: (selector) => selector(new Map([['child-1', { running: true }]])),
-    openSession: (id, mode) => opened.push(['session', id, mode]),
-    openFile: (path) => opened.push(['file', path]),
+    now: () => NOW,
+    loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+    useProjection: (key) => (key === 'subagentCatalog' ? values.subagentCatalog
+      : key === 'agentTeam' ? values.agentTeam
+        : key === 'modelSelection' ? leadValues.modelSelection
+          : key === 'tokenUsage' ? leadValues.tokenUsage
+            : key === 'sessionStats' ? leadValues.sessionStats
+              : undefined),
+    useSessions: (selector) => selector({
+      byId: { ...summaries, 'session-graph': { displayTitle: '给导出模块补接口与测试' } },
+      projectionsBySession: {},
+    }),
+    useSessionStatus: (selector) => selector(status),
+    openSession: (id, mode) => opened.push([id, mode]),
+    openFile: () => {},
   };
-  const renderBoard = boardRender(registered, 'session-run01', props);
+  const render = panelRender(registered, 'session-graph', props);
 
-  // 1) Default view: the dispatch graph — a Lead node, the tasks it dispatched and
-  // the dependency edges between them.
-  let host = await harness.settle(renderBoard);
-  const leadNodes = harness.collect(host, harness.byClass('stwd-node-lead'));
-  assert.equal(leadNodes.length, 1, 'the graph has one Lead root');
-  assert.match(String(leadNodes[0].props['aria-label']), /Lead/, 'the root is named');
-  const nodes = harness.collect(host, harness.byClass('stwd-node-task'));
-  assert.equal(nodes.length, 4, 'every task is a graph node');
-  const edges = harness.collect(host, harness.byClass('stwd-edge'));
-  assert.equal(edges.length, 4, 'three dependencies plus the dispatch into the root task');
-  assert.equal(harness.collect(host, harness.byClass('stwd-edge-dispatch')).length, 1, 'exactly one task has no prerequisite');
-  const labels = nodes.map((node) => String(node.props['aria-label']));
-  assert.ok(labels.some((label) => label.indexOf('T1 ') === 0 && label.indexOf('进行中') > 0), 'a node names its task and state');
-  assert.ok(labels.some((label) => label.indexOf('backend-dev-t1') > 0), 'a node names its owner');
-  const xOf = (short) => {
-    const node = nodes.find((entry) => String(entry.props['aria-label']).indexOf(short + ' ') === 0);
-    const match = /translate\(([-\d.]+)/.exec(String(node.props.transform));
-    return Number(match ? match[1] : NaN);
-  };
-  assert.ok(xOf('G1') < xOf('T1'), 'layers run left to right');
-  assert.ok(xOf('T1') < xOf('G2'), 'the QA gate follows the work item');
-  assert.match(host.map((node) => harness.textOf(node)).join('\n'), /共享任务板/, 'the source is named');
+  // 1) The workflow tree is the default view: Lead root, stage hubs, one card per agent.
+  let host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 4, 'one node per dispatched agent');
+  assert.equal(harness.collect(host, harness.byClass('stwd-leadnode')).length, 1, 'the Lead roots the tree');
+  const bandTitles = harness.collect(host, harness.byClass('stwd-hub-title')).map(harness.textOf);
+  assert.deepEqual(bandTitles, ['实施', '质量', '评审'], `the stage hubs are drawn (${bandTitles.join(' | ')})`);
+  const bandCounts = harness.collect(host, harness.byClass('stwd-hub-count')).map(harness.textOf);
+  assert.deepEqual(bandCounts, ['2', '1', '1'], 'every hub counts its own cards');
+  assert.equal(harness.collect(host, harness.byClass('stwd-link-trunk')).length, 3, 'the trunk chains the Lead and the hubs');
+  assert.equal(harness.collect(host, harness.byClass('stwd-link-branch')).length, 4, 'one branch per agent card');
+  assert.equal(harness.collect(host, harness.byClass('stwd-graph-edges')).length, 0, 'no pairwise spaghetti edges');
+  const panelText = host.map((node) => harness.textOf(node)).join('\n');
+  assert.ok(panelText.indexOf('给导出模块补接口与测试') >= 0, 'the Lead shows its own task title');
 
-  // 2) Subagents: one row per dispatch, live status, click opens the child session.
-  const subrows = harness.collect(host, harness.byClass('stwd-subrow'));
-  assert.equal(subrows.length, 2, 'one row per dispatched subagent');
-  assert.match(harness.textOf(subrows[0]), /T1 导出接口实现/, 'the child Session title is the row title');
-  assert.match(harness.textOf(subrows[0]), /运行中/, 'a running child is labelled, not just coloured');
-  assert.match(harness.textOf(subrows[1]), /空闲/);
-  subrows[0].props.onClick();
-  assert.deepEqual(opened[0], ['session', 'child-1', 'one-shot'], 'clicking a subagent opens its child session');
+  // 2) A node names the role, the actual model, the task and the live numbers.
+  const mains = harness.collect(host, harness.byClass('stwd-gnode-main'));
+  const runMain = mains.find((node) => String(node.props['aria-label']).indexOf('backend-dev') >= 0);
+  assert.ok(runMain, 'the backend node is rendered');
+  assert.match(String(runMain.props['aria-label']), /后端工程师/);
+  assert.match(String(runMain.props['aria-label']), /deepseek-v4\.1 @ high/);
+  assert.match(String(runMain.props['aria-label']), /运行中/);
+  assert.match(String(runMain.props['aria-label']), /T1 导出接口/);
+  assert.match(harness.textOf(runMain), /T1 导出接口/);
+  assert.match(harness.textOf(runMain), /4m 42s/, 'the live elapsed time is rendered');
+  assert.match(harness.textOf(runMain), /8\.4k/, 'the summed tokens are rendered');
+  const waitMain = mains.find((node) => String(node.props['aria-label']).indexOf('qa-engineer') >= 0);
+  assert.match(String(waitMain.props['aria-label']), /等待输入/);
 
-  // 3) Artifacts: the run directory listing is a clickable file list.
-  const artrows = harness.collect(host, harness.byClass('stwd-artrow'));
-  assert.equal(artrows.length, 1);
-  assert.match(harness.textOf(artrows[0]), /final-report\.md/);
-  artrows[0].props.onClick();
-  assert.deepEqual(opened[1], ['file', 'tmp/steward/1113-1518-demo/final-report.md'], 'clicking an artifact opens the file');
+  // Cards of one stage stack on its branch; stages flow down the trunk.
+  const boxOf = (needle) => harness.collect(host, harness.byClass('stwd-gnode'))
+    .find((node) => harness.textOf(node).indexOf(needle) >= 0);
+  const topOf = (node) => Number(String(node.props.style.top).replace('px', ''));
+  const leftOfNode = (node) => Number(String(node.props.style.left).replace('px', ''));
+  assert.equal(leftOfNode(boxOf('T1 导出接口')), leftOfNode(boxOf('T2 导出按钮')), 'siblings share one branch column');
+  assert.equal(topOf(boxOf('T2 导出按钮')) - topOf(boxOf('T1 导出接口')), 84, 'siblings stack by one row pitch');
+  assert.ok(topOf(boxOf('T4 复跑门禁')) > topOf(boxOf('T2 导出按钮')), 'the next stage sits further down the trunk');
 
-  // 4) Selecting a node opens the task detail.
-  const t1Node = nodes.find((node) => String(node.props['aria-label']).indexOf('T1 ') === 0);
-  t1Node.props.onClick();
-  host = await harness.settle(renderBoard);
-  const detail = harness.collect(host, harness.byClass('stwd-detail'))[0];
-  assert.ok(detail, 'clicking a node opens the detail');
-  assert.match(harness.textOf(detail), /T1 · backend-dev · 导出接口/);
-  assert.match(harness.textOf(detail), /src\/export\.ts/);
-  assert.match(harness.textOf(detail), /导出接口返回 200/, 'the task description is readable in the panel');
+  // 3) The native task list becomes one bar — counts only, never the tasks.
+  assert.match(panelText, /2\/4/, 'the bar counts the native tasks');
+  assert.match(panelText, /Agent Teams 任务板/, 'the source is named');
+  assert.equal(harness.collect(host, harness.byClass('stwd-tseg')).length, 4, 'one segment per native task');
+  for (const subject of ['T1 · 实现导出接口', 'T3 · QA 门禁']) {
+    assert.equal(panelText.indexOf(subject) < 0, true, `task text must not leak into the panel: ${subject}`);
+  }
 
-  // 5) Ownership matrix: the file both agents write is flagged as overlapping.
-  const viewTabs = harness.collect(host, harness.byClass('stwd-viewtab'));
-  assert.deepEqual(viewTabs.map(harness.textOf), ['依赖图', '列表', '归属']);
-  viewTabs[2].props.onClick();
-  host = await harness.settle(renderBoard);
-  const table = harness.collect(host, (node) => node.type === 'table')[0];
-  assert.ok(table, 'the matrix is a real table');
-  const columnHeads = harness.collect([table], (node) => node.type === 'th' && node.props.scope === 'col').map(harness.textOf);
-  assert.ok(columnHeads.some((cell) => cell.indexOf('backend-dev-t1') >= 0), 'one column per agent');
-  const matrixRows = harness.collect(host, (node) => typeof node.props.className === 'string' && node.props.className.indexOf('stwd-matrix-row-overlap') >= 0);
-  assert.equal(matrixRows.length, 1, 'only the shared file is flagged');
-  assert.match(harness.textOf(matrixRows[0]), /test\/export\.test\.ts/);
-  assert.equal(harness.collect(host, harness.byClass('stwd-node')).length, 0, 'the graph is replaced, not stacked');
+  // 4) Clicking a node opens its child session; the chevron opens the facts.
+  runMain.props.onClick();
+  assert.deepEqual(opened[0], ['child-run', 'one-shot'], 'a node opens its child session');
+  const runBox = boxOf('T1 导出接口');
+  harness.collect([runBox], harness.byClass('stwd-gnode-more'))[0].props.onClick();
+  host = await harness.settle(render);
+  const detail = harness.collect(host, harness.byClass('stwd-gdetail'))[0];
+  assert.ok(detail, 'the detail block appears');
+  const detailText = harness.textOf(detail);
+  assert.match(detailText, /deepseek-v4\.1/, 'the detail names the model');
+  assert.match(detailText, /deepseek/, 'the detail names the provider');
+  assert.match(detailText, /high/, 'the detail names the reasoning effort');
+  assert.match(detailText, /一次性/, 'the detail names the child mode');
+  assert.match(detailText, /缓存读 2000/, 'the detail breaks the usage buckets down');
+  const detailButton = harness.collect([detail], (node) => node.type === 'button' && harness.textOf(node) === '打开会话')[0];
+  assert.ok(detailButton, 'the detail offers the open action');
+  const before = opened.length;
+  detailButton.props.onClick();
+  assert.equal(opened.length, before + 1);
 
-  // 6) List: the complete text alternative, one row per task.
-  harness.collect(host, harness.byClass('stwd-viewtab'))[1].props.onClick();
-  host = await harness.settle(renderBoard);
-  const rows = harness.collect(host, harness.byClass('stwd-row'))
-    .filter((node) => node.props.className.indexOf('stwd-subrow') < 0 && node.props.className.indexOf('stwd-artrow') < 0);
-  assert.equal(rows.length, 4, 'one row per task');
-  assert.match(harness.textOf(rows[1]), /T1 · backend-dev · 导出接口/, 'the row carries the whole title');
-  assert.match(harness.textOf(rows[1]), /进行中/);
+  // 5) Filters: hide the completed card, then keep only the active ones.
+  host = await harness.settle(render);
+  const filterOf = (needle) => harness.collect(host, harness.byClass('stwd-filter'))
+    .find((node) => harness.textOf(node).indexOf(needle) >= 0);
+  filterOf('隐藏已完成').props.onClick();
+  host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 3, 'the completed card is hidden');
+  assert.ok(harness.textOf(host[0]).indexOf('已隐藏 1 个') >= 0, 'the panel says how many are hidden');
+  filterOf('只看活跃').props.onClick();
+  host = await harness.settle(render);
+  const activeLabels = harness.collect(host, harness.byClass('stwd-gnode-main')).map((node) => String(node.props['aria-label']));
+  assert.equal(activeLabels.length, 3, 'only running and waiting cards survive the active filter');
+  assert.ok(activeLabels.every((label) => !/已完成/.test(label)), 'no completed card slips through');
+  filterOf('全部').props.onClick();
+  host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 4, 'the full roster comes back');
+
+  // 6) A hub collapses into its header and keeps its count.
+  const bandHeadOf = (needle) => harness.collect(host, harness.byClass('stwd-hub-head'))
+    .find((node) => harness.textOf(node).indexOf(needle) >= 0);
+  bandHeadOf('实施').props.onClick();
+  host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 2, 'the collapsed hub hides its cards');
+  assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-hub-count'))[0]), '2', 'the hub still counts them');
+  assert.equal(bandHeadOf('实施').props['aria-expanded'], 'false', 'the hub header reports the collapsed state');
+  bandHeadOf('实施').props.onClick();
+  host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 4, 'expanding brings the cards back');
+
+  // 7) Dragging a card moves it (and swallows the click); the relayout tool snaps back.
+  const view = harness.collect(host, harness.byClass('stwd-graph-view'))[0];
+  const card = harness.collect(host, harness.byClass('stwd-gnode'))
+    .find((node) => harness.textOf(node).indexOf('T1 导出接口') >= 0);
+  const leftOf = (node) => Number(String(node.props.style.left).replace('px', ''));
+  const topOfCard = (node) => Number(String(node.props.style.top).replace('px', ''));
+  const startLeft = leftOf(card);
+  const startTop = topOfCard(card);
+  const widthOfCard = Number(String(card.props.style.width).replace('px', ''));
+  const heightOfCard = Number(String(card.props.style.height).replace('px', ''));
+  const startX = startLeft + widthOfCard / 2;
+  const startY = startTop + heightOfCard / 2;
+  view.props.onPointerDown({ button: 0, clientX: startX, clientY: startY, pointerId: 1, target: null });
+  view.props.onPointerMove({ clientX: startX + 60, clientY: startY + 40, pointerId: 1, target: null });
+  const swallowed = { prevented: false, stopped: false };
+  view.props.onClickCapture({
+    preventDefault: () => { swallowed.prevented = true; },
+    stopPropagation: () => { swallowed.stopped = true; },
+  });
+  assert.ok(swallowed.prevented && swallowed.stopped, 'the click that follows a drag is swallowed');
+  view.props.onPointerUp({ pointerId: 1, target: null });
+  host = await harness.settle(render);
+  const moved = harness.collect(host, harness.byClass('stwd-gnode'))
+    .find((node) => harness.textOf(node).indexOf('T1 导出接口') >= 0);
+  assert.equal(leftOf(moved), startLeft + 60, 'the dragged card keeps its new x');
+  assert.equal(topOfCard(moved), startTop + 40, 'the dragged card keeps its new y');
+  assert.equal(opened.length, before + 1, 'a drag must not open the child session');
+  const relayoutTool = harness.collect(host, harness.byClass('stwd-graph-tool'))
+    .find((node) => String(node.props['aria-label']).indexOf('重新布局') >= 0);
+  relayoutTool.props.onClick();
+  host = await harness.settle(render);
+  const snapped = harness.collect(host, harness.byClass('stwd-gnode'))
+    .find((node) => harness.textOf(node).indexOf('T1 导出接口') >= 0);
+  assert.equal(leftOf(snapped), startLeft, 're-layout restores the computed position');
+  assert.equal(topOfCard(snapped), startTop);
 });
 
 /**
- * Without Agent Teams the board still has to say something: the todo list is the
- * fallback source, and a cyclic board degrades to the list with an explanation.
+ * The filter choice is remembered: the panel writes it to local storage and reads it
+ * back on the next mount, so hiding the finished agents survives a reload.
  */
-test('the board falls back to the todo list and refuses to draw a cyclic graph', async () => {
+test('the graph remembers its filter across mounts', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
   const { ctx, registered } = createClientContext();
   instance.apply(ctx);
 
-  const todoValues = {
-    todos: [
-      { content: '写规格', status: 'completed' },
-      { content: '实现导出', status: 'in_progress' },
-    ],
+  const store = new Map();
+  const storage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(key, String(value)); },
+    removeItem: (key) => { store.delete(key); },
   };
-  const renderTodo = boardRender(registered, 'session-todo', {
-    loadRun: async () => ({ status: 'empty', dir: '', run: null, plan: null, artifacts: [] }),
-    useProjection: (key) => todoValues[key],
-  });
-  let host = await harness.settle(renderTodo);
-  assert.equal(harness.collect(host, harness.byClass('stwd-node-task')).length, 2, 'two todo items are two nodes');
-  assert.equal(harness.collect(host, harness.byClass('stwd-node-lead')).length, 1, 'the Lead root is drawn too');
-  assert.equal(harness.collect(host, harness.byClass('stwd-edge-dispatch')).length, 2, 'each todo hangs off the Lead with a line');
-  assert.equal(harness.collect(host, harness.byClass('stwd-edge')).length, 2, 'a todo list has no dependencies');
-  assert.match(host.map((node) => harness.textOf(node)).join('\n'), /待办清单/, 'the fallback source is named');
+  const previousWindow = globalThis.window;
+  globalThis.window = { localStorage: storage };
+  try {
+    const props = {
+      now: () => 1700000000000,
+      loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+      useProjection: (key) => (key === 'subagentCatalog' ? [
+        { id: 'child-done', mode: 'one-shot', label: 'reviewer · 终审', createdAt: 1 },
+        { id: 'child-run', mode: 'one-shot', label: 'pm · 写规格', createdAt: 2 },
+      ] : undefined),
+      useSessions: (selector) => selector({
+        byId: { 'child-done': { projectionValues: { subagentTiming: { settledMs: 90000, lastTurnCompleted: true } } } },
+        projectionsBySession: {},
+      }),
+      useSessionStatus: (selector) => selector(new Map([
+        ['child-done', { running: false }],
+        ['child-run', { running: true }],
+      ])),
+      openSession: () => {},
+      openFile: () => {},
+    };
+    let host = await harness.settle(panelRender(registered, 'session-prefs', props));
+    const hide = harness.collect(host, harness.byClass('stwd-filter'))
+      .find((node) => harness.textOf(node).indexOf('隐藏已完成') >= 0);
+    hide.props.onClick();
+    host = await harness.settle(panelRender(registered, 'session-prefs', props));
+    const stored = JSON.parse(store.get('dsh-steward.panel.filters'));
+    assert.equal(stored.filter, 'hide-done', 'the choice is persisted');
+    assert.equal(harness.collect(host, harness.byClass('stwd-filter-on')).map(harness.textOf)[0], '隐藏已完成', 'the active filter is marked');
 
-  // A cycle cannot be layered: the list takes over and the panel says why.
-  const cycleValues = {
-    agentTeam: {
-      enabled: true,
-      tasks: [
-        { id: 't1', subject: 'T1 · backend-dev · 甲', status: 'pending', ownerName: 'backend-dev-t1', blockedBy: ['t2'], writeScopes: [] },
-        { id: 't2', subject: 'T2 · backend-dev · 乙', status: 'pending', ownerName: 'backend-dev-t1', blockedBy: ['t1'], writeScopes: [] },
-      ],
-    },
-  };
-  const renderCycle = boardRender(registered, 'session-cycle', {
-    loadRun: async () => ({ status: 'empty', dir: '', run: null, plan: null, artifacts: [] }),
-    useProjection: (key) => cycleValues[key],
-  });
-  host = await harness.settle(renderCycle);
-  assert.equal(harness.collect(host, harness.byClass('stwd-node')).length, 0, 'no layered graph for a cyclic board');  const cycleRows = harness.collect(host, harness.byClass('stwd-row'))
-    .filter((node) => node.props.className.indexOf('stwd-subrow') < 0 && node.props.className.indexOf('stwd-artrow') < 0);
-  assert.equal(cycleRows.length, 2, 'the list takes over');
-  const alerts = harness.collect(host, harness.byClass('stwd-alert')).map(harness.textOf);
-  assert.ok(alerts.some((text) => text.indexOf('环状依赖') >= 0), `the panel explains the cycle (alerts: ${alerts.join(' | ')})`);
+    // A fresh mount starts from the stored choice without any click.
+    harness.reset();
+    host = await harness.settle(panelRender(registered, 'session-prefs', props));
+    assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 1, 'the stored filter applies on mount');
+  } finally {
+    globalThis.window = previousWindow;
+  }
 });
 
 /**
- * The board reads the run off disk through the host's workspace-files Remote: the
- * newest run directory wins, 03-plan.json supplies ownership and run.json status.
+ * The tree is a canvas: it zooms from the toolbar or the keyboard, pans on a drag,
+ * and resets on a double click — all without changing which node opens a session.
  */
-test('the board reads plan + run.json + artifacts off disk through the workspace-files Remote', async () => {
+test('the agent graph is a canvas that zooms, pans and resets', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const props = {
+    now: () => 1700000000000,
+    loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+    useProjection: (key) => (key === 'subagentCatalog' ? [
+      { id: 'child-a', mode: 'one-shot', label: 'pm · 写规格', createdAt: 1 },
+      { id: 'child-b', mode: 'continuable', label: 'architect · 出方案', createdAt: 2 },
+    ] : undefined),
+    useSessions: (selector) => selector({ byId: {}, projectionsBySession: {} }),
+    useSessionStatus: (selector) => selector(new Map()),
+    openSession: () => {},
+    openFile: () => {},
+  };
+  const render = panelRender(registered, 'session-canvas', props);
+  const stageOf = (host) => harness.collect(host, harness.byClass('stwd-graph-stage'))[0];
+  const viewOf = (host) => harness.collect(host, harness.byClass('stwd-graph-view'))[0];
+
+  let host = await harness.settle(render);
+  assert.match(String(stageOf(host).props.style.transform), /scale\(1\)/, 'the canvas opens at 100%');
+  assert.match(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-hint'))[0]), /拖空白平移/, 'the pan/zoom hint is visible');
+  const tools = harness.collect(host, harness.byClass('stwd-graph-tool'));
+  assert.deepEqual(tools.map(harness.textOf), ['−', '100%', '+', '⤢', '⟲'], 'the zoom and layout controls are wired to the canvas');
+
+  // Toolbar zoom in, then the keyboard zooms out.
+  tools[2].props.onClick();
+  host = await harness.settle(render);
+  assert.match(String(stageOf(host).props.style.transform), /scale\(1\.12\)/);
+  assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '112%');
+  viewOf(host).props.onKeyDown({ key: '-', preventDefault: () => {} });
+  host = await harness.settle(render);
+  assert.match(String(stageOf(host).props.style.transform), /scale\(1\)/);
+
+  // Zoom in again, then drag the canvas: the content translates.
+  harness.collect(host, harness.byClass('stwd-graph-tool'))[2].props.onClick();
+  host = await harness.settle(render);
+  const view = viewOf(host);
+  view.props.onPointerDown({ button: 0, clientX: 120, clientY: 120, pointerId: 1, target: null, currentTarget: null });
+  view.props.onPointerMove({ clientX: 40, clientY: 60, pointerId: 1, target: null, currentTarget: null });
+  view.props.onPointerUp({ pointerId: 1, target: null, currentTarget: null });
+  host = await harness.settle(render);
+  assert.match(String(stageOf(host).props.style.transform), /translate\(-\d+px,-\d+px\) scale\(1\.12\)/, 'a drag pans the canvas');
+
+  // Double click on the background resets the view.
+  viewOf(host).props.onDoubleClick({ target: null });
+  host = await harness.settle(render);
+  assert.match(String(stageOf(host).props.style.transform), /translate\(0px,0px\) scale\(1\)/);
+  assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '100%');
+});
+
+/**
+ * The panel counts the host's own task list — the Agent Teams board first, the
+ * Session's todo list second — and never renders a task row of its own.
+ */
+test('the panel counts the native task list without ever listing its tasks', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const renderWith = (projections) => panelRender(registered, 'session-task', {
+    now: () => 1700000000000,
+    loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+    useProjection: (key) => projections[key],
+  });
+
+  // 1) The shared board wins when it carries tasks; the todo list is not consulted.
+  let host = await harness.settle(renderWith({
+    agentTeam: {
+      enabled: true,
+      tasks: [
+        { id: 'b1', subject: '板任务甲', status: 'completed' },
+        { id: 'b2', subject: '板任务乙', status: 'in_progress' },
+      ],
+    },
+    todos: [{ content: '待办甲', status: 'completed' }, { content: '待办乙', status: 'pending' }],
+  }));
+  let text = host.map((node) => harness.textOf(node)).join('\n');
+  assert.match(text, /1\/2/);
+  assert.match(text, /Agent Teams 任务板/);
+  assert.equal(text.indexOf('板任务甲') < 0, true, 'board task text stays out of the panel');
+  assert.equal(text.indexOf('待办甲') < 0, true, 'todo text stays out of the panel');
+
+  // 2) Without a board the Session's own todo list is counted instead.
+  host = await harness.settle(renderWith({
+    agentTeam: { enabled: false, tasks: [{ id: 'b1', subject: '不应出现', status: 'completed' }] },
+    todos: [
+      { content: '待办甲', status: 'completed' },
+      { content: '待办乙', status: 'in_progress' },
+      { content: '待办丙', status: 'pending' },
+    ],
+  }));
+  text = host.map((node) => harness.textOf(node)).join('\n');
+  assert.match(text, /1\/3/);
+  assert.match(text, /会话任务列表/);
+  assert.equal(text.indexOf('待办甲') < 0, true);
+
+  // 3) No native tasks at all means an honest empty bar, not a fabricated one.
+  host = await harness.settle(renderWith({}));
+  text = host.map((node) => harness.textOf(node)).join('\n');
+  assert.match(text, /原生任务列表为空/);
+  assert.equal(harness.collect(host, harness.byClass('stwd-tseg')).length, 0);
+});
+
+/**
+ * The list view is the dense alternative to the graph: the same agents, no tree,
+ * still clickable into the child session.
+ */
+test('the list view lists agents only and the graph stays the default', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const opened = [];
+  const props = {
+    now: () => 1700000000000,
+    loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+    useProjection: (key) => (key === 'subagentCatalog' ? [
+      { id: 'child-a', mode: 'one-shot', label: 'pm · 写规格', createdAt: 1 },
+      { id: 'child-b', mode: 'continuable', label: 'architect · 出方案', createdAt: 2 },
+    ] : undefined),
+    useSessions: (selector) => selector({ byId: {}, projectionsBySession: {} }),
+    useSessionStatus: (selector) => selector(new Map([['child-a', { running: false }]])),
+    openSession: (id, mode) => opened.push([id, mode]),
+    openFile: () => {},
+  };
+  const render = panelRender(registered, 'session-list', props);
+
+  let host = await harness.settle(render);
+  const tabs = harness.collect(host, harness.byClass('stwd-viewtab'));
+  assert.deepEqual(tabs.map(harness.textOf), ['图', '列表']);
+  assert.equal(tabs[0].props['aria-pressed'], 'true', 'the graph is the default view');
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 2);
+  assert.equal(harness.collect(host, harness.byClass('stwd-arow')).length, 0);
+
+  tabs[1].props.onClick();
+  host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 0, 'the graph gives way to the list');
+  const rows = harness.collect(host, harness.byClass('stwd-arow'));
+  assert.equal(rows.length, 2, 'one row per agent');
+  const main = harness.collect(rows, harness.byClass('stwd-arow-main'))[0];
+  main.props.onClick();
+  assert.deepEqual(opened[0], ['child-a', 'one-shot']);
+  const panelText = host.map((node) => harness.textOf(node)).join('\n');
+  assert.equal(panelText.indexOf('任务列表') >= 0, true, 'the native list is pointed at, not copied');
+
+  harness.collect(host, harness.byClass('stwd-viewtab'))[0].props.onClick();
+  host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 2, 'the graph comes back');
+});
+
+/**
+ * Nothing invented: an agent whose Session recorded no projections shows a pending
+ * model and no usage instead of a guessed route.
+ */
+test('an agent without recorded projections degrades honestly', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const props = {
+    now: () => 1700000000000,
+    loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+    useProjection: (key) => (key === 'subagentCatalog' ? [
+      { id: 'child-bare', mode: 'one-shot', label: 'reviewer · 还没开始' },
+    ] : undefined),
+    useSessions: (selector) => selector({ byId: {}, projectionsBySession: {} }),
+    useSessionStatus: (selector) => selector(new Map()),
+    openSession: () => {},
+    openFile: () => {},
+  };
+  const host = await harness.settle(panelRender(registered, 'session-bare', props));
+  const main = harness.collect(host, harness.byClass('stwd-gnode-main'))[0];
+  assert.ok(main, 'the bare agent still draws a node');
+  const text = harness.textOf(main);
+  assert.match(text, /模型待定/, 'no model is invented');
+  assert.match(text, /—/, 'no usage is invented');
+  assert.match(String(main.props['aria-label']), /待开始/);
+});
+
+/**
+ * The run directory supplies artifacts only: the panel never reads 03-plan.json or
+ * draws task nodes from it any more.
+ */
+test('the run directory supplies artifacts only, collapsed until asked for', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
@@ -1323,28 +1643,22 @@ test('the board reads plan + run.json + artifacts off disk through the workspace
     'tmp/steward/1113-1518-demo/run.json': JSON.stringify({
       status: 'running',
       updatedAt: '2026-11-13T07:20:00.000Z',
-      tasks: { T1: { status: 'done', attempts: 1 }, T2: { status: 'running' } },
+      tasks: { T1: { status: 'done' } },
     }),
     'tmp/steward/1113-1518-demo/03-plan.json': JSON.stringify({
-      acceptanceCriteria: [{ id: 'AC1', text: '导出接口返回 200', coveredBy: ['T1'] }],
-      tasks: [
-        { id: 'T1', title: '导出接口', role: 'backend-dev', files: ['src/export.js'], newFiles: [], dependsOn: [] },
-        { id: 'T2', title: '导出按钮', role: 'frontend-dev', files: ['src/ui/button.vue'], newFiles: [], dependsOn: ['T1'] },
-      ],
+      tasks: [{ id: 'T1', title: '导出接口', role: 'backend-dev', files: ['src/export.js'], dependsOn: [] }],
     }),
   };
   const calls = [];
   const workspaceFiles = {
     list: async (sessionId, path) => {
       calls.push(['list', path]);
-      assert.equal(sessionId, 'session-run07');
       return listings[path] === undefined
         ? { ok: false, error: { message: 'workspace-file/not-found', code: 'workspace-file/not-found' } }
         : { ok: true, value: { path, entries: listings[path], truncated: false } };
     },
     read: async (sessionId, path) => {
       calls.push(['read', path]);
-      assert.equal(sessionId, 'session-run07');
       return reads[path] === undefined
         ? { ok: false, error: { message: 'workspace-file/not-found', code: 'workspace-file/not-found' } }
         : { ok: true, value: { text: reads[path], absolutePath: path, version: 'v1', offset: 1, lines: 1, eof: true } };
@@ -1356,50 +1670,66 @@ test('the board reads plan + run.json + artifacts off disk through the workspace
   });
   instance.apply(ctx);
 
-  const entry = boardEntry(registered);
+  const entry = panelEntry(registered);
   const face = entry.options.inject('session-run07');
   const facts = await face.loadRun();
   assert.equal(facts.dir, 'tmp/steward/1113-1518-demo', 'the newest run directory wins');
-  assert.equal(facts.run.status, 'running');
+  assert.equal(facts.run, undefined, 'run.json is only used to rank directories');
   assert.ok(facts.artifacts.some((item) => item.name === 'reports/qa.md'), 'nested reports are listed');
   assert.ok(calls.some(([method, path]) => method === 'list' && path === 'tmp/steward'), 'discovery walks the run root');
+  assert.equal(calls.some(([method, path]) => method === 'read' && path.endsWith('03-plan.json')), false, 'the plan is never read');
 
-  // Rendering the same Session turns plan + run.json into the graph.
-  const host = await harness.settle(() => entry.component({
+  const opened = [];
+  const render = () => entry.component({
     ...face,
     sessionId: 'session-run07',
+    now: () => 1700000000000,
     useProjection: () => undefined,
-  }));
-  const nodes = harness.collect(host, harness.byClass('stwd-node-task'));
-  assert.equal(nodes.length, 2, 'the plan tasks become nodes');
-  assert.equal(harness.collect(host, harness.byClass('stwd-node-lead')).length, 1, 'the Lead root heads the plan graph');
-  assert.equal(harness.collect(host, harness.byClass('stwd-edge-dispatch')).length, 1, 'the first task hangs off the Lead');
-  assert.equal(harness.collect(host, harness.byClass('stwd-edge')).length, 2, 'one dispatch edge plus T1 → T2');
-  const nodeLabels = nodes.map((node) => String(node.props['aria-label']));
-  assert.ok(nodeLabels.some((label) => label.indexOf('T1 ') === 0 && label.indexOf('完成') > 0), 'run.json drives the status');
-  assert.ok(nodeLabels.some((label) => label.indexOf('T2 ') === 0 && label.indexOf('进行中') > 0));
-  assert.ok(host.map((node) => harness.textOf(node)).join('\n').indexOf('run.json') >= 0, 'the source is named');
+    openFile: (path) => opened.push(path),
+  });
+
+  // Collapsed by default: the artifacts exist but stay folded.
+  let host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-artrow')).length, 0, 'artifacts start collapsed');
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 0, 'the plan never becomes nodes');
+  const head = harness.collect(host, harness.byClass('stwd-artifacts-head'))[0];
+  assert.ok(head, 'the artifacts section has a toggle');
+  head.props.onClick();
+  host = await harness.settle(render);
+  const rows = harness.collect(host, harness.byClass('stwd-artrow'));
+  assert.ok(rows.length >= 1, 'opening the section lists the files');
+  rows[0].props.onClick();
+  assert.equal(opened.length, 1, 'clicking an artifact opens it');
+  assert.ok(harness.collect(host, harness.byClass('stwd-artifacts-dir')).length === 1, 'the run directory is shown');
 });
 
 /**
  * The injected face is how a row reaches the host: a child Session opens as a
- * `subagentchat` resource in the right Sidebar, an artifact as a `file` resource.
+ * `subagentchat` resource in the right Sidebar, an artifact as a `file` resource,
+ * and the panel can ask the host to read a child's projections.
  */
-test('the board face opens child sessions and artifacts in the right sidebar', async () => {
+test('the panel face opens child sessions, artifacts and asks for child projections', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
   const calls = [];
+  const refreshed = [];
   const { ctx, registered } = createClientContext({
     sidebarRight: {
       mounted: { getSnapshot: () => undefined, subscribe: () => () => {} },
       openTab: (kind) => calls.push(['tab', kind]),
       openResource: (address, options) => calls.push(['resource', address, options]),
     },
+    sessions: {
+      list: { getSnapshot: () => ({ projectionsBySession: {} }), subscribe: () => () => {} },
+      refreshProjections: async (id) => { refreshed.push(id); },
+    },
   });
   instance.apply(ctx);
 
-  const face = boardEntry(registered).options.inject('session-run09');
+  const face = panelEntry(registered).options.inject('session-run09');
+  assert.equal(typeof face.now(), 'number', 'the face supplies the panel clock');
+
   face.openSession('child-7', 'one-shot');
   const chat = calls.find(([kind]) => kind === 'resource');
   assert.ok(chat, 'opening a child uses the Sidebar resource path');
@@ -1412,6 +1742,9 @@ test('the board face opens child sessions and artifacts in the right sidebar', a
 
   face.openPanel();
   assert.deepEqual(calls.filter(([kind]) => kind === 'tab'), [['tab', 'steward']], 'the panel opens by kind');
+
+  await face.refreshChild('child-9');
+  assert.deepEqual(refreshed, ['child-9'], 'the face asks the host for a child projection read');
 });
 
 /**
@@ -1486,7 +1819,7 @@ test('the settings section renders the model table with a defaults row and one r
  * `--dsw-*` reference must be a real theme token, tokens outside the published
  * alias catalog must carry a fallback, and every selector must stay scoped.
  */
-test('the board stylesheet stays scoped and uses only host theme tokens', async () => {
+test('the panel stylesheet stays scoped and uses only host theme tokens', async () => {
   const { factory } = await loadClientFactory();
   const source = readFileSync(new URL('../../../dsh/client.js', import.meta.url), 'utf8');
 
@@ -1553,7 +1886,7 @@ test('the board stylesheet stays scoped and uses only host theme tokens', async 
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
   const { ctx, registered } = createClientContext();
   instance.apply(ctx);
-  const entry = boardEntry(registered);
+  const entry = panelEntry(registered);
   const face = entry.options.inject('session-style');
   const tree = entry.component({ ...face, sessionId: 'session-style', loadRun: async () => ({ status: 'empty', dir: '', run: null, plan: null, artifacts: [] }) });
 

@@ -1,13 +1,13 @@
 ---
 name: agent-settings
-description: Steward 子代理模型与思考强度配置（DSH）。模型在「设置 → Steward」里逐角色配置（provider / model / 思考强度）；会话标题栏的 Steward 图标打开该会话的右侧栏看板，看子代理实时状态、点一行进子会话、看任务与产物。项目根 steward.config.json 的 modelRouting 对该角色优先。Use when the user asks which model or thinking effort a Steward subagent uses, wants to change a role's model/effort, or wants to watch a Steward run on the right-sidebar board.
+description: Steward 子代理模型与思考强度配置（DSH）。模型在「设置 → Steward」里逐角色配置（provider / model / 思考强度）；会话标题栏的 Steward 图标打开该会话的右侧栏团队面板，默认分层工作流图里每个智能体一个节点（角色 / 实际模型 / 任务 / 状态 / 耗时 / 用量），点节点进子会话。项目根 steward.config.json 的 modelRouting 对该角色优先。Use when the user asks which model or thinking effort a Steward subagent uses, wants to change a role's model/effort, or wants to watch a Steward run on the right-sidebar team panel.
 ---
 
 <!-- 由 host/dsh/build.mjs 从 shared/ + host/dsh/ 生成，请勿手改；改源后重跑 node host/dsh/build.mjs。 -->
 
 # 子代理模型与思考强度配置（DSH）
 
-> 目标：让用户**看得见、改得动、验得了** 7 个子代理的模型与思考强度。DSH 侧两块入口各管一件事：**设置 → Steward** 里是这张按角色的模型表格（逐角色 provider / model / 思考强度 + 默认兜底行）；运行情况看**每会话一份的右侧栏看板**（会话标题栏的 Steward 图标打开，或直接点右侧栏里已打开的「Steward 看板」tab）——任务图、子代理实时状态、产物都在那儿。
+> 目标：让用户**看得见、改得动、验得了** 7 个子代理的模型与思考强度。DSH 侧两块入口各管一件事：**设置 → Steward** 里是这张按角色的模型表格（逐角色 provider / model / 思考强度 + 默认兜底行）；运行情况看**每会话一份的右侧栏团队面板**（会话标题栏的 Steward 图标打开，或直接点右侧栏里已打开的「Steward 团队」tab）——默认分层工作流图，节点上就写着实际模型、任务与状态；任务进度看面板顶部那条原生任务进度条（只给计数，任务本身去 DSH 自带的任务列表 / 原生 Team 面板读）。
 
 ## 生效规则（唯一事实链）
 
@@ -21,11 +21,11 @@ description: Steward 子代理模型与思考强度配置（DSH）。模型在�
 
 ## 你要做的
 
-1. **先看**：让用户点会话标题栏的 Steward 图标、或直接点右侧栏里已打开的「Steward 看板」tab 看运行；模型值去「设置 → Steward」读，也可以直接看 `steward.config.json` 的 `modelRouting`。把「角色 / 生效模型 / 思考强度 / 来源」照实讲，不要编默认值。
+1. **先看**：让用户点会话标题栏的 Steward 图标、或直接点右侧栏里已打开的「Steward 团队」tab 看运行；模型值去「设置 → Steward」读，也可以直接看 `steward.config.json` 的 `modelRouting`。把「角色 / 生效模型 / 思考强度 / 来源」照实讲，不要编默认值。
 2. **改**：
    - 用户要「看着改」→ 让他在「设置 → Steward」里按角色选 provider / model / 思考强度，点保存（设置页会做真实校验并回显）。
    - 用户要改仓库级 → 编辑项目根 `steward.config.json` 的 `modelRouting`，跑 `node <包>/scripts/validate-config.mjs <项目根>/steward.config.json`。
-3. **看 Agent 状态**：右侧栏看板的子代理区每个派发一行，显示 运行中 / 空闲、角色 chip 与子代理会话标题；**点一行在右侧栏打开它的子会话**。任务区按来源显示共享任务板 / `run.json` / 待办清单（头部徽标标出来源），状态、负责人、依赖、写入范围与重叠告警都在那里——向用户汇报进度时以它为准（或贴 `steward_board(action="status")` 的文本快照）。
+3. **看 Agent 状态**：右侧栏团队面板默认是**分层工作流树**（Lead 左上作根，主干串起需求 → 架构 → 实施 → 质量 → 验收 → 评审 各枢纽，枢纽向右分叉卡片；节点可拖、枢纽可折叠、可隐藏已完成），每个派发一个节点：角色、**实际模型**（`model @ 思考强度`，没发过请求时写「模型待定」）、任务描述、状态（等待输入 / 运行中 / 待开始 / 已完成 / 空闲）、耗时与 tokens；**点节点主体在右侧栏打开它的子会话**，点 `⌄` 展开提供方 / 四类 token / 轮次·步骤。顶部进度条只数原生任务（`完成/总数` + 进行中 / 被阻塞 + 来源 `Agent Teams 任务板` / `会话任务列表`）——任务明细去原生 Team 面板读，或贴 `steward_board(action="status")` 的文本快照；不要把任务列表当成面板内容去复述。
 4. **回报真实结果**：贴改后的值、校验输出、以及下一次派发回执里的路由来源。失败就是失败。
 
 ## 纪律
@@ -37,4 +37,4 @@ description: Steward 子代理模型与思考强度配置（DSH）。模型在�
 
 ## 边界
 
-- 本技能只管「模型/档位配置 + 设置页与右侧栏看板怎么看」，不改子代理的职责、提示词或工具集——角色章程随派单注入，子代理跑 DSH 内置 `standard` 组合（本插件不注册 Agent Preset，角色不会出现在模式选择器里）。
+- 本技能只管「模型/档位配置 + 设置页与右侧栏团队面板怎么看」，不改子代理的职责、提示词或工具集——角色章程随派单注入，子代理跑 DSH 内置 `standard` 组合（本插件不注册 Agent Preset，角色不会出现在模式选择器里）。

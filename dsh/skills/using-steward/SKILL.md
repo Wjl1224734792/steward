@@ -25,7 +25,7 @@ description: Steward 技能路由（DSH）。当用户不知道用 Steward 的�
 | 需要 PRD/FRD/契约/页面/测试/部署的写法与模板 | `docs-rules` | 规范与模板总库（**不是入口**，写文档时按需查） |
 | 文档拆分 / 归档 / 版本快照 | `docs-governance` | 跑 `scripts/docs-gate.mjs` / `scripts/doc-snapshot.mjs` |
 | 小改动、让主代理自己干 | 主技能 `steward` + `inline` | 加载 `inline` 技能；S / B3 / 维护小修可直接用，M 需显式要求，L 与 B0/B1/B2 禁止 |
-| 想看团队进度 / 用共享任务板 | 主技能 `steward`（共享任务板） | 加载 `steward`，用 `steward_board(action="sync"/"status")`，看会话标题栏的 Steward 图标打开的右侧栏看板（或原生 Team 面板） |
+| 想看团队进度 / 用共享任务板 | 主技能 `steward`（共享任务板） | 加载 `steward`，用 `steward_board(action="sync"/"status")`；看会话标题栏 Steward 图标打开的**右侧栏团队面板**（默认分层工作流图：角色 / 实际模型 / 任务 / 状态 / 耗时 / 用量，点节点进子会话），任务明细看原生 Team 面板 |
 | 改子代理用的模型 / 思考强度 | `agent-settings` | 改项目根 `steward.config.json` 的 `modelRouting`，跑 `validate-config.mjs` |
 
 ## 轻量技能什么时候加载

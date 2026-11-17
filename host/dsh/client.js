@@ -13,11 +13,10 @@ window.__ModuleLoader__.load({
     const FIELDS = ['provider', 'model', 'effort'];
     /** Workspace-relative roots a Steward run can live at (skill contract, in this order). */
     const RUN_ROOTS = ['tmp/steward', '.steward'];
-    /** Re-read cadence while the panel is mounted; cheap (two listings + one read). */
-    const RUN_POLL_MS = 4000;
+    /** Artifact re-read cadence: agents are live projections, only the run directory is polled. */
+    const RUN_POLL_MS = 15000;
     const MAX_RUN_DIRS = 3;
     const MAX_ARTIFACTS = 24;
-    const MAX_TODO_TASKS = 30;
 
     const ROLES = [
       { id: 'pm', zh: '需求分析师', en: 'Requirements analyst', zhDesc: '模糊需求 → 可执行、可验收的规格', enDesc: 'Turns a vague request into a testable spec' },
@@ -33,82 +32,100 @@ window.__ModuleLoader__.load({
     const STRINGS = {
       zh: {
         nav: 'Steward',
-        tabTitle: 'Steward 看板',
-        title: 'Steward 运行看板',
-        subtitle: '这个会话的 run 进度：任务 DAG、子代理实时状态、落盘产物。',
-        openPanel: '打开 Steward 看板',
+        tabTitle: 'Steward 团队',
+        title: 'Steward 团队',
+        subtitle: '角色 · 模型 · 任务 · 状态',
+        openPanel: '打开 Steward 团队面板',
         refresh: '刷新',
-        sourceBoard: '共享任务板',
-        sourceRun: 'run.json',
-        sourceTodo: '待办清单',
-        sourceNone: '暂无任务来源',
-        sourceHint: '任务来源：{source}',
-        leadNode: 'Lead（本会话）',
-        todoNode: '待办',
-        dispatchEdge: '派发',
-        tasksSection: '任务',
-        tasksEmptyTitle: '还没有任务',
-        tasksEmpty: '让 Lead 用 steward_board 把 03-plan.json 建成任务板，或先跑 run-state.mjs init；这里会实时显示 DAG 与状态。',
-        tasksTodoHint: '任务来自 todo_write 的待办清单；Steward 建板或生成 run.json 后会自动切到任务板。',
-        tasksRunHint: '任务来自本次 run 的 03-plan.json + run.json。',
-        tasksBoardHint: '任务来自 Agent Teams 共享任务板。',
-        subagentsTitle: '子代理',
-        subagentsEmpty: '这个会话还没有派发子代理。',
-        subagentsHint: '点一行打开它的子会话（右侧栏）。',
+        viewGroup: '视图',
+        viewGraph: '图',
+        viewList: '列表',
+        taskProgress: '任务进度',
+        taskProgressAria: '任务进度：完成 {done}/{total}',
+        taskSourceTeam: 'Agent Teams 任务板',
+        taskSourceTodo: '会话任务列表',
+        taskDone: '完成',
+        taskRunning: '进行中',
+        taskBlocked: '被阻塞',
+        taskEmpty: '原生任务列表为空',
+        roster: '智能体',
+        lead: 'Lead · 本会话',
+        leadRole: '主代理',
+        leadHere: '本会话',
+        subagentRole: '子代理',
+        laneWaiting: '等待输入',
+        laneRunning: '运行中',
+        lanePending: '待开始',
+        laneDone: '已完成',
+        laneIdle: '空闲',
+        stateWaiting: '等待输入',
+        stateRunning: '运行中',
+        statePending: '待开始',
+        stateDone: '已完成',
+        stateIdle: '空闲',
+        stateWaitingHint: '这个智能体在等你确认或回答，去它的会话里处理。',
+        modelPending: '模型待定',
+        tokensShort: 'tok',
+        noDescription: '（没有任务描述）',
+        detailTitle: '智能体详情',
+        detailClose: '关闭详情',
+        detailTask: '任务',
+        detailModel: '模型',
+        detailProvider: '提供方',
+        detailEffort: '思考强度',
+        detailEffortDefault: '默认',
+        detailState: '状态',
+        detailElapsed: '用时',
+        detailTurns: '轮次',
+        detailSteps: '步骤',
+        detailMode: '模式',
+        detailSession: '子会话',
+        detailTokens: '用量',
+        tokenInput: '输入',
+        tokenOutput: '输出',
+        tokenCacheRead: '缓存读',
+        tokenCacheWrite: '缓存写',
+        modeOneShot: '一次性',
+        modeContinuable: '可继续',
+        modeUnknown: '未知',
+        openSession: '打开会话',
+        detailToggle: '详情',
+        canvasHint: '拖节点移动 · 拖空白平移 · Ctrl+滚轮缩放 · 双击复位',
+        graphCanvasAria: '智能体图画布，{nodes} 个智能体；可拖拽平移、缩放',
+        stageSpec: '需求',
+        stageArchitect: '架构',
+        stageImpl: '实施',
+        stageQuality: '质量',
+        stageAccept: '验收',
+        stageReview: '评审',
+        stageOther: '其他',
+        zoomFit: '适应窗口',
+        zoomGroup: '缩放',
+        relayout: '重新布局',
+        filterGroup: '过滤',
+        filterAll: '全部',
+        filterHideDone: '隐藏已完成',
+        filterActive: '只看活跃',
+        filterHidden: '已隐藏 {count} 个',
+        collapseStage: '折叠 {stage}',
+        expandStage: '展开 {stage}',
+        emptyFiltered: '当前过滤下没有智能体',
+        emptyFilteredHint: '换个过滤条件，或恢复「全部」。',
+        zoomIn: '放大',
+        zoomOut: '缩小',
+        zoomReset: '复位视图',
+        nativeListNote: '任务进度取自 DSH 自带的任务列表；这里不重复展示任务。',
+        emptyTitle: '这个会话还没有派发智能体',
+        emptyBody: 'Lead 用 steward_dispatch 派一个角色后，这里会画出它的角色、模型、任务与状态。',
+        emptySteps: [
+          '让 Lead 调 steward_dispatch(role=..., description=..., prompt=...)。',
+          '节点出现后点它就能进入子会话。',
+          '任务进度看原生任务列表（共享任务板 / 会话任务列表）。',
+        ],
         artifactsTitle: '产物',
         artifactsEmpty: '在 tmp/steward/<run>/ 下还没有找到产物。',
-        artifactsHint: '点一行在右侧栏打开文件。',
         artifactsMissing: '宿主没有提供工作区文件服务，读不到产物。',
         artifactsRun: '运行目录',
-        emptyTitle: '这个会话还没有 Steward 运行',
-        emptyBody: 'Lead 用 steward_dispatch 派一个角色、或用 steward_board 建板之后，这里会自动显示任务图、子代理状态与产物。',
-        emptySteps: [
-          '让 Lead 用 steward_dispatch(role=..., description=..., prompt=...) 派单。',
-          '或用 steward_board 把 03-plan.json 同步成共享任务板。',
-          '看板会自动打开；也可以点会话标题栏的 Steward 图标。',
-        ],
-        statusRunning: '运行中',
-        statusInactive: '空闲',
-        statePending: '待开始',
-        stateReady: '可开始',
-        stateProgress: '进行中',
-        stateDone: '完成',
-        stateBlocked: '阻塞',
-        runRunning: '运行中',
-        runCompleted: '已完成',
-        runStopped: '已停摆',
-        attempts: '尝试 {n} 次',
-        failed: '失败',
-        openSession: '打开会话',
-        openHint: '点击打开它的子会话',
-        openOwner: '打开负责人会话',
-        openFile: '打开文件',
-        owner: '负责人',
-        deps: '依赖',
-        scope: '写入范围',
-        overlap: '文件重叠',
-        viewDag: '依赖图',
-        viewList: '列表',
-        viewMatrix: '归属',
-        viewGroup: '视图',
-        tasksCount: '{tasks} 个任务 · {edges} 条依赖',
-        progressAria: '进度：完成 {done}/{total}',
-        graphAria: '依赖图：{nodes} 个任务，{edges} 条依赖',
-        graphKeys: '键盘：Tab 进入图，方向键在任务之间移动，Enter 看详情，Esc 取消选中。',
-        graphEmpty: '还没有任务。',
-        graphCycle: '检测到环状依赖（{ids}），已改用列表视图——请修正 dependsOn/blockedBy。',
-        matrixEmpty: '任务还没有写入范围（files / writeScopes），无法生成归属矩阵。',
-        matrixCaption: '文件 × 代理归属矩阵：每行一个写入路径，每列一个代理。',
-        matrixFile: '文件',
-        matrixFileUnit: '文件',
-        matrixOverlap: '重叠',
-        matrixOverlapMark: '重叠',
-        matrixUnassigned: '未指派',
-        matrixMore: '还有 {n} 个文件未显示',
-        detailTitle: '任务详情',
-        detailHint: '点任务看详情',
-        detailClose: '关闭详情',
-        depMissing: '依赖 {ids}（不在板上）',
         sectionFailed: '这一段渲染失败（其余部分仍然可用）',
         configTitle: '子代理模型与思考强度',
         configSub: '设置页按角色指定模型；没配的角色用默认，默认也没配就继承主代理。项目根 steward.config.json 的 modelRouting 对该角色优先。',
@@ -149,82 +166,100 @@ window.__ModuleLoader__.load({
       },
       en: {
         nav: 'Steward',
-        tabTitle: 'Steward board',
-        title: 'Steward run board',
-        subtitle: 'Progress of this session\'s run: task DAG, live subagents, files on disk.',
-        openPanel: 'Open the Steward board',
+        tabTitle: 'Steward team',
+        title: 'Steward team',
+        subtitle: 'Role · model · task · state',
+        openPanel: 'Open the Steward team panel',
         refresh: 'Refresh',
-        sourceBoard: 'Shared board',
-        sourceRun: 'run.json',
-        sourceTodo: 'Todo list',
-        sourceNone: 'No task source yet',
-        sourceHint: 'Task source: {source}',
-        leadNode: 'Lead (this session)',
-        todoNode: 'Todo',
-        dispatchEdge: 'Dispatch',
-        tasksSection: 'Tasks',
-        tasksEmptyTitle: 'No tasks yet',
-        tasksEmpty: 'Have the lead mirror 03-plan.json onto the board with steward_board, or run run-state.mjs init; the DAG and statuses then appear here live.',
-        tasksTodoHint: 'Tasks come from the todo_write list; once a board or run.json exists, the panel switches to it.',
-        tasksRunHint: 'Tasks come from this run\'s 03-plan.json + run.json.',
-        tasksBoardHint: 'Tasks come from the Agent Teams shared board.',
-        subagentsTitle: 'Subagents',
-        subagentsEmpty: 'No subagent dispatched in this session yet.',
-        subagentsHint: 'Click a row to open its child session in the right sidebar.',
-        artifactsTitle: 'Artifacts',
-        artifactsEmpty: 'No artifacts under tmp/steward/<run>/ yet.',
-        artifactsHint: 'Click a row to open the file in the right sidebar.',
-        artifactsMissing: 'The host serves no workspace files, so artifacts are unavailable.',
-        artifactsRun: 'Run directory',
-        emptyTitle: 'No Steward run in this session yet',
-        emptyBody: 'Once the lead dispatches a role with steward_dispatch or builds the board with steward_board, the task graph, subagent statuses and artifacts appear here automatically.',
+        viewGroup: 'View',
+        viewGraph: 'Graph',
+        viewList: 'List',
+        taskProgress: 'Task progress',
+        taskProgressAria: 'Task progress: {done} of {total} done',
+        taskSourceTeam: 'Agent Teams board',
+        taskSourceTodo: 'Session task list',
+        taskDone: 'done',
+        taskRunning: 'in progress',
+        taskBlocked: 'blocked',
+        taskEmpty: 'The native task list is empty',
+        roster: 'Agents',
+        lead: 'Lead · this session',
+        leadRole: 'Lead',
+        leadHere: 'this session',
+        subagentRole: 'Subagent',
+        laneWaiting: 'Waiting on you',
+        laneRunning: 'Running',
+        lanePending: 'Not started',
+        laneDone: 'Completed',
+        laneIdle: 'Idle',
+        stateWaiting: 'waiting',
+        stateRunning: 'running',
+        statePending: 'not started',
+        stateDone: 'completed',
+        stateIdle: 'idle',
+        stateWaitingHint: 'This agent is waiting for your answer or approval — open its session to respond.',
+        modelPending: 'model pending',
+        tokensShort: 'tok',
+        noDescription: '(no task description)',
+        detailTitle: 'Agent details',
+        detailClose: 'Close details',
+        detailTask: 'Task',
+        detailModel: 'Model',
+        detailProvider: 'Provider',
+        detailEffort: 'Reasoning effort',
+        detailEffortDefault: 'default',
+        detailState: 'State',
+        detailElapsed: 'Elapsed',
+        detailTurns: 'Turns',
+        detailSteps: 'Steps',
+        detailMode: 'Mode',
+        detailSession: 'Child session',
+        detailTokens: 'Usage',
+        tokenInput: 'input',
+        tokenOutput: 'output',
+        tokenCacheRead: 'cache read',
+        tokenCacheWrite: 'cache write',
+        modeOneShot: 'one-shot',
+        modeContinuable: 'continuable',
+        modeUnknown: 'unknown',
+        openSession: 'Open session',
+        detailToggle: 'Details',
+        canvasHint: 'Drag a card to move it · drag empty space to pan · Ctrl+wheel to zoom · double-click to reset',
+        graphCanvasAria: 'Agent graph canvas, {nodes} agents; drag to pan and scroll to zoom',
+        stageSpec: 'Spec',
+        stageArchitect: 'Architecture',
+        stageImpl: 'Implementation',
+        stageQuality: 'Quality',
+        stageAccept: 'Acceptance',
+        stageReview: 'Review',
+        stageOther: 'Other',
+        zoomFit: 'Fit to view',
+        zoomGroup: 'Zoom',
+        relayout: 'Re-layout',
+        filterGroup: 'Filter',
+        filterAll: 'All',
+        filterHideDone: 'Hide done',
+        filterActive: 'Active only',
+        filterHidden: '{count} hidden',
+        collapseStage: 'Collapse {stage}',
+        expandStage: 'Expand {stage}',
+        emptyFiltered: 'No agent under this filter',
+        emptyFilteredHint: 'Change the filter, or switch back to All.',
+        zoomIn: 'Zoom in',
+        zoomOut: 'Zoom out',
+        zoomReset: 'Reset view',
+        nativeListNote: 'Task progress is counted from the task list DSH itself keeps; the tasks are not repeated here.',
+        emptyTitle: 'No agent dispatched in this session yet',
+        emptyBody: 'Once the lead calls steward_dispatch, its role, model, task and state are drawn here.',
         emptySteps: [
           'Have the lead call steward_dispatch(role=..., description=..., prompt=...).',
-          'Or mirror 03-plan.json onto the shared board with steward_board.',
-          'The board opens by itself; the Steward icon in the session header opens it too.',
+          'Click a node to open that child session.',
+          'Read task progress from the native task list (shared board or session tasks).',
         ],
-        statusRunning: 'running',
-        statusInactive: 'idle',
-        statePending: 'pending',
-        stateReady: 'ready',
-        stateProgress: 'in progress',
-        stateDone: 'done',
-        stateBlocked: 'blocked',
-        runRunning: 'running',
-        runCompleted: 'completed',
-        runStopped: 'stopped',
-        attempts: '{n} attempt(s)',
-        failed: 'failed',
-        openSession: 'Open session',
-        openHint: 'Click to open the child session',
-        openOwner: "Open the owner's session",
-        openFile: 'Open file',
-        owner: 'Owner',
-        deps: 'Depends on',
-        scope: 'Write scope',
-        overlap: 'File overlap',
-        viewDag: 'Graph',
-        viewList: 'List',
-        viewMatrix: 'Ownership',
-        viewGroup: 'View',
-        tasksCount: '{tasks} tasks · {edges} dependencies',
-        progressAria: 'Progress: {done} of {total} done',
-        graphAria: 'Dependency graph: {nodes} tasks, {edges} dependencies',
-        graphKeys: 'Keyboard: Tab enters the graph, arrow keys move between tasks, Enter opens the detail, Escape clears the selection.',
-        graphEmpty: 'No tasks yet.',
-        graphCycle: 'Cyclic dependency detected ({ids}); the list view is shown instead — fix dependsOn/blockedBy.',
-        matrixEmpty: 'No write scopes yet (files / writeScopes), so there is nothing to plot.',
-        matrixCaption: 'File by agent ownership: one row per write path, one column per agent.',
-        matrixFile: 'File',
-        matrixFileUnit: 'files',
-        matrixOverlap: 'Overlap',
-        matrixOverlapMark: 'overlap',
-        matrixUnassigned: 'Unassigned',
-        matrixMore: '{n} more files not shown',
-        detailTitle: 'Task detail',
-        detailHint: 'Select a task to see details',
-        detailClose: 'Close details',
-        depMissing: 'Depends on {ids} (not on the board)',
+        artifactsTitle: 'Artifacts',
+        artifactsEmpty: 'No artifacts under tmp/steward/<run>/ yet.',
+        artifactsMissing: 'The host serves no workspace files, so artifacts are unavailable.',
+        artifactsRun: 'Run directory',
         sectionFailed: 'This section failed to render (the rest still works)',
         configTitle: 'Subagent models and reasoning effort',
         configSub: 'Pick a model per role in Settings; roles without a selection use the defaults, and without defaults they inherit the parent. A modelRouting entry in the project steward.config.json still wins.',
@@ -264,7 +299,6 @@ window.__ModuleLoader__.load({
         externalUpdate: 'Settings changed elsewhere; discard to load the new values.',
       },
     };
-
     function pickLang(ctx) {
       try {
         const snapshot = ctx && ctx.locale && typeof ctx.locale.getLocale === 'function' ? ctx.locale.getLocale() : null;
@@ -304,609 +338,501 @@ window.__ModuleLoader__.load({
       return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
     }
 
-    // --- task model ----------------------------------------------------------------
+    // --- display formatting ---------------------------------------------------------
 
-    function taskTitle(task) {
-      if (task && typeof task.subject === 'string' && task.subject !== '') return task.subject;
-      if (task && typeof task.title === 'string' && task.title !== '') return task.title;
-      if (task && task.id !== undefined && task.id !== null) return String(task.id);
-      return '';
+    function pad2(value) {
+      return String(value).padStart(2, '0');
     }
 
-    function taskKey(task) {
-      if (!task) return '';
-      if (task.id !== undefined && task.id !== null) return String(task.id);
-      return '';
+    /** 930 → `15m 30s`; 9300 → `2h 35m`; a sub-minute span keeps seconds. */
+    function fmtDuration(ms) {
+      const value = Number(ms);
+      if (!Number.isFinite(value) || value <= 0) return '0s';
+      const total = Math.max(0, Math.round(value / 1000));
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const seconds = total % 60;
+      if (hours > 0) return hours + 'h ' + pad2(minutes) + 'm';
+      if (minutes > 0) return minutes + 'm ' + pad2(seconds) + 's';
+      return seconds + 's';
     }
 
-    /** `G1 · 计划批准` → `计划批准`; the id keeps its own chip. */
-    function stripIdPrefix(title) {
-      const text = typeof title === 'string' ? title : '';
-      const match = /^[A-Za-z]*\d+\s*[·:：-]\s*/.exec(text);
-      return match ? text.slice(match[0].length) : text;
+    /** 850 → `850`, 8420 → `8.4k`, 23400 → `23k`; absent usage is an em dash, never a fake zero. */
+    function fmtTokens(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number) || number <= 0) return '—';
+      if (number < 1000) return String(Math.round(number));
+      if (number < 10000) return round1(number / 1000) + 'k';
+      return String(Math.round(number / 1000)) + 'k';
     }
 
-    const GATE_ID = /^g\d+$/i;
+    /** The four disjoint provider buckets a token usage projection reports. */
+    const TOKEN_FIELDS = ['uncachedInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'];
 
-    /** Gates (G1/G2/G3) drive the phase rail; everything else is a work item. */
-    function isGateTask(task) {
-      if (!task) return false;
-      const id = taskKey(task);
-      if (GATE_ID.test(id)) return true;
-      return /^G\d+\b/.test(taskTitle(task));
+    /** Sum the usage buckets; null when the Session reported none at all. */
+    function tokenTotals(usage) {
+      if (usage === null || typeof usage !== 'object') return null;
+      const totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+      let seen = false;
+      for (const field of TOKEN_FIELDS) {
+        const value = Number(usage[field]);
+        if (!Number.isFinite(value)) continue;
+        seen = true;
+        if (field === 'uncachedInputTokens') totals.input += value;
+        else if (field === 'outputTokens') totals.output += value;
+        else if (field === 'cacheReadTokens') totals.cacheRead += value;
+        else totals.cacheWrite += value;
+      }
+      if (!seen) return null;
+      totals.total = totals.input + totals.output + totals.cacheRead + totals.cacheWrite;
+      return totals;
     }
 
-    function taskState(task) {
-      if (!task) return 'pending';
-      if (task.status === 'completed') return 'done';
-      if (task.status === 'in_progress') return 'progress';
-      if (task.ready === false) return 'blocked';
-      if (task.ready === true) return 'ready';
+    // --- agents ---------------------------------------------------------------------
+    // A dispatched Steward child is the unit of this panel: one catalog row, its Session
+    // summary, its projections and its live status become one drawable agent. Nothing
+    // here reads a task file — tasks stay in the host's native task list.
+
+    /** Dispatch labels are `<role> · <description>`; the prefix names the specialist. */
+    const ROLE_LABEL = /^(pm|architect|backend-dev|frontend-dev|qa-engineer|browser-tester|reviewer)\s*·\s*/;
+    const ROLE_GLYPH = {
+      pm: '需',
+      architect: '架',
+      'backend-dev': '后',
+      'frontend-dev': '前',
+      'qa-engineer': '测',
+      'browser-tester': '验',
+      reviewer: '审',
+    };
+    /** Lane order: whoever needs a human first, then who works, then history. */
+    const AGENT_STATES = ['waiting', 'running', 'pending', 'done', 'idle'];
+    const STATE_LABEL_KEY = {
+      waiting: 'stateWaiting',
+      running: 'stateRunning',
+      pending: 'statePending',
+      done: 'stateDone',
+      idle: 'stateIdle',
+    };
+
+    function roleOf(label) {
+      const match = ROLE_LABEL.exec(typeof label === 'string' ? label : '');
+      return match ? match[1] : '';
+    }
+
+    function roleNameOf(roleId, lang) {
+      const entry = ROLES.find((role) => role.id === roleId);
+      return entry === undefined ? roleId : roleName(entry, lang);
+    }
+
+    function glyphOf(roleId) {
+      if (ROLE_GLYPH[roleId] !== undefined) return ROLE_GLYPH[roleId];
+      return roleId === '' ? '·' : initialsOf(roleId);
+    }
+
+    function stateLabelOf(state, text) {
+      const key = STATE_LABEL_KEY[state];
+      return text[key] || text.stateIdle;
+    }
+
+    function stateTone(state) {
+      if (state === 'waiting') return 'warn';
+      if (state === 'running') return 'progress';
+      if (state === 'done') return 'done';
+      return 'idle';
+    }
+
+    /** The model a Session actually ran with, else the one its next step will use. */
+    function modelOfValues(values) {
+      const selection = values && values.modelSelection ? values.modelSelection : null;
+      const pick = selection === null ? null : selection.lastUsed || selection.next;
+      if (!pick || typeof pick.model !== 'string' || pick.model === '') return null;
+      return {
+        provider: typeof pick.provider === 'string' ? pick.provider : '',
+        model: pick.model,
+        effort: typeof pick.reasoningEffort === 'string' ? pick.reasoningEffort : '',
+      };
+    }
+
+    /** `provider/model @ effort`, or null while nothing has run yet. */
+    function modelLabelOf(row, text) {
+      if (!row || row.model === null) return text.modelPending;
+      const effort = row.model.effort === '' ? '' : ' @ ' + row.model.effort;
+      return row.model.model + effort;
+    }
+
+    function elapsedOf(timing, running, now) {
+      const settled = timing && Number.isFinite(Number(timing.settledMs)) ? Number(timing.settledMs) : 0;
+      const active = timing ? timing.active : null;
+      if (running && active && Number.isFinite(Number(active.since))) {
+        return settled + Math.max(0, now - Number(active.since));
+      }
+      return settled;
+    }
+
+    function stateOf(input) {
+      if (input.running) return input.waiting ? 'waiting' : 'running';
+      const timing = input.timing;
+      if (timing && timing.lastTurnCompleted === true) return 'done';
+      if (input.tokens !== null && input.tokens.total > 0) return 'idle';
       return 'pending';
     }
 
-    function stateLabel(text, state) {
-      if (state === 'done') return text.stateDone;
-      if (state === 'progress') return text.stateProgress;
-      if (state === 'blocked') return text.stateBlocked;
-      if (state === 'ready') return text.stateReady;
-      return text.statePending;
-    }
-
-    function stateDotTone(state) {
-      if (state === 'done') return 'done';
-      if (state === 'progress') return 'progress';
-      if (state === 'blocked') return 'warn';
-      return 'idle';
-    }
-
-    function pillToneOf(state) {
-      if (state === 'done') return 'done';
-      if (state === 'progress') return 'progress';
-      if (state === 'blocked') return 'warn';
-      return 'idle';
-    }
-
-    function dependencyIds(task, known) {
-      const blockedBy = task && Array.isArray(task.blockedBy) ? task.blockedBy : [];
-      const out = [];
-      const seen = new Set();
-      for (const raw of blockedBy) {
-        const id = String(raw === undefined || raw === null ? '' : raw);
-        if (id === '' || seen.has(id)) continue;
-        seen.add(id);
-        if (known !== undefined && known !== null && typeof known.has === 'function' && !known.has(id)) continue;
-        out.push(id);
-      }
-      return out;
-    }
-
-    /** One cycle on the board as an id list, or null when the DAG is acyclic. */
-    function cyclePath(tasks) {
-      const list = (tasks || []).filter((task) => task && task.id !== undefined && task.id !== null);
-      const byId = new Map(list.map((task) => [String(task.id), task]));
-      const state = new Map();
-      const stack = [];
-      let found = null;
-      const visit = (id) => {
-        if (found !== null) return;
-        const mark = state.get(id) || 0;
-        if (mark === 1) {
-          const start = stack.indexOf(id);
-          found = stack.slice(start).concat(id);
-          return;
-        }
-        if (mark === 2) return;
-        state.set(id, 1);
-        stack.push(id);
-        for (const next of dependencyIds(byId.get(id), byId)) visit(next);
-        stack.pop();
-        state.set(id, 2);
+    /**
+     * One drawable dispatcher row from the native facts of one child Session.
+     * @param options - catalog entry, Session summary, projection values, status, clock, copy.
+     * @returns the row the graph and the list render.
+     */
+    function agentRow(options) {
+      const entry = options.entry;
+      const summary = options.summary || null;
+      const values = options.values || {};
+      const status = options.status || null;
+      const text = options.text;
+      const now = Number.isFinite(Number(options.now)) ? Number(options.now) : 0;
+      const label = typeof entry.label === 'string' && entry.label !== ''
+        ? entry.label
+        : typeof entry.name === 'string' ? entry.name : '';
+      const role = roleOf(label);
+      const stripped = label.replace(ROLE_LABEL, '').trim();
+      const title = summary && typeof summary.title === 'string' ? summary.title : '';
+      const displayTitle = summary && typeof summary.displayTitle === 'string' ? summary.displayTitle : '';
+      const model = modelOfValues(values);
+      const tokens = tokenTotals(values.tokenUsage);
+      const timing = values.subagentTiming || null;
+      const stats = values.sessionStats || null;
+      const running = status && typeof status.running === 'boolean'
+        ? status.running
+        : Boolean(summary && summary.running);
+      const waiting = Boolean(status && status.pendingInteraction !== undefined && status.pendingInteraction !== null);
+      return {
+        id: String(entry.id),
+        lead: false,
+        role,
+        roleName: role === '' ? '' : roleNameOf(role, options.lang),
+        glyph: glyphOf(role),
+        description: stripped !== '' ? stripped : displayTitle,
+        title,
+        mode: entry.mode === 'continuable' ? 'continuable' : entry.mode === 'one-shot' ? 'one-shot' : 'unknown',
+        state: stateOf({ running, waiting, timing, tokens }),
+        running,
+        waiting,
+        model,
+        tokens,
+        turns: stats && Number.isFinite(Number(stats.turns)) ? Number(stats.turns) : null,
+        steps: stats && Number.isFinite(Number(stats.steps)) ? Number(stats.steps) : null,
+        createdAt: Number.isFinite(Number(entry.createdAt)) ? Number(entry.createdAt) : 0,
+        elapsedMs: elapsedOf(timing, running, now),
+        text,
       };
-      for (const id of byId.keys()) visit(id);
-      return found;
     }
 
-    function textUnits(value) {
-      let units = 0;
-      for (const character of String(value)) units += isWideChar(character) ? 2 : 1;
-      return units;
-    }
-
-    function isWideChar(character) {
-      const code = typeof character === 'string' ? character.codePointAt(0) : 0;
-      return (code >= 0x1100 && code <= 0x115f)
-        || (code >= 0x2e80 && code <= 0xa4cf)
-        || (code >= 0xac00 && code <= 0xd7a3)
-        || (code >= 0xf900 && code <= 0xfaff)
-        || (code >= 0xfe30 && code <= 0xfe6f)
-        || (code >= 0xff00 && code <= 0xff60)
-        || (code >= 0xffe0 && code <= 0xffe6)
-        || (code >= 0x1f300 && code <= 0x1faff);
-    }
-
-    function wrapSvgText(value, unitsPerLine, maxLines) {
-      const text = String(value === undefined || value === null ? '' : value).replace(/\s+/g, ' ').trim();
-      const budget = Math.max(2, unitsPerLine);
-      const limit = Math.max(1, maxLines);
-      const pieces = text.split(/(?<=[ ·\-_/])/).filter((piece) => piece !== '');
-      const lines = [];
-      let current = '';
-      const flush = () => {
-        if (current !== '') lines.push(current.trim());
-        current = '';
+    /** The Session the panel is docked in: it dispatched the roster. */
+    function leadRowOf(options) {
+      const summary = options.summary || null;
+      const values = options.values || {};
+      const status = options.status || null;
+      const text = options.text;
+      const model = modelOfValues(values);
+      const tokens = tokenTotals(values.tokenUsage);
+      const stats = values.sessionStats || null;
+      const running = status && typeof status.running === 'boolean'
+        ? status.running
+        : Boolean(summary && summary.running);
+      const waiting = Boolean(status && status.pendingInteraction !== undefined && status.pendingInteraction !== null);
+      const title = summary && typeof summary.displayTitle === 'string' ? summary.displayTitle : '';
+      return {
+        id: String(options.sessionId),
+        lead: true,
+        role: '',
+        roleName: text.leadRole,
+        glyph: 'L',
+        description: title,
+        title,
+        mode: 'continuable',
+        state: stateOf({ running, waiting, timing: null, tokens }),
+        running,
+        waiting,
+        model,
+        tokens,
+        turns: stats && Number.isFinite(Number(stats.turns)) ? Number(stats.turns) : null,
+        steps: stats && Number.isFinite(Number(stats.steps)) ? Number(stats.steps) : null,
+        createdAt: 0,
+        elapsedMs: 0,
+        text,
       };
-      for (const rawPiece of pieces) {
-        const piece = current === '' ? rawPiece.replace(/^\s+/, '') : rawPiece;
-        if (textUnits(current + piece) <= budget) {
-          current += piece;
-          continue;
-        }
-        if (current !== '') flush();
-        let rest = piece.trim();
-        while (textUnits(rest) > budget) {
-          let cut = '';
-          let cutAt = 0;
-          for (const character of rest) {
-            if (textUnits(cut + character) > budget) break;
-            cut += character;
-            cutAt += character.length;
-          }
-          if (cut === '') break;
-          lines.push(cut);
-          rest = rest.slice(cutAt);
-        }
-        current = rest;
-        if (lines.length >= limit) break;
+    }
+
+    /** Roster counts and the two sums the header reports. */
+    function fleetFacts(rows) {
+      const list = (rows || []).filter(Boolean);
+      const counts = { waiting: 0, running: 0, pending: 0, done: 0, idle: 0 };
+      let tokens = 0;
+      let elapsed = 0;
+      for (const row of list) {
+        if (counts[row.state] === undefined) counts[row.state] = 0;
+        counts[row.state] += 1;
+        if (row.tokens !== null) tokens += row.tokens.total;
+        if (Number.isFinite(row.elapsedMs)) elapsed += row.elapsedMs;
       }
-      if (current !== '' && lines.length < limit) lines.push(current.trim());
-      if (lines.length === 0) return [''];
-      const kept = lines.slice(0, limit);
-      if (lines.length > limit) {
-        const last = kept[kept.length - 1];
-        kept[kept.length - 1] = last.length > 1 ? last.slice(0, last.length - 1) + '…' : '…';
-      }
-      return kept;
+      return {
+        total: list.length,
+        counts,
+        tokens,
+        elapsed,
+        active: counts.running > 0 || counts.waiting > 0,
+      };
     }
 
-    /** `T1 · backend-dev · 实现导出` → `实现导出`; the id and the role have their own chips. */
-    function taskDisplayTitle(task) {
-      const parts = String(taskTitle(task)).split(/\s*·\s*/);
-      if (parts.length >= 3 && ROLE_IDS.indexOf(parts[1]) >= 0) return parts.slice(2).join(' · ');
-      return stripIdPrefix(taskTitle(task));
-    }
+    // --- native task progress -------------------------------------------------------
+    // The panel shows how far the native task list got, never the tasks themselves.
 
-    function taskShortLabel(task) {
-      const subject = task && typeof task.subject === 'string' ? task.subject : '';
-      const match = /^[A-Za-z]{0,3}\d+/.exec(subject);
-      if (match) return match[0].toUpperCase();
-      const id = task && task.id !== undefined && task.id !== null ? String(task.id) : '';
-      return id.length > 6 ? id.slice(0, 6) : id;
-    }
-
-    function runStats(tasks) {
-      const list = (tasks || []).filter(Boolean);
-      const counts = { pending: 0, ready: 0, progress: 0, done: 0, blocked: 0 };
-      const gates = [];
-      list.forEach((task, index) => {
-        const state = taskState(task);
-        counts[state] += 1;
-        if (isGateTask(task)) gates.push({ id: String(task.id), state, index });
-      });
-      const total = list.length;
-      const done = counts.done;
-      return { counts, total, done, percent: total === 0 ? 0 : Math.round((done / total) * 100), gates };
-    }
-
-    /** Edge count, dangling dependencies and cycle for the board header and alerts. */
-    function graphFacts(tasks) {
-      const list = (tasks || []).filter(Boolean);
-      const known = new Set(list.map((task) => String(task.id)));
-      let edges = 0;
-      const unknown = [];
-      for (const task of list) {
-        for (const raw of Array.isArray(task.blockedBy) ? task.blockedBy : []) {
-          const id = String(raw === undefined || raw === null ? '' : raw);
-          if (id === '') continue;
-          if (!known.has(id)) {
-            unknown.push({ taskId: String(task.id), dep: id });
-            continue;
-          }
-          edges += 1;
-        }
-      }
-      return { edges, unknown, cycle: cyclePath(list) };
+    function summarizeProgress(source, segments) {
+      const counts = { done: 0, running: 0, pending: 0, blocked: 0 };
+      for (const state of segments) counts[state] += 1;
+      return {
+        source,
+        segments,
+        total: segments.length,
+        done: counts.done,
+        running: counts.running,
+        pending: counts.pending,
+        blocked: counts.blocked,
+      };
     }
 
     /**
-     * File × agent ownership grid. Overlap is derived from the tasks themselves
-     * (two different owners on one path), not parsed out of localized warning text.
+     * Counts from the host's own task systems, in authority order: the Agent Teams
+     * shared board (what `steward_board` syncs into) first, then the Session's own
+     * `todo_write` list. An empty source falls through; no tasks at all means no bar.
+     * @param team - the Session's `agentTeam` projection.
+     * @param todos - the Session's `todos` projection.
+     * @returns counts plus one segment state per native task, or null.
      */
-    function buildOwnership(tasks, limit) {
-      const list = (tasks || []).filter(Boolean);
-      const agents = new Map();
-      const touch = (name) => {
-        const key = typeof name === 'string' ? name : '';
-        if (!agents.has(key)) agents.set(key, { key, name: key, initials: initialsOf(key) });
-        return agents.get(key);
-      };
-      const files = new Map();
-      for (const task of list) {
-        const owner = typeof task.ownerName === 'string' ? task.ownerName : '';
-        touch(owner);
-        const scopes = Array.isArray(task.writeScopes) ? task.writeScopes : [];
-        for (const raw of scopes) {
-          const path = String(raw);
-          if (path === '') continue;
-          if (!files.has(path)) files.set(path, []);
-          files.get(path).push({
-            taskId: String(task.id),
-            owner,
-            label: taskShortLabel(task),
-            state: taskState(task),
-            title: taskTitle(task),
+    function taskProgressOf(team, todos) {
+      const teamTasks = team && team.enabled === true && Array.isArray(team.tasks)
+        ? team.tasks.filter((task) => task && task.status !== 'deleted')
+        : [];
+      if (teamTasks.length > 0) {
+        return summarizeProgress('team', teamTasks.map((task) => {
+          if (task.status === 'completed') return 'done';
+          if (task.status === 'in_progress') return 'running';
+          return task.ready === false ? 'blocked' : 'pending';
+        }));
+      }
+      const list = Array.isArray(todos) ? todos.filter(Boolean) : [];
+      if (list.length > 0) {
+        return summarizeProgress('todo', list.map((item) => {
+          if (item.status === 'completed') return 'done';
+          if (item.status === 'in_progress') return 'running';
+          return 'pending';
+        }));
+      }
+      return null;
+    }
+
+    // --- team graph layout ----------------------------------------------------------
+    // A tree, not a list and not a page of rows: the Lead is the root on the left, a
+    // vertical trunk chains the stage hubs (spec → architecture → implementation →
+    // quality → acceptance → review), and every hub branches to the right into that
+    // stage's agent cards. One edge per parent-child pair, no crossings.
+
+    const ZOOM_MIN = 0.6;
+    const ZOOM_MAX = 1.8;
+
+    function clampZoom(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return 1;
+      return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(number * 100) / 100));
+    }
+
+    /** The Steward delivery pipeline, in flow order; each role belongs to one stage. */
+    const STAGES = [
+      { key: 'spec', labelKey: 'stageSpec', roles: ['pm'] },
+      { key: 'architect', labelKey: 'stageArchitect', roles: ['architect'] },
+      { key: 'impl', labelKey: 'stageImpl', roles: ['backend-dev', 'frontend-dev'] },
+      { key: 'quality', labelKey: 'stageQuality', roles: ['qa-engineer'] },
+      { key: 'accept', labelKey: 'stageAccept', roles: ['browser-tester'] },
+      { key: 'review', labelKey: 'stageReview', roles: ['reviewer'] },
+      { key: 'other', labelKey: 'stageOther', roles: [] },
+    ];
+    const OTHER_STAGE = STAGES.length - 1;
+
+    function stageIndexOf(roleId) {
+      for (let index = 0; index < OTHER_STAGE; index += 1) {
+        if (STAGES[index].roles.indexOf(roleId) >= 0) return index;
+      }
+      return OTHER_STAGE;
+    }
+
+    /** One group per present pipeline stage; inside a stage, whoever needs you comes first. */
+    function agentStages(rows, text) {
+      const list = (rows || []).filter(Boolean).slice().sort((left, right) => {
+        const rank = AGENT_STATES.indexOf(left.state) - AGENT_STATES.indexOf(right.state);
+        if (rank !== 0) return rank;
+        if (left.createdAt !== right.createdAt) return left.createdAt - right.createdAt;
+        return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+      });
+      return STAGES.map((stage, index) => ({
+        key: stage.key,
+        label: text[stage.labelKey] || stage.key,
+        rows: list.filter((row) => stageIndexOf(row.role) === index),
+      })).filter((stage) => stage.rows.length > 0);
+    }
+
+    // --- graph filters --------------------------------------------------------------
+    // Three honest views of the same roster; the choice survives a reload.
+
+    const FILTER_KEY = 'dsh-steward.panel.filters';
+    const PANEL_FILTERS = ['all', 'hide-done', 'active'];
+
+    function filterAgentRows(rows, filter) {
+      const list = (rows || []).filter(Boolean);
+      if (filter === 'hide-done') return list.filter((row) => row.state !== 'done');
+      if (filter === 'active') return list.filter((row) => row.state === 'waiting' || row.state === 'running');
+      return list;
+    }
+
+    function readPanelPrefs() {
+      const fallback = { filter: 'all', collapsed: {} };
+      try {
+        const storage = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
+        if (!storage || typeof storage.getItem !== 'function') return fallback;
+        const raw = storage.getItem(FILTER_KEY);
+        if (typeof raw !== 'string' || raw === '') return fallback;
+        const parsed = JSON.parse(raw);
+        const filter = parsed && PANEL_FILTERS.indexOf(parsed.filter) >= 0 ? parsed.filter : 'all';
+        const collapsed = parsed && parsed.collapsed && typeof parsed.collapsed === 'object' && !Array.isArray(parsed.collapsed)
+          ? parsed.collapsed
+          : {};
+        return { filter, collapsed };
+      } catch {
+        return fallback;
+      }
+    }
+
+    function writePanelPrefs(value) {
+      try {
+        const storage = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
+        if (!storage || typeof storage.setItem !== 'function') return;
+        storage.setItem(FILTER_KEY, JSON.stringify({ filter: value.filter, collapsed: value.collapsed }));
+      } catch {
+        // private mode or a hostile storage: the panel keeps working, prefs just stay session-only
+      }
+    }
+
+    /**
+     * Lay the team out as a left-rooted tree: a trunk of stage hubs, and each hub
+     * branching right into a grid of its cards. Cards wrap into up to three columns so a
+     * wide panel shows a canopy instead of one long column; every card keeps exactly one
+     * parent edge, and the elbows run above the cards or in the column gaps, never
+     * across a card.
+     * @param options - available width, card height, the ordered groups and their collapsed state.
+     * @returns geometry for the Lead, the hubs, the cards and every tree edge.
+     */
+    function treeLayout(options) {
+      const input = options || {};
+      const width = Math.max(300, Math.round(Number(input.width) || 380));
+      const nodeHeight = Number(input.nodeHeight) > 0 ? Number(input.nodeHeight) : 74;
+      const rowGap = 10;
+      const columnGap = 10;
+      const leadWidth = Math.min(232, Math.max(168, Math.round(width * 0.45)));
+      const leadHeight = nodeHeight;
+      const memberX = leadWidth + 40;
+      const memberArea = Math.max(150, width - memberX - 6);
+      const columns = Math.max(1, Math.min(3, Math.floor((memberArea + columnGap) / (150 + columnGap))));
+      const memberWidth = Math.max(150, Math.min(244, Math.floor((memberArea - columnGap * (columns - 1)) / columns)));
+      const trunkX = Math.round(leadWidth / 2);
+      const hubWidth = Math.min(132, Math.max(96, leadWidth - 40));
+      const hubHeight = 40;
+      const hubX = Math.max(0, trunkX - Math.round(hubWidth / 2));
+      const lead = { id: '__lead__', x: 0, y: 0, w: leadWidth, h: leadHeight };
+      const hubs = [];
+      const blocks = [];
+      const nodes = [];
+      const links = [];
+      let y = leadHeight + 30;
+      for (const group of Array.isArray(input.groups) ? input.groups : []) {
+        const rows = group && Array.isArray(group.rows) ? group.rows : [];
+        if (rows.length === 0) continue;
+        const collapsed = Boolean(group.collapsed);
+        const lineCount = collapsed ? 0 : Math.ceil(rows.length / columns);
+        const bodyHeight = collapsed ? 0 : lineCount * nodeHeight + (lineCount - 1) * rowGap;
+        const blockHeight = Math.max(hubHeight, bodyHeight);
+        const blockTop = y;
+        const hub = {
+          key: group.key,
+          label: group.label,
+          count: rows.length,
+          waiting: rows.filter((row) => row.state === 'waiting').length,
+          collapsed,
+          x: hubX,
+          y: blockTop + Math.round((blockHeight - hubHeight) / 2),
+          w: hubWidth,
+          h: hubHeight,
+        };
+        hubs.push(hub);
+        blocks.push({ hub, top: blockTop, bottom: blockTop + blockHeight });
+        if (!collapsed) {
+          rows.forEach((row, index) => {
+            const column = index % columns;
+            const line = Math.floor(index / columns);
+            nodes.push({
+              id: row.id,
+              state: row.state,
+              stage: group.key,
+              column,
+              x: memberX + column * (memberWidth + columnGap),
+              y: blockTop + line * (nodeHeight + rowGap),
+              w: memberWidth,
+              h: nodeHeight,
+            });
           });
         }
+        y = blockTop + blockHeight + 30;
       }
-      const orderedAgents = [...agents.values()].sort((left, right) => (left.key < right.key ? -1 : left.key > right.key ? 1 : 0));
-      const rows = [...files.entries()].map(([path, cells]) => {
-        const owners = new Set(cells.map((cell) => cell.owner).filter((owner) => owner !== ''));
-        return {
-          path,
-          overlap: owners.size >= 2,
-          owners: owners.size,
-          cells: orderedAgents.map((agent) => ({ agent, hits: cells.filter((cell) => cell.owner === agent.key) })),
-        };
-      });
-      rows.sort((left, right) => {
-        if (left.overlap !== right.overlap) return left.overlap ? -1 : 1;
-        if (left.owners !== right.owners) return right.owners - left.owners;
-        return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
-      });
-      const max = Number.isFinite(limit) ? limit : 30;
-      return {
-        agents: orderedAgents,
-        rows: rows.slice(0, max),
-        overflow: Math.max(0, rows.length - max),
-        total: rows.length,
-        overlapCount: rows.filter((row) => row.overlap).length,
-      };
-    }
-
-    /**
-     * The dispatch picture: one Lead node, one node per task, a dispatch edge into
-     * every task that has no prerequisite, and a dependency edge for each
-     * prerequisite. The same shape serves the shared board, a run.json plan and the
-     * todo fallback — the difference is only the labels the nodes carry.
-     * @param options - `{ tasks }` in board shape.
-     * @returns nodes, edges and the synthetic Lead id.
-     */
-    function buildGraph(options) {
-      const tasks = (options && options.tasks) || [];
-      const leadId = '__lead';
-      const nodes = [{ id: leadId, kind: 'lead', height: 46 }];
-      const edges = [];
-      if (tasks.length === 0) return { nodes, edges, leadId };
-      const known = new Set(tasks.filter(Boolean).map((task) => String(task.id)));
-      for (const task of tasks) {
-        if (!task) continue;
-        const gate = isGateTask(task);
-        nodes.push({ id: String(task.id), kind: gate ? 'gate' : 'task', height: gate ? 44 : 52 });
-      }
-      for (const task of tasks) {
-        if (!task) continue;
-        const id = String(task.id);
-        const deps = dependencyIds(task, known);
-        if (deps.length === 0) edges.push({ from: leadId, to: id, kind: 'dispatch' });
-        for (const dep of deps) edges.push({ from: dep, to: id, kind: 'depends' });
-      }
-      return { nodes, edges, leadId };
-    }
-
-    /**
-     * Layer a graph left to right and route orthogonal edges between layers.
-     * Pure and deterministic: the same nodes and edges always produce the same
-     * coordinates. The spare width is distributed between the columns and the whole
-     * block is centred, so a wide panel does not leave the graph stranded at the
-     * left edge.
-     * @param nodes - `{ id, kind, height? }` list.
-     * @param edges - `{ from, to, kind? }` list.
-     * @param options - sizing knobs (width, nodeW, gaps, padding).
-     * @returns positioned nodes, routed edges, canvas size and the cycle (or null).
-     */
-    function layoutGraph(nodes, edges, options) {
-      const settings = options || {};
-      const width = Number.isFinite(settings.width) && settings.width > 0 ? settings.width : 420;
-      const nodeW = settings.nodeW || 178;
-      const gapX = settings.gapX === undefined ? 34 : settings.gapX;
-      const gapY = settings.gapY === undefined ? 10 : settings.gapY;
-      const padX = settings.padX === undefined ? 8 : settings.padX;
-      const padY = settings.padY === undefined ? 10 : settings.padY;
-
-      const list = (nodes || []).filter((node) => node && node.id !== undefined && node.id !== null);
-      const byId = new Map(list.map((node) => [String(node.id), node]));
-      const ids = [...byId.keys()];
-      const heightOf = (id) => {
-        const node = byId.get(id);
-        if (!node) return 54;
-        if (Number.isFinite(node.height) && node.height > 0) return node.height;
-        return node.kind === 'lead' ? 46 : 52;
-      };
-
-      const preds = new Map(ids.map((id) => [id, []]));
-      const succs = new Map(ids.map((id) => [id, []]));
-      const unknown = [];
-      const seen = new Set();
-      for (const edge of edges || []) {
-        if (!edge) continue;
-        const from = String(edge.from === undefined || edge.from === null ? '' : edge.from);
-        const to = String(edge.to === undefined || edge.to === null ? '' : edge.to);
-        if (from === '' || to === '' || from === to) continue;
-        const key = from + '>' + to;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        if (!byId.has(from) || !byId.has(to)) {
-          unknown.push({ from, to });
-          continue;
+      const height = Math.max(leadHeight + 40, y - 30 + 4);
+      const edge = (id, kind, d, active) => ({ id, kind, d, active: Boolean(active) });
+      if (hubs.length > 0) {
+        const first = hubs[0];
+        links.push(edge('lead', 'trunk', 'M' + trunkX + ' ' + leadHeight + ' V' + Math.max(leadHeight + 2, first.y - 2), first.waiting > 0));
+        for (let index = 1; index < hubs.length; index += 1) {
+          const from = hubs[index - 1];
+          const to = hubs[index];
+          links.push(edge(from.key + '>' + to.key, 'trunk', 'M' + trunkX + ' ' + (from.y + from.h) + ' V' + Math.max(from.y + from.h + 2, to.y - 2), to.waiting > 0));
         }
-        preds.get(to).push(from);
-        succs.get(from).push(to);
-      }
-
-      // Longest-path layering over a Kahn order; a cyclic graph keeps its leftovers at level 0.
-      const indegree = new Map(ids.map((id) => [id, preds.get(id).length]));
-      const queue = ids.filter((id) => indegree.get(id) === 0);
-      const order = [];
-      while (queue.length > 0) {
-        const id = queue.shift();
-        order.push(id);
-        for (const next of succs.get(id)) {
-          indegree.set(next, indegree.get(next) - 1);
-          if (indegree.get(next) === 0) queue.push(next);
+        for (const block of blocks) {
+          const hub = block.hub;
+          if (hub.collapsed) continue;
+          const hubY = hub.y + Math.round(hub.h / 2);
+          const top = block.top - 10;
+          const hubRight = hub.x + hub.w;
+          for (const member of nodes.filter((node) => node.stage === hub.key)) {
+            const targetY = member.y + Math.round(member.h / 2);
+            const active = member.state === 'waiting';
+            if (member.column === 0) {
+              links.push(edge(hub.key + '>' + member.id, 'branch',
+                'M' + hubRight + ' ' + hubY
+                + ' C' + (hubRight + 25) + ' ' + hubY
+                + ' ' + (member.x - 25) + ' ' + targetY
+                + ' ' + member.x + ' ' + targetY, active));
+            } else {
+              const corridorX = member.x - Math.round(columnGap / 2);
+              links.push(edge(hub.key + '>' + member.id, 'branch',
+                'M' + hubRight + ' ' + hubY
+                + ' V' + top
+                + ' H' + corridorX
+                + ' V' + targetY
+                + ' H' + member.x, active));
+            }
+          }
         }
       }
-      const levelOf = new Map(ids.map((id) => [id, 0]));
-      for (const id of order) {
-        const own = levelOf.get(id);
-        for (const next of succs.get(id)) {
-          if (levelOf.get(next) < own + 1) levelOf.set(next, own + 1);
-        }
-      }
-
-      const levels = [];
-      for (const id of ids) {
-        const level = levelOf.get(id) || 0;
-        if (!levels[level]) levels[level] = [];
-        levels[level].push(id);
-      }
-      for (let index = 0; index < levels.length; index += 1) if (!levels[index]) levels[index] = [];
-
-      // Two barycenter sweeps keep crossings down without an external layout library.
-      const position = new Map();
-      const record = () => {
-        for (const column of levels) column.forEach((id, index) => position.set(id, index));
-      };
-      record();
-      const barycenter = (id) => {
-        const neighbours = (preds.get(id) || []).concat(succs.get(id) || []);
-        if (neighbours.length === 0) return position.get(id) || 0;
-        let sum = 0;
-        for (const neighbour of neighbours) sum += position.get(neighbour) || 0;
-        return sum / neighbours.length;
-      };
-      for (let sweep = 0; sweep < 2; sweep += 1) {
-        for (const column of levels) {
-          column.sort((left, right) => {
-            const delta = barycenter(left) - barycenter(right);
-            if (delta !== 0) return delta;
-            return left < right ? -1 : left > right ? 1 : 0;
-          });
-        }
-        record();
-      }
-
-      const levelCount = levels.length;
-      // Fit the graph to the container when a deep plan would otherwise scroll:
-      // shrink the node width (never below `minNodeW`) before allowing overflow.
-      let nodeWidth = nodeW;
-      let columnGap = gapX;
-      if (levelCount > 0) {
-        const room = width - padX * 2;
-        const ideal = levelCount * nodeW + Math.max(0, levelCount - 1) * gapX;
-        if (ideal > room) {
-          columnGap = Math.min(gapX, 24);
-          const fitted = Math.floor((room - (levelCount - 1) * columnGap) / levelCount);
-          nodeWidth = Math.max(settings.minNodeW || 126, Math.min(nodeW, fitted));
-        } else if (ideal < room - 120) {
-          // A wide panel gives the cards room instead of padding the gaps forever.
-          nodeWidth = Math.min(settings.maxNodeW || 238, Math.floor((room - (levelCount - 1) * gapX) / levelCount));
-        }
-      }
-      const required = levelCount === 0 ? padX * 2 : levelCount * nodeWidth + Math.max(0, levelCount - 1) * columnGap + padX * 2;
-      const spare = Math.max(0, width - required);
-      // A wide panel spreads the columns instead of stranding the graph on the left.
-      if (levelCount > 1 && spare > 0) columnGap += Math.min(spare / (levelCount - 1), 96);
-      const totalWidth = levelCount === 0 ? padX * 2 : levelCount * nodeWidth + Math.max(0, levelCount - 1) * columnGap + padX * 2;
-      const canvasWidth = Math.max(width, totalWidth);
-      const left = padX + Math.max(0, (canvasWidth - totalWidth) / 2);
-
-      const columnHeights = levels.map((column) => column.reduce((sum, id, index) => sum + heightOf(id) + (index > 0 ? gapY : 0), 0));
-      const tallest = columnHeights.reduce((max, height) => Math.max(max, height), 0);
-      const xAt = [];
-      let cursor = left;
-      for (let index = 0; index < levelCount; index += 1) {
-        xAt[index] = cursor;
-        cursor += nodeWidth + columnGap;
-      }
-      const canvasHeight = (levelCount === 0 ? 0 : tallest) + padY * 2;
-
-      const positioned = [];
-      const geometry = new Map();
-      levels.forEach((column, levelIndex) => {
-        let y = padY + Math.max(0, (tallest - columnHeights[levelIndex]) / 2);
-        for (const id of column) {
-          const height = heightOf(id);
-          const node = { ...byId.get(id), id, level: levelIndex, x: xAt[levelIndex], y, w: nodeWidth, h: height };
-          positioned.push(node);
-          geometry.set(id, node);
-          y += height + gapY;
-        }
-      });
-
-      const routed = [];
-      for (const edge of edges || []) {
-        if (!edge) continue;
-        const fromId = String(edge.from === undefined || edge.from === null ? '' : edge.from);
-        const toId = String(edge.to === undefined || edge.to === null ? '' : edge.to);
-        const from = geometry.get(fromId);
-        const to = geometry.get(toId);
-        if (!from || !to) continue;
-        const x1 = from.x + from.w;
-        const y1 = from.y + from.h / 2;
-        const x2 = to.x;
-        const y2 = to.y + to.h / 2;
-        const mid = x1 + Math.max(8, (x2 - x1) / 2);
-        routed.push({
-          from: fromId,
-          to: toId,
-          kind: edge.kind || 'depends',
-          path: 'M ' + round1(x1) + ' ' + round1(y1) + ' H ' + round1(mid) + ' V ' + round1(y2) + ' H ' + round1(x2),
-        });
-      }
-
-      return {
-        nodes: positioned,
-        edges: routed,
-        width: canvasWidth,
-        height: canvasHeight,
-        cycle: cyclePathFrom(ids, succs),
-        unknownDeps: unknown,
-      };
-    }
-
-    /** One cycle over an explicit successor map, as an id list, or null. */
-    function cyclePathFrom(ids, succs) {
-      const state = new Map();
-      const stack = [];
-      let found = null;
-      const visit = (id) => {
-        if (found !== null) return;
-        const mark = state.get(id) || 0;
-        if (mark === 1) {
-          const start = stack.indexOf(id);
-          found = stack.slice(start).concat(id);
-          return;
-        }
-        if (mark === 2) return;
-        state.set(id, 1);
-        stack.push(id);
-        for (const next of succs.get(id) || []) visit(next);
-        stack.pop();
-        state.set(id, 2);
-      };
-      for (const id of ids) visit(id);
-      return found;
-    }
-
-    // --- task sources --------------------------------------------------------------
-    // One session can carry three kinds of progress facts, in decreasing authority:
-    // the Agent Teams board, the run's plan + run.json on disk, and the todo list.
-
-    /** Tasks from this session's `agentTeam` projection, or null when it holds none. */
-    function boardTasks(team) {
-      const tasks = team && Array.isArray(team.tasks) ? team.tasks.filter(Boolean) : [];
-      if (tasks.length === 0) return null;
-      return tasks.map((task) => ({
-        id: String(task.id),
-        subject: typeof task.subject === 'string' ? task.subject : String(task.id),
-        status: task.status,
-        ownerName: typeof task.ownerName === 'string' ? task.ownerName : '',
-        blockedBy: Array.isArray(task.blockedBy) ? task.blockedBy.slice() : [],
-        writeScopes: Array.isArray(task.writeScopes) ? task.writeScopes.slice() : [],
-        ready: typeof task.ready === 'boolean' ? task.ready : undefined,
-        warnings: Array.isArray(task.writeScopeWarnings) ? task.writeScopeWarnings.slice() : [],
-        description: typeof task.description === 'string' ? task.description : '',
-      }));
-    }
-
-    /** Tasks from this session's `todos` projection (latest todo_write list). */
-    function todoTasks(todos) {
-      if (!Array.isArray(todos) || todos.length === 0) return null;
-      return todos.slice(0, MAX_TODO_TASKS).map((item, index) => {
-        const content = item && typeof item.content === 'string' ? item.content : String(item && item.text ? item.text : '');
-        const status = item && item.status === 'completed' ? 'completed' : item && item.status === 'in_progress' ? 'in_progress' : 'pending';
-        return {
-          id: String(index + 1),
-          subject: content,
-          status,
-          ownerName: '',
-          blockedBy: [],
-          writeScopes: [],
-          ready: undefined,
-          warnings: [],
-          todo: true,
-        };
-      });
-    }
-
-    /** Merge 03-plan.json (ownership) with run.json (status) into board-shaped tasks. */
-    function planTasks(run, plan) {
-      const runTasks = run && run.tasks && typeof run.tasks === 'object' ? run.tasks : null;
-      const list = plan && Array.isArray(plan.tasks) ? plan.tasks.filter(Boolean) : [];
-      if (list.length === 0 && (runTasks === null || Object.keys(runTasks).length === 0)) return null;
-      const source = list.length > 0 ? list : Object.keys(runTasks || {}).map((id) => ({ id, title: runTasks[id] && runTasks[id].title, role: runTasks[id] && runTasks[id].role }));
-      const out = [];
-      for (const task of source) {
-        const id = String(task.id === undefined || task.id === null ? '' : task.id);
-        if (id === '') continue;
-        const state = (runTasks && runTasks[id]) || {};
-        const role = String(task.role || state.role || '');
-        const title = String(task.title || state.title || '');
-        const blockedBy = Array.isArray(task.dependsOn) ? task.dependsOn.map(String) : Array.isArray(state.dependsOn) ? state.dependsOn.map(String) : [];
-        const files = [];
-        if (Array.isArray(task.files)) files.push(...task.files.map(String));
-        if (Array.isArray(task.newFiles)) files.push(...task.newFiles.map(String));
-        const status = state.status === 'done' ? 'completed' : state.status === 'running' ? 'in_progress' : 'pending';
-        out.push({
-          id,
-          subject: role === '' ? id + ' · ' + title : id + ' · ' + role + ' · ' + title,
-          status,
-          ownerName: role,
-          blockedBy,
-          writeScopes: files,
-          ready: undefined,
-          warnings: [],
-          failed: state.status === 'failed',
-          attempts: typeof state.attempts === 'number' ? state.attempts : 0,
-          lastError: typeof state.lastError === 'string' ? state.lastError : '',
-        });
-      }
-      return out.length > 0 ? out : null;
+      return { width: memberX + columns * memberWidth + (columns - 1) * columnGap + 4, height, lead, hubs, nodes, links, trunkX, memberX, memberWidth };
     }
 
     // --- subagents ------------------------------------------------------------------
 
     const SUBAGENT_CHAT_PREFIX = 'dsh-resource://subagentchat/session/';
-    const ROLE_LABEL = /^(pm|architect|backend-dev|frontend-dev|qa-engineer|browser-tester|reviewer)\s*·\s*/;
-
-    /** Turn the session's `subagentCatalog` rows into display rows. */
-    function subagentRows(catalog) {
-      if (!Array.isArray(catalog)) return [];
-      const rows = [];
-      for (const entry of catalog) {
-        if (!entry || typeof entry !== 'object' || entry.id === undefined) continue;
-        const label = typeof entry.label === 'string' ? entry.label : typeof entry.name === 'string' ? entry.name : '';
-        const match = ROLE_LABEL.exec(label);
-        rows.push({
-          id: String(entry.id),
-          label: label === '' ? shortId(String(entry.id)) : label.replace(ROLE_LABEL, ''),
-          role: match ? match[1] : '',
-          mode: typeof entry.mode === 'string' ? entry.mode : 'one-shot',
-          activity: entry.activity === 'running' ? 'running' : 'inactive',
-        });
-      }
-      return rows;
-    }
 
     function subagentAddressOf(row, parentId) {
       const mode = row.mode === 'continuable' ? 'continuable' : row.mode === 'one-shot' ? 'one-shot' : 'unknown';
@@ -918,13 +844,14 @@ window.__ModuleLoader__.load({
       return 'dsh-resource://file/session/' + encodeURIComponent(sessionId) + '/' + parts.map(encodeURIComponent).join('/');
     }
 
-    // --- run facts (workspace files) ------------------------------------------------
+    // --- run artifacts --------------------------------------------------------------
+    // Only the run directory and its files are read off disk. Task state comes from the
+    // native projections above, so a stale 03-plan.json can no longer mislead the panel.
 
     /**
-     * Read one Steward run off disk through the host's workspace-files Remote.
-     * Discovery walks the skill's run roots, prefers the directory whose
-     * run.json has the latest updatedAt, then refreshes only that directory on
-     * the polling tick so a live run costs one listing plus one read.
+     * Read one Steward run's artifacts through the host's workspace-files Remote.
+     * Discovery walks the skill's run roots, prefers the directory whose run.json has
+     * the latest updatedAt, then refreshes only that directory on the polling tick.
      * @param ctx - client root context (for ctx.remote.workspaceFiles).
      * @param sessionId - the Session whose workspace is read.
      * @returns a loader with `load()`.
@@ -984,11 +911,11 @@ window.__ModuleLoader__.load({
           if (best === null || stamp > best.stamp) best = { dir: candidate, run, stamp };
           if (stamp > 0) break;
         }
-        if (best === null) return { dir: '', run: null, plan: null };
-        return { dir: best.dir, run: best.run, plan: await readJson(best.dir + '/03-plan.json') };
+        if (best === null) return { dir: '', run: null };
+        return { dir: best.dir, run: best.run };
       };
 
-      const collect = async (target, run, plan) => {
+      const collect = async (target) => {
         const artifacts = [];
         const listing = await call('list', target);
         if (listing && Array.isArray(listing.entries)) {
@@ -1013,9 +940,6 @@ window.__ModuleLoader__.load({
         return {
           status: 'ready',
           dir: target,
-          run,
-          plan,
-          ref: plan || null,
           artifacts: artifacts.slice(0, MAX_ARTIFACTS),
           truncated: artifacts.length > MAX_ARTIFACTS,
         };
@@ -1025,28 +949,25 @@ window.__ModuleLoader__.load({
         dir: () => dir,
         async load() {
           if (remoteOf() === undefined || typeof remoteOf().list !== 'function') {
-            return { status: 'unsupported', dir: '', run: null, plan: null, artifacts: [] };
+            return { status: 'unsupported', dir: '', artifacts: [] };
           }
           if (dir === '') {
             const found = await discover();
             dir = found.dir;
-            if (dir === '') return { status: 'empty', dir: '', run: null, plan: null, artifacts: [] };
-            return collect(dir, found.run, found.plan);
+            if (dir === '') return { status: 'empty', dir: '', artifacts: [] };
+            return collect(dir);
           }
-          const run = await readJson(dir + '/run.json');
-          const plan = await readJson(dir + '/03-plan.json');
-          const facts = await collect(dir, run, plan);
-          // The run directory can vanish between ticks (a new run, a clean
-          // workspace): forget it and rediscover on the next tick.
-          if (run === null && plan === null && facts.artifacts.length === 0) {
+          const facts = await collect(dir);
+          // The run directory can vanish between ticks (a new run, a clean workspace):
+          // forget it and rediscover on the next tick.
+          if (facts.artifacts.length === 0 && (await readJson(dir + '/run.json')) === null) {
             dir = '';
-            return { status: 'empty', dir: '', run: null, plan: null, artifacts: [] };
+            return { status: 'empty', dir: '', artifacts: [] };
           }
           return facts;
         },
       };
     }
-
     // --- settings form (shared with the Settings → Steward section) ------------------
 
     function emptySelection() {
@@ -1132,10 +1053,6 @@ window.__ModuleLoader__.load({
       return h('span', { className: 'stwd-pill stwd-pill-' + (tone || 'idle') }, children);
     }
 
-    function Chip({ children, title, mono }) {
-      return h('span', { className: 'stwd-chip' + (mono ? ' stwd-chip-mono' : ''), title: title || undefined }, children);
-    }
-
     function SectionHead({ title, count, actions }) {
       return h('div', { className: 'stwd-section-head' },
         h('h3', { className: 'stwd-section-title' }, title),
@@ -1188,57 +1105,43 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function AgentAvatar({ name, size }) {
-      const edge = typeof size === 'number' && size > 0 ? size : 20;
-      return h('span', {
-        className: 'stwd-avatar',
-        style: { width: edge + 'px', height: edge + 'px' },
-        'aria-hidden': 'true',
-      }, h('span', { className: 'stwd-avatar-text' }, initialsOf(name)));
-    }
+    // --- task progress --------------------------------------------------------------
 
-    function RunDonut({ text, done, total }) {
-      const safeTotal = total > 0 ? total : 1;
-      const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-      const radius = 16;
-      const circumference = 2 * Math.PI * radius;
-      const filled = Math.min(1, done / safeTotal) * circumference;
-      return h('div', { className: 'stwd-donut', role: 'img', 'aria-label': fmt(text.progressAria, { done, total }) },
-        h('svg', { viewBox: '0 0 40 40', width: 40, height: 40, 'aria-hidden': 'true', focusable: 'false' },
-          h('circle', { className: 'stwd-donut-track', cx: 20, cy: 20, r: radius, fill: 'none' }),
-          h('circle', {
-            className: 'stwd-donut-value',
-            cx: 20,
-            cy: 20,
-            r: radius,
-            fill: 'none',
-            strokeDasharray: round1(filled) + ' ' + round1(circumference - filled),
-            transform: 'rotate(-90 20 20)',
-          }),
+    /**
+     * The host's own task list as one bar: counts and one segment per native task.
+     * No task name ever reaches the panel — the native list stays the place to read them.
+     * @param props - copy plus the summarized progress (null when the list is empty).
+     * @returns the progress section.
+     */
+    function TaskProgress({ text, progress }) {
+      if (progress === null) {
+        return h('section', { className: 'stwd-tasks stwd-tasks-empty', 'aria-label': text.taskProgress },
+          h('span', { className: 'stwd-tasks-label' }, text.taskProgress),
+          h('span', { className: 'stwd-tasks-note' }, text.taskEmpty),
+        );
+      }
+      const source = progress.source === 'team' ? text.taskSourceTeam : text.taskSourceTodo;
+      const percent = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+      return h('section', { className: 'stwd-tasks', 'aria-label': text.taskProgress },
+        h('div', { className: 'stwd-tasks-head' },
+          h('span', { className: 'stwd-tasks-label' }, text.taskProgress),
+          h('span', { className: 'stwd-tasks-count' }, progress.done + '/' + progress.total),
+          h('span', { className: 'stwd-tasks-source', title: source }, source),
         ),
-        h('span', { className: 'stwd-donut-text' }, percent + '%'),
-      );
-    }
-
-    /** One segment per task; gate positions get a tick above the bar. */
-    function SegmentedProgress({ text, tasks }) {
-      const list = (tasks || []).filter(Boolean);
-      if (list.length === 0) return null;
-      const stats = runStats(list);
-      const segments = list.map((task, index) => h('span', {
-        key: 'seg-' + String(task.id === undefined ? index : task.id) + '-' + index,
-        className: 'stwd-seg stwd-seg-' + taskState(task),
-        title: taskTitle(task),
-      }));
-      const ticks = stats.gates.map((gate) => h('span', {
-        key: 'tick-' + gate.id,
-        className: 'stwd-seg-tick',
-        style: { left: ((gate.index + 0.5) / list.length) * 100 + '%' },
-        title: taskTitle(list[gate.index]),
-      }));
-      return h('div', { className: 'stwd-segwrap' },
-        h('div', { className: 'stwd-segbar', role: 'img', 'aria-label': fmt(text.progressAria, { done: stats.done, total: stats.total }) }, segments),
-        ticks.length > 0 ? h('div', { className: 'stwd-segticks', 'aria-hidden': 'true' }, ticks) : null,
+        h('div', {
+          className: 'stwd-tasks-bar',
+          role: 'img',
+          'aria-label': fmt(text.taskProgressAria, { done: progress.done, total: progress.total }),
+        }, progress.segments.map((state, index) => h('span', {
+          key: 'task-seg-' + index,
+          className: 'stwd-tseg stwd-tseg-' + state,
+        }))),
+        h('div', { className: 'stwd-tasks-meta' },
+          h('span', { className: 'stwd-tasks-meta-item' }, text.taskDone + ' ' + progress.done),
+          progress.running > 0 ? h('span', { className: 'stwd-tasks-meta-item stwd-tone-progress' }, text.taskRunning + ' ' + progress.running) : null,
+          progress.blocked > 0 ? h('span', { className: 'stwd-tasks-meta-item stwd-tone-warn' }, text.taskBlocked + ' ' + progress.blocked) : null,
+          h('span', { className: 'stwd-tasks-percent' }, percent + '%'),
+        ),
       );
     }
 
@@ -1267,25 +1170,98 @@ window.__ModuleLoader__.load({
       }
     }
 
-    // --- dispatch graph -------------------------------------------------------------
+    // --- team graph -----------------------------------------------------------------
 
-    function edgeIsHot(edge, highlight) {
-      if (!highlight || highlight.size === 0) return false;
-      return highlight.has(edge.from) && highlight.has(edge.to);
+    /** The Session the panel is docked in: it heads the tree. */
+    function LeadNode({ text, row, geo }) {
+      return h('div', {
+        className: 'stwd-leadnode stwd-leadnode-' + row.state,
+        style: { left: geo.x + 'px', top: geo.y + 'px', width: geo.w + 'px', height: geo.h + 'px' },
+      },
+        h('span', { className: 'stwd-leadnode-avatar', 'aria-hidden': 'true' }, row.glyph),
+        h('span', { className: 'stwd-leadnode-body' },
+          h('span', { className: 'stwd-leadnode-row' },
+            h('span', { className: 'stwd-leadnode-title' }, text.lead),
+            h(StatusDot, { tone: stateTone(row.state) }),
+            h('span', { className: 'stwd-leadnode-state' }, stateLabelOf(row.state, text)),
+          ),
+          h('span', { className: 'stwd-leadnode-meta' },
+            h('span', { className: 'stwd-leadnode-model stwd-mono' }, modelLabelOf(row, text)),
+          ),
+          h('span', { className: 'stwd-leadnode-task' }, row.description === '' ? text.leadHere : row.description),
+          h('span', { className: 'stwd-leadnode-metrics' }, fmtTokens(row.tokens === null ? 0 : row.tokens.total) + ' ' + text.tokensShort),
+        ),
+      );
     }
 
+    /** One dispatched agent: role, model, task, state, and two real buttons. */
+    function AgentNode({ text, row, geo, selected, onOpen, onToggle }) {
+      let aria = (row.roleName === '' ? text.subagentRole : row.roleName)
+        + (row.role === '' ? '' : ' ' + row.role)
+        + ' · ' + stateLabelOf(row.state, text)
+        + ' · ' + modelLabelOf(row, text);
+      if (row.description !== '') aria += ' · ' + row.description;
+      return h('div', {
+        className: 'stwd-gnode stwd-gnode-' + row.state + (selected ? ' stwd-gnode-selected' : ''),
+        style: { left: geo.x + 'px', top: geo.y + 'px', width: geo.w + 'px', height: geo.h + 'px' },
+      },
+        h('button', {
+          type: 'button',
+          className: 'stwd-gnode-main',
+          'aria-label': aria,
+          title: aria,
+          onClick: () => onOpen(row),
+        },
+          h('span', { className: 'stwd-gnode-top' },
+            h('span', { className: 'stwd-gnode-avatar', 'aria-hidden': 'true' }, row.glyph),
+            h('span', { className: 'stwd-gnode-role' }, row.roleName === '' ? text.subagentRole : row.roleName),
+            h('span', { className: 'stwd-gnode-state' }, h(StatusDot, { tone: stateTone(row.state) }), stateLabelOf(row.state, text)),
+          ),
+          h('span', { className: 'stwd-gnode-model stwd-mono' }, modelLabelOf(row, text)),
+          h('span', { className: 'stwd-gnode-task' }, row.description === '' ? text.noDescription : row.description),
+          h('span', { className: 'stwd-gnode-metrics' }, fmtDuration(row.elapsedMs) + ' · ' + fmtTokens(row.tokens === null ? 0 : row.tokens.total) + ' ' + text.tokensShort),
+        ),
+        h('button', {
+          type: 'button',
+          className: 'stwd-gnode-more',
+          'aria-expanded': selected ? 'true' : 'false',
+          'aria-label': text.detailToggle,
+          title: text.detailToggle,
+          onClick: () => onToggle(row.id),
+        }, selected ? '⌃' : '⌄'),
+      );
+    }
+
+    let ARROW_SEQ = 0;
+
     /**
-     * The graph surface: a Lead node, the tasks it dispatched, and the dependency
-     * edges between them. Nodes and edges arrive already laid out by `layoutGraph`;
-     * this component only draws and routes interaction.
-     * @param props - text, the graph model, the task lookup and selection callbacks.
-     * @returns the canvas.
+     * The team as a tree canvas: the Lead is the root, a trunk chains the stage hubs,
+     * every hub branches into its cards. Cards can be dragged anywhere, the viewport
+     * pans and zooms, and filters / collapsed hubs are remembered across reloads.
+     * A click on a card still opens its child session; a drag moves the card and
+     * swallows that click.
+     * @param props - copy, rows, the Lead row, selection and the two node actions.
+     * @returns the graph surface.
      */
-    function DagCanvas({ text, graph, tasks, leadTitle, leadSubtitle, selectedId, hoverId, onSelect, onHover }) {
+    function TeamGraph(props) {
+      const text = props.text;
+      const prefs = useMemo(() => readPanelPrefs(), []);
       const wrapRef = useRef(null);
-      const nodeRefs = useRef({});
-      const [width, setWidth] = useState(0);
-      const [focusId, setFocusId] = useState(null);
+      const viewRef = useRef(null);
+      const dragRef = useRef(null);
+      const suppressRef = useRef(0);
+      const markerRef = useRef(null);
+      const dimsRef = useRef({ width: 340, height: 480, contentWidth: 340, contentHeight: 480 });
+      const [width, setWidth] = useState(340);
+      const [view, setViewState] = useState({ zoom: 1, x: 0, y: 0 });
+      const [moving, setMoving] = useState(false);
+      const [offsets, setOffsets] = useState({});
+      const [filter, setFilter] = useState(prefs.filter);
+      const [collapsed, setCollapsed] = useState(prefs.collapsed);
+      if (markerRef.current === null) {
+        ARROW_SEQ += 1;
+        markerRef.current = 'stwd-tree-arrow-' + ARROW_SEQ;
+      }
 
       useEffect(() => {
         const host = wrapRef.current;
@@ -1300,403 +1276,536 @@ window.__ModuleLoader__.load({
         return () => observer.disconnect();
       }, []);
 
-      const layout = useMemo(() => layoutGraph(graph.nodes, graph.edges, { width: width > 0 ? width : 420 }), [graph, width]);
-      const byId = useMemo(() => {
+      useEffect(() => {
+        writePanelPrefs({ filter, collapsed });
+      }, [filter, collapsed]);
+
+      const totalRows = (props.rows || []).filter(Boolean).length;
+      const visibleRows = useMemo(() => filterAgentRows(props.rows, filter), [props.rows, filter]);
+      const hiddenCount = totalRows - visibleRows.length;
+      const groups = useMemo(() => agentStages(visibleRows, text).map((group) => ({
+        ...group,
+        collapsed: collapsed[group.key] === true,
+      })), [visibleRows, text, collapsed]);
+      const layout = useMemo(() => treeLayout({
+        width,
+        nodeHeight: 74,
+        groups,
+      }), [groups, width]);
+      const rowsById = useMemo(() => {
         const map = new Map();
-        for (const task of tasks || []) if (task) map.set(String(task.id), task);
+        for (const row of props.rows || []) map.set(row.id, row);
         return map;
-      }, [tasks]);
-      const adjacency = useMemo(() => {
-        const preds = new Map();
-        const succs = new Map();
-        for (const edge of graph.edges || []) {
-          if (!succs.has(edge.from)) succs.set(edge.from, []);
-          succs.get(edge.from).push(edge.to);
-          if (!preds.has(edge.to)) preds.set(edge.to, []);
-          preds.get(edge.to).push(edge.from);
-        }
-        return { preds, succs };
-      }, [graph]);
-      const highlight = useMemo(() => {
-        const active = selectedId || hoverId;
-        if (!active) return null;
-        const ids = new Set([active]);
-        const walk = (map) => {
-          const queue = [active];
-          while (queue.length > 0) {
-            const current = queue.shift();
-            for (const next of map.get(current) || []) {
-              if (ids.has(next)) continue;
-              ids.add(next);
-              queue.push(next);
-            }
-          }
+      }, [props.rows]);
+      const placed = useMemo(() => layout.nodes.map((node) => {
+        const offset = offsets[node.id];
+        return offset ? { ...node, x: node.x + offset.dx, y: node.y + offset.dy } : node;
+      }), [layout.nodes, offsets]);
+
+      // The canvas is as tall as the tree (the panel scrolls, like any diagram); only a
+      // pathological run is capped, and zooming in brings panning into play.
+      const minimumView = totalRows === 0 ? 110 : 220;
+      const viewHeight = Math.min(Math.max(layout.height + 10, minimumView), 2200);
+      const viewWidth = Math.max(120, width);
+      dimsRef.current = {
+        width: viewWidth,
+        height: viewHeight,
+        contentWidth: layout.width,
+        contentHeight: layout.height,
+      };
+
+      /** Keep the content covering the viewport (top-left anchored when it fits). */
+      const clampToDims = (next) => {
+        const dims = dimsRef.current;
+        const zoom = clampZoom(next.zoom);
+        const scaledWidth = dims.contentWidth * zoom;
+        const scaledHeight = dims.contentHeight * zoom;
+        return {
+          zoom,
+          x: Math.round(Math.min(0, Math.max(dims.width - scaledWidth, Number(next.x) || 0))),
+          y: Math.round(Math.min(0, Math.max(dims.height - scaledHeight, Number(next.y) || 0))),
         };
-        walk(adjacency.preds);
-        walk(adjacency.succs);
-        return ids;
-      }, [selectedId, hoverId, adjacency]);
+      };
 
-      const moveFocus = useCallback((fromId, direction) => {
-        const current = layout.nodes.find((node) => node.id === fromId);
-        if (!current) return;
-        let best = null;
-        let bestScore = Infinity;
-        const cx = current.x + current.w / 2;
-        const cy = current.y + current.h / 2;
-        for (const node of layout.nodes) {
-          if (node.id === fromId) continue;
-          const dx = node.x + node.w / 2 - cx;
-          const dy = node.y + node.h / 2 - cy;
-          if (direction === 'right' && dx <= 0) continue;
-          if (direction === 'left' && dx >= 0) continue;
-          if (direction === 'down' && dy <= 0) continue;
-          if (direction === 'up' && dy >= 0) continue;
-          const primary = direction === 'left' || direction === 'right' ? Math.abs(dx) : Math.abs(dy);
-          const secondary = direction === 'left' || direction === 'right' ? Math.abs(dy) : Math.abs(dx);
-          const score = primary + secondary * 2;
-          if (score < bestScore) {
-            bestScore = score;
-            best = node;
-          }
+      // A filter or a collapsed hub changes the content size: snap the view back in.
+      useEffect(() => {
+        setViewState((current) => clampToDims(current));
+      }, [layout.width, layout.height]);
+
+      const resetView = () => setViewState(clampToDims({ zoom: 1, x: 0, y: 0 }));
+
+      const fitView = () => {
+        setViewState(() => {
+          const dims = dimsRef.current;
+          const zoom = clampZoom(Math.min(
+            dims.width / Math.max(1, dims.contentWidth),
+            dims.height / Math.max(1, dims.contentHeight),
+          ));
+          return clampToDims({ zoom, x: 0, y: 0 });
+        });
+      };
+
+      const relayout = () => setOffsets({});
+
+      const zoomAt = (factor, originX, originY) => {
+        setViewState((current) => {
+          const zoom = clampZoom(current.zoom * factor);
+          if (zoom === current.zoom) return current;
+          const ratio = zoom / current.zoom;
+          return clampToDims({
+            zoom,
+            x: originX - (originX - current.x) * ratio,
+            y: originY - (originY - current.y) * ratio,
+          });
+        });
+      };
+
+      // Wheel zoom needs a non-passive listener; a plain wheel keeps scrolling the panel.
+      useEffect(() => {
+        const host = viewRef.current;
+        if (!host || typeof host.addEventListener !== 'function') return undefined;
+        const onWheel = (event) => {
+          if (!event.ctrlKey && !event.metaKey) return;
+          event.preventDefault();
+          const rect = typeof host.getBoundingClientRect === 'function' ? host.getBoundingClientRect() : { left: 0, top: 0 };
+          const originX = (Number(event.clientX) || 0) - (Number(rect.left) || 0);
+          const originY = (Number(event.clientY) || 0) - (Number(rect.top) || 0);
+          zoomAt(event.deltaY < 0 ? 1.12 : 1 / 1.12, originX, originY);
+        };
+        host.addEventListener('wheel', onWheel, { passive: false });
+        return () => host.removeEventListener('wheel', onWheel);
+      }, []);
+
+      const capturePointer = (event) => {
+        const host = viewRef.current;
+        if (!host || typeof host.setPointerCapture !== 'function') return;
+        if (!event || event.pointerId === undefined) return;
+        try {
+          host.setPointerCapture(event.pointerId);
+        } catch {
+          // a pointer that already went away needs no capture
         }
-        if (!best) return;
-        setFocusId(best.id);
-        const element = nodeRefs.current[best.id];
-        if (element && typeof element.focus === 'function') element.focus();
-      }, [layout]);
+      };
 
-      const onNodeKeyDown = useCallback((event, id) => {
+      const releasePointer = (event) => {
+        const host = viewRef.current;
+        if (!host || typeof host.releasePointerCapture !== 'function') return;
+        if (!event || event.pointerId === undefined) return;
+        try {
+          host.releasePointerCapture(event.pointerId);
+        } catch {
+          // already released
+        }
+      };
+
+      /** Which card (if any) is under this pointer, in layout units. */
+      const nodeAt = (event) => {
+        if (!event) return '';
+        const host = viewRef.current;
+        const rect = host && typeof host.getBoundingClientRect === 'function' ? host.getBoundingClientRect() : { left: 0, top: 0 };
+        const localX = ((Number(event.clientX) || 0) - (Number(rect.left) || 0) - view.x) / view.zoom;
+        const localY = ((Number(event.clientY) || 0) - (Number(rect.top) || 0) - view.y) / view.zoom;
+        for (const node of placed) {
+          if (localX >= node.x && localX <= node.x + node.w && localY >= node.y && localY <= node.y + node.h) return node.id;
+        }
+        return '';
+      };
+
+      const interactiveTarget = (target) => Boolean(target && typeof target.closest === 'function'
+        && target.closest('.stwd-gnode, .stwd-leadnode, .stwd-hub-head, .stwd-graph-tools, .stwd-graph-filters'));
+
+      const onPointerDown = (event) => {
+        if (!event || (event.button !== undefined && event.button !== 0)) return;
+        const target = event.target;
+        if (target && typeof target.closest === 'function'
+          && target.closest('.stwd-graph-tools, .stwd-graph-filters, .stwd-hub-head')) return;
+        const nodeId = nodeAt(event);
+        dragRef.current = {
+          x: Number(event.clientX) || 0,
+          y: Number(event.clientY) || 0,
+          view,
+          nodeId,
+          startOffset: nodeId === '' ? null : { ...(offsets[nodeId] || { dx: 0, dy: 0 }) },
+          moved: false,
+        };
+        if (nodeId === '') {
+          setMoving(true);
+          capturePointer(event);
+        }
+      };
+
+      const onPointerMove = (event) => {
+        const start = dragRef.current;
+        if (!start || !event) return;
+        const dx = (Number(event.clientX) || 0) - start.x;
+        const dy = (Number(event.clientY) || 0) - start.y;
+        if (!start.moved) {
+          if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+          start.moved = true;
+          if (start.nodeId === '') setMoving(true);
+          else suppressRef.current = Date.now() + 400;
+          capturePointer(event);
+        }
+        if (start.nodeId !== '') {
+          const zoom = Math.max(0.1, Number(start.view.zoom) || 1);
+          const base = start.startOffset || { dx: 0, dy: 0 };
+          const next = { dx: base.dx + dx / zoom, dy: base.dy + dy / zoom };
+          setOffsets((current) => ({ ...current, [start.nodeId]: next }));
+          return;
+        }
+        setViewState(() => clampToDims({ zoom: start.view.zoom, x: start.view.x + dx, y: start.view.y + dy }));
+      };
+
+      const endDrag = (event) => {
+        if (!dragRef.current) return;
+        dragRef.current = null;
+        setMoving(false);
+        releasePointer(event);
+      };
+
+      /** A drag swallows the click it would otherwise turn into a session jump. */
+      const onClickCapture = (event) => {
+        if (suppressRef.current === 0 || suppressRef.current < Date.now()) return;
+        suppressRef.current = 0;
+        event.preventDefault();
+        event.stopPropagation();
+      };
+
+      const onDoubleClick = (event) => {
+        if (interactiveTarget(event && event.target)) return;
+        resetView();
+      };
+
+      const onKeyDown = (event) => {
         if (!event) return;
         const key = event.key;
-        if (key === 'Enter' || key === ' ' || key === 'Spacebar') {
+        if (key === '+' || key === '=') {
           event.preventDefault();
-          onSelect(id);
+          zoomAt(1.12, viewWidth / 2, viewHeight / 2);
           return;
         }
-        if (key === 'Escape') {
+        if (key === '-' || key === '_') {
           event.preventDefault();
-          onSelect(null);
+          zoomAt(1 / 1.12, viewWidth / 2, viewHeight / 2);
           return;
         }
-        const direction = key === 'ArrowRight' ? 'right' : key === 'ArrowLeft' ? 'left' : key === 'ArrowUp' ? 'up' : key === 'ArrowDown' ? 'down' : null;
-        if (!direction) return;
+        if (key === '0') {
+          event.preventDefault();
+          resetView();
+          return;
+        }
+        if (key === 'f' || key === 'F') {
+          event.preventDefault();
+          fitView();
+          return;
+        }
+        if (key === 'r' || key === 'R') {
+          event.preventDefault();
+          relayout();
+          return;
+        }
+        const steps = { ArrowLeft: [32, 0], ArrowRight: [-32, 0], ArrowUp: [0, 32], ArrowDown: [0, -32] };
+        if (steps[key] === undefined) return;
         event.preventDefault();
-        moveFocus(id, direction);
-      }, [moveFocus, onSelect]);
+        const [dx, dy] = steps[key];
+        setViewState((current) => clampToDims({ zoom: current.zoom, x: current.x + dx, y: current.y + dy }));
+      };
 
-      const aria = fmt(text.graphAria, { nodes: layout.nodes.length, edges: layout.edges.length });
+      const toggleStage = (key) => setCollapsed((current) => {
+        const next = { ...current };
+        if (next[key] === true) delete next[key];
+        else next[key] = true;
+        return next;
+      });
+
+      const zoomPercent = Math.round(view.zoom * 100) + '%';
+      const stageStyle = {
+        width: layout.width + 'px',
+        height: layout.height + 'px',
+        transform: 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.zoom + ')',
+      };
+      const filterButtons = [
+        { key: 'all', label: text.filterAll },
+        { key: 'hide-done', label: text.filterHideDone },
+        { key: 'active', label: text.filterActive },
+      ];
+
+      const canvas = totalRows > 0 && visibleRows.length === 0
+        ? h('div', { className: 'stwd-graph-empty' },
+          h('p', { className: 'stwd-graph-empty-title' }, text.emptyFiltered),
+          h('p', { className: 'stwd-graph-empty-hint' }, text.emptyFilteredHint),
+          h('button', {
+            type: 'button',
+            className: 'stwd-graph-reset',
+            onClick: () => setFilter('all'),
+          }, text.filterAll),
+        )
+        : h('div', {
+          className: 'stwd-graph-view' + (moving ? ' stwd-graph-view-moving' : ''),
+          ref: viewRef,
+          style: { height: viewHeight + 'px' },
+          role: 'group',
+          tabIndex: 0,
+          'aria-label': fmt(text.graphCanvasAria, { nodes: visibleRows.length }),
+          onPointerDown,
+          onPointerMove,
+          onPointerUp: endDrag,
+          onPointerCancel: endDrag,
+          onClickCapture,
+          onDoubleClick,
+          onKeyDown,
+        },
+          h('div', { className: 'stwd-graph-stage', style: stageStyle },
+            h('svg', {
+              className: 'stwd-graph-links',
+              width: layout.width,
+              height: layout.height,
+              viewBox: '0 0 ' + layout.width + ' ' + layout.height,
+              'aria-hidden': 'true',
+              focusable: 'false',
+            },
+              h('defs', null,
+                h('marker', {
+                  id: markerRef.current,
+                  viewBox: '0 0 8 8',
+                  refX: 6,
+                  refY: 4,
+                  markerWidth: 7,
+                  markerHeight: 7,
+                  orient: 'auto',
+                }, h('path', { className: 'stwd-link-head', d: 'M0 0 L8 4 L0 8 Z' })),
+              ),
+              layout.links.map((link) => h('path', {
+                key: 'link-' + link.id,
+                className: 'stwd-link stwd-link-' + link.kind + (link.active ? ' stwd-link-active' : ''),
+                d: link.d,
+                'marker-end': 'url(#' + markerRef.current + ')',
+              })),
+            ),
+            h('div', { className: 'stwd-graph-canvas', style: { height: layout.height + 'px' } },
+              h(LeadNode, { text, row: props.lead, geo: layout.lead }),
+              layout.hubs.map((hub) => h('div', {
+                key: 'hub-' + hub.key,
+                className: 'stwd-hub' + (hub.collapsed ? ' stwd-hub-collapsed' : '') + (hub.waiting > 0 ? ' stwd-hub-waiting' : ''),
+                style: { left: hub.x + 'px', top: hub.y + 'px', width: hub.w + 'px', height: hub.h + 'px' },
+              },
+                h('button', {
+                  type: 'button',
+                  className: 'stwd-hub-head',
+                  'aria-expanded': hub.collapsed ? 'false' : 'true',
+                  'aria-label': fmt(hub.collapsed ? text.expandStage : text.collapseStage, { stage: hub.label }),
+                  onClick: () => toggleStage(hub.key),
+                },
+                  h('span', { className: 'stwd-hub-title' }, hub.label),
+                  h('span', { className: 'stwd-hub-count' }, String(hub.count)),
+                  hub.waiting > 0 ? h('span', { className: 'stwd-hub-waiting-dot', title: text.stateWaiting }) : null,
+                  h('span', { className: 'stwd-hub-caret' }, hub.collapsed ? '▸' : '▾'),
+                ),
+              )),
+              placed.map((node) => {
+                const row = rowsById.get(node.id);
+                if (row === undefined) return null;
+                return h(AgentNode, {
+                  key: 'node-' + node.id,
+                  text,
+                  row,
+                  geo: node,
+                  selected: props.selectedId === node.id,
+                  onOpen: props.onOpen,
+                  onToggle: props.onToggle,
+                });
+              }),
+            ),
+          ),
+        );
 
       return h('div', { className: 'stwd-graph', ref: wrapRef },
-        h('p', { className: 'stwd-sr-only' }, text.graphKeys),
-        h('svg', {
-          className: 'stwd-graph-svg',
-          width: layout.width,
-          height: layout.height > 0 ? layout.height : 1,
-          viewBox: '0 0 ' + layout.width + ' ' + (layout.height > 0 ? layout.height : 1),
-          role: 'group',
-          'aria-label': aria,
-        },
-          h('defs', null,
-            h('marker', {
-              id: 'stwd-arrow',
-              viewBox: '0 0 8 8',
-              refX: 7,
-              refY: 4,
-              markerWidth: 7,
-              markerHeight: 7,
-              orient: 'auto-start-reverse',
-            }, h('path', { className: 'stwd-arrow-head', d: 'M0 0.7 L7 4 L0 7.3 Z' })),
-            h('marker', {
-              id: 'stwd-arrow-dispatch',
-              viewBox: '0 0 8 8',
-              refX: 7,
-              refY: 4,
-              markerWidth: 7,
-              markerHeight: 7,
-              orient: 'auto-start-reverse',
-            }, h('path', { className: 'stwd-arrow-head-dispatch', d: 'M0 0.7 L7 4 L0 7.3 Z' })),
-          ),
-          h('g', { className: 'stwd-edges' }, layout.edges.map((edge) => {
-            const hot = edgeIsHot(edge, highlight);
-            const dim = highlight !== null && highlight.size > 0 && !hot;
-            return h('path', {
-              key: edge.from + '>' + edge.to,
-              className: 'stwd-edge stwd-edge-' + edge.kind
-                + (hot ? ' stwd-edge-hot' : '')
-                + (dim ? ' stwd-edge-dim' : ''),
-              d: edge.path,
-              markerEnd: edge.kind === 'dispatch' ? 'url(#stwd-arrow-dispatch)' : 'url(#stwd-arrow)',
-            }, h('title', null, text.dispatchEdge + '：' + edge.from + ' → ' + edge.to));
-          })),
-          h('g', { className: 'stwd-nodes' }, layout.nodes.map((node) => {
-            const task = byId.get(node.id) || null;
-            const kind = node.kind || 'task';
-            if (kind === 'lead') {
-              const selected = selectedId === node.id;
-              return h('g', {
-                key: node.id,
-                ref: (element) => { nodeRefs.current[node.id] = element; },
-                className: 'stwd-node stwd-node-lead',
-                transform: 'translate(' + round1(node.x) + ',' + round1(node.y) + ')',
-                role: 'button',
-                tabIndex: 0,
-                'aria-pressed': selected ? 'true' : 'false',
-                'aria-label': leadTitle + (leadSubtitle === '' ? '' : ' · ' + leadSubtitle),
-                onFocus: () => setFocusId(node.id),
-                onBlur: () => setFocusId((current) => (current === node.id ? null : current)),
-                onClick: () => onSelect(null),
-                onKeyDown: (event) => onNodeKeyDown(event, node.id),
-              },
-                h('rect', { className: 'stwd-node-bg stwd-node-lead-bg', x: 0, y: 0, width: node.w, height: node.h, rx: 10 }),
-                h('circle', { className: 'stwd-node-lead-dot', cx: 14, cy: node.h / 2, r: 3.5 }),
-                h('text', { className: 'stwd-node-lead-title', x: 26, y: 19 }, leadTitle),
-                h('text', { className: 'stwd-node-lead-sub', x: 26, y: 33 }, leadSubtitle),
-              );
-            }
-            const state = taskState(task);
-            const selected = selectedId === node.id;
-            const dimmed = highlight !== null && highlight.size > 0 && !highlight.has(node.id);
-            const owner = task && typeof task.ownerName === 'string' ? task.ownerName : '';
-            const scopes = task && Array.isArray(task.writeScopes) ? task.writeScopes : [];
-            const gate = kind === 'gate';
-            const todo = Boolean(task && task.todo);
-            // One unit ≈ 6px at 12px type, so this is the usable width of the card face.
-            const titleLines = gate
-              ? [stripIdPrefix(taskTitle(task)) || taskShortLabel(task)]
-              : wrapSvgText(taskDisplayTitle(task), Math.floor((node.w - 26) / 6), 2);
-            const titleStart = gate ? 27 : 19;
-            return h('g', {
-              key: node.id,
-              ref: (element) => { nodeRefs.current[node.id] = element; },
-              className: 'stwd-node stwd-node-task'
-                + (gate ? ' stwd-node-gate' : '')
-                + (todo ? ' stwd-node-todo' : '')
-                + ' stwd-node-' + state
-                + (selected ? ' stwd-node-selected' : '')
-                + (dimmed ? ' stwd-node-dim' : '')
-                + (focusId === node.id ? ' stwd-node-focused' : ''),
-              transform: 'translate(' + round1(node.x) + ',' + round1(node.y) + ')',
-              role: 'button',
-              tabIndex: 0,
-              'aria-pressed': selected ? 'true' : 'false',
-              'aria-label': taskShortLabel(task) + ' ' + taskTitle(task) + ' · ' + stateLabel(text, state) + (owner === '' ? '' : ' · ' + text.owner + ' ' + owner),
-              onFocus: () => setFocusId(node.id),
-              onBlur: () => setFocusId((current) => (current === node.id ? null : current)),
-              onMouseEnter: () => onHover(node.id),
-              onMouseLeave: () => onHover(null),
-              onClick: () => onSelect(selected ? null : node.id),
-              onKeyDown: (event) => onNodeKeyDown(event, node.id),
-            },
-              h('rect', { className: 'stwd-node-bg', x: 0, y: 0, width: node.w, height: node.h, rx: 8 }),
-              h('rect', { className: 'stwd-node-accent', x: 0.75, y: 9, width: 3, height: node.h - 18, rx: 1.5 }),
-              selected || focusId === node.id ? h('rect', { className: 'stwd-node-ring', x: -2.5, y: -2.5, width: node.w + 5, height: node.h + 5, rx: 10 }) : null,
-              h('text', { className: 'stwd-node-id', x: node.w - 10, y: 15, textAnchor: 'end' }, taskShortLabel(task)),
-              h('text', { className: 'stwd-node-title' }, titleLines.map((line, index) => h('tspan', {
-                key: 'line-' + index,
-                x: 12,
-                y: titleStart + index * 14,
-              }, line))),
-              gate ? null : h('g', { className: 'stwd-node-foot' },
-                todo
-                  ? h('text', { className: 'stwd-node-owner', x: 12, y: node.h - 8 }, text.todoNode)
-                  : h('g', null,
-                    h('circle', { className: 'stwd-node-avatar-bg', cx: 18, cy: node.h - 11, r: 6 }),
-                    h('text', { className: 'stwd-node-avatar', x: 18, y: node.h - 7.5, textAnchor: 'middle' }, initialsOf(owner)),
-                  ),
-                todo ? null : h('text', { className: 'stwd-node-owner', x: 28, y: node.h - 8 }, owner === '' ? text.matrixUnassigned : owner),
-                h('text', { className: 'stwd-node-count', x: node.w - 10, y: node.h - 8, textAnchor: 'end' }, scopes.length === 0 ? '' : scopes.length + ' ' + text.matrixFileUnit),
-              ),
-            );
-          })),
-          layout.nodes.length === 0 ? h('p', { className: 'stwd-note' }, text.graphEmpty) : null,
-        ),
-      );
-    }
-
-    // --- ownership matrix -----------------------------------------------------------
-
-    function OwnershipMatrix({ text, grid, selectedId, onSelect }) {
-      if (!grid || grid.total === 0) return h('p', { className: 'stwd-note' }, text.matrixEmpty);
-      return h('div', { className: 'stwd-matrix-wrap' },
-        h('table', { className: 'stwd-matrix' },
-          h('caption', { className: 'stwd-sr-only' }, text.matrixCaption),
-          h('thead', null, h('tr', null,
-            h('th', { scope: 'col' }, text.matrixFile),
-            grid.agents.map((agent) => h('th', { key: 'agent-' + (agent.key || '__none'), scope: 'col' },
-              h(AgentAvatar, { name: agent.name, size: 18 }),
-              h('span', { className: 'stwd-matrix-agent' }, agent.name === '' ? text.matrixUnassigned : agent.name),
-            )),
-            h('th', { scope: 'col' }, text.matrixOverlap),
-          )),
-          h('tbody', null, grid.rows.map((row) => h('tr', {
-            key: row.path,
-            className: row.overlap ? 'stwd-matrix-row-overlap' : undefined,
-          },
-            h('th', { scope: 'row', className: 'stwd-matrix-path', title: row.path }, row.path),
-            row.cells.map((cell) => h('td', { key: 'cell-' + (cell.agent.key || '__none'), className: 'stwd-matrix-cell' },
-              cell.hits.length === 0 ? h('span', { className: 'stwd-matrix-none', 'aria-hidden': 'true' }, '—') : cell.hits.map((hit) => h('button', {
-                key: hit.taskId + '-' + hit.label,
+        h('div', { className: 'stwd-graph-bar' },
+          h('div', { className: 'stwd-graph-bar-row' },
+            h('span', { className: 'stwd-graph-hint' }, text.canvasHint),
+            h('div', { className: 'stwd-graph-tools', role: 'group', 'aria-label': text.zoomGroup },
+              h('button', {
                 type: 'button',
-                className: 'stwd-matrix-chip stwd-matrix-chip-' + hit.state + (selectedId === hit.taskId ? ' stwd-matrix-chip-selected' : ''),
-                title: hit.title,
-                'aria-pressed': selectedId === hit.taskId ? 'true' : 'false',
-                onClick: () => onSelect(selectedId === hit.taskId ? null : hit.taskId),
-              }, hit.label)),
-            )),
-            h('td', { className: 'stwd-matrix-overlap' }, row.overlap ? text.matrixOverlapMark : '—'),
-          ))),
-          grid.overflow > 0 ? h('tfoot', null, h('tr', null, h('td', { colSpan: grid.agents.length + 2, className: 'stwd-matrix-more' }, fmt(text.matrixMore, { n: grid.overflow })))) : null,
-        ),
-      );
-    }
-
-    // --- task detail + rows ---------------------------------------------------------
-
-    function TaskDetail({ text, task, tasks, onClose, onSelect, onOpenOwner, onHover }) {
-      const state = taskState(task);
-      const known = new Set((tasks || []).filter(Boolean).map((entry) => String(entry.id)));
-      const deps = dependencyIds(task, known);
-      const missing = (Array.isArray(task.blockedBy) ? task.blockedBy : []).map(String).filter((id) => !known.has(id));
-      const scopes = Array.isArray(task.writeScopes) ? task.writeScopes : [];
-      const warnings = Array.isArray(task.warnings) ? task.warnings : [];
-      const owner = typeof task.ownerName === 'string' ? task.ownerName : '';
-      const meta = [];
-      meta.push(h('span', { className: 'stwd-detail-meta-item', key: 'owner' },
-        text.owner + ' ',
-        owner === '' ? text.matrixUnassigned : h('span', { className: 'stwd-detail-owner' }, owner),
-      ));
-      if (deps.length > 0) {
-        meta.push(h('span', { className: 'stwd-detail-meta-item', key: 'deps' }, text.deps + ' ',
-          deps.map((id) => h('button', {
-            key: 'dep-' + id,
-            type: 'button',
-            className: 'stwd-chip stwd-chip-mono stwd-chip-button',
-            onClick: () => onSelect(id),
-          }, taskShortLabel((tasks || []).find((entry) => entry && String(entry.id) === id) || { id }))),
-        ));
-      }
-      if (missing.length > 0) {
-        meta.push(h('span', { className: 'stwd-detail-meta-item stwd-detail-warn', key: 'missing' }, fmt(text.depMissing, { ids: missing.join('、') })));
-      }
-      if (scopes.length > 0) {
-        meta.push(h('span', { className: 'stwd-detail-meta-item', key: 'scopes' }, text.scope + ' ',
-          scopes.map((scope) => h('span', { key: 'scope-' + scope, className: 'stwd-chip stwd-chip-mono', title: scope }, String(scope))),
-        ));
-      }
-      if (task.failed) {
-        meta.push(h('span', { className: 'stwd-detail-meta-item stwd-detail-warn', key: 'failed' },
-          text.failed + (task.attempts ? ' · ' + fmt(text.attempts, { n: task.attempts }) : '') + (task.lastError ? '：' + task.lastError : ''),
-        ));
-      }
-      return h('section', {
-        className: 'stwd-detail',
-        'aria-label': text.detailTitle,
-        onMouseEnter: () => onHover(task.id === undefined ? null : String(task.id)),
-        onMouseLeave: () => onHover(null),
-      },
-        h('div', { className: 'stwd-detail-head' },
-          h('span', { className: 'stwd-detail-id' }, taskShortLabel(task)),
-          h('h4', { className: 'stwd-detail-title' }, taskTitle(task)),
-          h(StatusPill, { tone: pillToneOf(state) }, stateLabel(text, state)),
-          h('button', { type: 'button', className: 'stwd-iconbtn', 'aria-label': text.detailClose, title: text.detailClose, onClick: onClose }, '×'),
-        ),
-        h('div', { className: 'stwd-detail-meta' }, meta),
-        warnings.length > 0 ? h('p', { className: 'stwd-detail-warn' }, text.overlap + '：' + warnings.join('；')) : null,
-        typeof task.description === 'string' && task.description !== ''
-          ? h('p', { className: 'stwd-detail-desc' }, task.description)
-          : null,
-        typeof onOpenOwner === 'function'
-          ? h('div', { className: 'stwd-detail-actions' },
-            h('button', { type: 'button', className: 'stwd-btn', onClick: () => onOpenOwner() }, text.openOwner + ' →'),
-          )
-          : null,
-      );
-    }
-
-    function TaskListRow({ text, task, tasks, selected, onSelect }) {
-      const state = taskState(task);
-      const known = new Set((tasks || []).filter(Boolean).map((entry) => String(entry.id)));
-      const byId = new Map((tasks || []).filter(Boolean).map((entry) => [String(entry.id), entry]));
-      const deps = dependencyIds(task, known);
-      const scopes = Array.isArray(task.writeScopes) ? task.writeScopes : [];
-      const owner = typeof task.ownerName === 'string' ? task.ownerName : '';
-      const meta = [];
-      meta.push(h('span', { className: 'stwd-row-meta-group', key: 'owner' }, text.owner + ' ' + (owner === '' ? '—' : owner)));
-      if (deps.length > 0) {
-        const chips = deps.slice(0, 4).map((id) => h(Chip, { key: 'dep-' + id, mono: true, title: taskTitle(byId.get(id)) }, taskShortLabel(byId.get(id))));
-        if (deps.length > 4) chips.push(h(Chip, { key: 'dep-more', mono: true }, '+' + String(deps.length - 4)));
-        meta.push(h('span', { className: 'stwd-row-meta-group', key: 'deps' }, text.deps + ' ', chips));
-      }
-      if (scopes.length > 0) {
-        const chips = scopes.slice(0, 2).map((scope, index) => h(Chip, { key: 'scope-' + index, mono: true, title: String(scope) }, String(scope)));
-        if (scopes.length > 2) chips.push(h(Chip, { key: 'scope-more', mono: true, title: scopes.join('\n') }, '+' + String(scopes.length - 2)));
-        meta.push(h('span', { className: 'stwd-row-meta-group', key: 'scope' }, text.scope + ' ', chips));
-      }
-      return h('button', {
-        type: 'button',
-        className: 'stwd-row' + (selected ? ' stwd-row-selected' : ''),
-        'aria-pressed': selected ? 'true' : 'false',
-        title: text.detailHint,
-        onClick: () => onSelect(selected ? null : String(task.id)),
-      },
-        h(StatusDot, { tone: stateDotTone(state) }),
-        h('span', { className: 'stwd-row-body' },
-          h('span', { className: 'stwd-row-title', title: taskTitle(task) }, taskTitle(task)),
-          h('span', { className: 'stwd-row-meta' }, meta),
-        ),
-        h(StatusPill, { tone: pillToneOf(state) }, stateLabel(text, state)),
-        h('span', { className: 'stwd-row-arrow', 'aria-hidden': 'true' }, selected ? '▸' : ''),
-      );
-    }
-
-    function SubagentRow({ text, row, running, title, onOpen }) {
-      const tone = running ? 'progress' : row.activity === 'running' ? 'progress' : 'idle';
-      return h('button', {
-        type: 'button',
-        className: 'stwd-row stwd-subrow',
-        onClick: onOpen,
-        title: text.openHint,
-        'aria-label': row.label + ' · ' + (row.role === '' ? row.mode : row.role) + ' · ' + (running ? text.statusRunning : text.statusInactive),
-      },
-        h(AgentAvatar, { name: row.role || row.label, size: 20 }),
-        h('span', { className: 'stwd-row-body' },
-          h('span', { className: 'stwd-row-title', title: title || row.label }, title || row.label),
-          h('span', { className: 'stwd-row-meta' },
-            row.role === '' ? null : h(Chip, { mono: true }, row.role),
-            h('span', { className: 'stwd-row-meta-group' }, shortId(row.id)),
+                className: 'stwd-graph-tool',
+                'aria-label': text.zoomOut,
+                title: text.zoomOut,
+                onClick: () => zoomAt(1 / 1.12, viewWidth / 2, viewHeight / 2),
+              }, '−'),
+              h('button', {
+                type: 'button',
+                className: 'stwd-graph-tool stwd-graph-zoom',
+                'aria-label': text.zoomReset,
+                title: text.zoomReset,
+                onClick: resetView,
+              }, zoomPercent),
+              h('button', {
+                type: 'button',
+                className: 'stwd-graph-tool',
+                'aria-label': text.zoomIn,
+                title: text.zoomIn,
+                onClick: () => zoomAt(1.12, viewWidth / 2, viewHeight / 2),
+              }, '+'),
+              h('button', {
+                type: 'button',
+                className: 'stwd-graph-tool',
+                'aria-label': text.zoomFit,
+                title: text.zoomFit,
+                onClick: fitView,
+              }, '⤢'),
+              h('button', {
+                type: 'button',
+                className: 'stwd-graph-tool',
+                'aria-label': text.relayout,
+                title: text.relayout,
+                onClick: relayout,
+              }, '⟲'),
+            ),
+          ),
+          h('div', { className: 'stwd-graph-bar-row stwd-graph-filters' },
+            h('div', { className: 'stwd-filters', role: 'group', 'aria-label': text.filterGroup },
+              filterButtons.map((item) => h('button', {
+                key: 'filter-' + item.key,
+                type: 'button',
+                className: 'stwd-filter' + (filter === item.key ? ' stwd-filter-on' : ''),
+                'aria-pressed': filter === item.key ? 'true' : 'false',
+                onClick: () => setFilter(item.key),
+              }, item.label)),
+            ),
+            hiddenCount > 0 ? h('span', { className: 'stwd-graph-hidden' }, fmt(text.filterHidden, { count: hiddenCount })) : null,
           ),
         ),
-        h(StatusDot, { tone }),
-        h(StatusPill, { tone }, running ? text.statusRunning : text.statusInactive),
-        h('span', { className: 'stwd-row-arrow', 'aria-hidden': 'true' }, '↗'),
+        canvas,
       );
     }
 
-    function ArtifactRow({ text, item, onOpen }) {
-      return h('button', {
-        type: 'button',
-        className: 'stwd-row stwd-artrow',
-        onClick: onOpen,
-        title: item.path,
-        'aria-label': text.openFile + '：' + item.name,
+    /** The same agent as one compact row for the list view. */
+    function AgentRow({ text, row, selected, onOpen, onToggle }) {
+      return h('div', {
+        className: 'stwd-arow stwd-arow-' + row.state + (selected ? ' stwd-arow-selected' : ''),
       },
-        h('span', { className: 'stwd-artrow-glyph', 'aria-hidden': 'true' }, '▤'),
-        h('span', { className: 'stwd-row-body' },
-          h('span', { className: 'stwd-row-title stwd-mono' }, item.name),
-          h('span', { className: 'stwd-row-meta' }, item.size > 0 ? String(Math.max(1, Math.round(item.size / 1024))) + ' KB' : item.path),
+        h('button', {
+          type: 'button',
+          className: 'stwd-arow-main',
+          title: row.description,
+          onClick: () => onOpen(row),
+        },
+          h('span', { className: 'stwd-arow-top' },
+            h('span', { className: 'stwd-arow-avatar', 'aria-hidden': 'true' }, row.glyph),
+            h('span', { className: 'stwd-arow-role' }, row.roleName === '' ? text.subagentRole : row.roleName),
+            row.role === '' ? null : h('span', { className: 'stwd-arow-roleid' }, row.role),
+            h('span', { className: 'stwd-arow-state' }, h(StatusDot, { tone: stateTone(row.state) }), stateLabelOf(row.state, text)),
+          ),
+          h('span', { className: 'stwd-arow-line' },
+            h('span', { className: 'stwd-arow-model stwd-mono' }, modelLabelOf(row, text)),
+            h('span', { className: 'stwd-arow-meta' }, fmtDuration(row.elapsedMs) + ' · ' + fmtTokens(row.tokens === null ? 0 : row.tokens.total) + ' ' + text.tokensShort),
+          ),
+          h('span', { className: 'stwd-arow-task' }, row.description === '' ? text.noDescription : row.description),
         ),
-        h('span', { className: 'stwd-row-arrow', 'aria-hidden': 'true' }, '↗'),
+        h('button', {
+          type: 'button',
+          className: 'stwd-arow-more',
+          'aria-expanded': selected ? 'true' : 'false',
+          'aria-label': text.detailToggle,
+          title: text.detailToggle,
+          onClick: () => onToggle(row.id),
+        }, selected ? '⌃' : '⌄'),
+      );
+    }
+
+    /** Everything the graph node cannot fit: provider, effort, buckets, turns, mode. */
+    function AgentDetail({ text, row, onClose, onOpen }) {
+      const facts = [
+        [text.detailTask, row.description === '' ? '—' : row.description],
+        [text.detailModel, row.model === null ? text.modelPending : row.model.model],
+        [text.detailProvider, row.model === null ? '—' : row.model.provider],
+        [text.detailEffort, row.model !== null && row.model.effort !== '' ? row.model.effort : text.detailEffortDefault],
+        [text.detailState, stateLabelOf(row.state, text)],
+        [text.detailElapsed, fmtDuration(row.elapsedMs)],
+        [text.detailTurns, row.turns === null ? '—' : String(row.turns)],
+        [text.detailSteps, row.steps === null ? '—' : String(row.steps)],
+        [text.detailMode, row.mode === 'continuable' ? text.modeContinuable : row.mode === 'one-shot' ? text.modeOneShot : text.modeUnknown],
+        [text.detailSession, shortId(row.id)],
+      ];
+      const tokens = row.tokens;
+      return h('section', { className: 'stwd-gdetail', 'aria-label': text.detailTitle },
+        h('div', { className: 'stwd-gdetail-head' },
+          h('span', { className: 'stwd-gdetail-title' }, text.detailTitle),
+          h('span', { className: 'stwd-gdetail-role stwd-mono' }, row.role === '' ? row.roleName : row.role),
+          h('button', {
+            type: 'button',
+            className: 'stwd-iconbtn stwd-gdetail-close',
+            'aria-label': text.detailClose,
+            title: text.detailClose,
+            onClick: onClose,
+          }, '×'),
+        ),
+        row.waiting ? h('p', { className: 'stwd-gdetail-hint' }, text.stateWaitingHint) : null,
+        h('dl', { className: 'stwd-gdetail-grid' }, facts.map(([label, value]) => [
+          h('dt', { key: 'dt-' + label }, label),
+          h('dd', { key: 'dd-' + label }, value),
+        ])),
+        tokens === null ? null : h('p', { className: 'stwd-gdetail-tokens' },
+          text.detailTokens + ' ',
+          h('span', null, text.tokenInput + ' ' + String(tokens.input) + ' · '),
+          h('span', null, text.tokenOutput + ' ' + String(tokens.output) + ' · '),
+          h('span', null, text.tokenCacheRead + ' ' + String(tokens.cacheRead) + ' · '),
+          h('span', null, text.tokenCacheWrite + ' ' + String(tokens.cacheWrite)),
+        ),
+        h('button', {
+          type: 'button',
+          className: 'stwd-btn',
+          onClick: () => onOpen(row),
+        }, text.openSession),
+      );
+    }
+
+    // --- artifacts ------------------------------------------------------------------
+
+    /** The run directory on disk, collapsed until asked for. */
+    function Artifacts({ text, facts, open, onToggle, onOpen }) {
+      const items = Array.isArray(facts.artifacts) ? facts.artifacts : [];
+      const broken = facts.status === 'unsupported' || facts.status === 'error';
+      return h('section', { className: 'stwd-artifacts' },
+        h('button', {
+          type: 'button',
+          className: 'stwd-artifacts-head',
+          'aria-expanded': open ? 'true' : 'false',
+          onClick: onToggle,
+        },
+          h('span', { className: 'stwd-artifacts-title' }, text.artifactsTitle),
+          h('span', { className: 'stwd-artifacts-count' }, String(items.length)),
+          h('span', { className: 'stwd-artifacts-caret', 'aria-hidden': 'true' }, open ? '▾' : '▸'),
+        ),
+        open ? h('div', { className: 'stwd-rows' },
+          items.map((item) => h('button', {
+            key: item.path,
+            type: 'button',
+            className: 'stwd-row stwd-artrow',
+            title: item.path,
+            onClick: () => onOpen(item.path),
+          },
+            h('span', { className: 'stwd-artrow-glyph', 'aria-hidden': 'true' }, '▤'),
+            h('span', { className: 'stwd-row-body' },
+              h('span', { className: 'stwd-row-title' }, item.name),
+            ),
+          )),
+        ) : null,
+        open && items.length === 0
+          ? h('p', { className: 'stwd-note' }, broken ? text.artifactsMissing : text.artifactsEmpty)
+          : null,
+        facts.dir === '' ? null : h('p', { className: 'stwd-artifacts-dir', title: facts.dir },
+          h('span', { className: 'stwd-artifacts-dir-label' }, text.artifactsRun + ' '),
+          h('span', { className: 'stwd-mono' }, facts.dir),
+        ),
       );
     }
 
     // --- the per-session board ------------------------------------------------------
 
     /**
-     * The right-Sidebar body: one Session's Steward run as a task graph, the
-     * subagents dispatched from it and the files it produced. Everything that
-     * changes with the Session is read through the slot's own scope hooks; the
-     * filesystem facts arrive through the injected `loadRun` face.
+     * The right-Sidebar body: this Session's dispatched team as a tree graph. Every
+     * agent fact is read from host projections and Session status; only the run's
+     * artifacts come from disk. Task progress is counted, never listed.
      * @param props - slot props plus the injected face.
      * @returns the board.
      */
@@ -1706,32 +1815,43 @@ window.__ModuleLoader__.load({
       const project = typeof props.useProjection === 'function' ? props.useProjection : () => undefined;
       const sessions = typeof props.useSessions === 'function' ? props.useSessions : () => undefined;
       const statuses = typeof props.useSessionStatus === 'function' ? props.useSessionStatus : () => undefined;
+      const sessionId = String(props.sessionId === undefined || props.sessionId === null ? '' : props.sessionId);
+      const nowOf = typeof props.now === 'function' ? props.now : () => Date.now();
+      const refreshChild = typeof props.refreshChild === 'function' ? props.refreshChild : null;
+      const loadRun = props.loadRun;
 
+      const catalog = project('subagentCatalog');
       const team = project('agentTeam');
       const todos = project('todos');
-      const catalog = project('subagentCatalog');
-      const sessionRows = sessions((state) => (state && state.byId ? state.byId : undefined));
+      const leadModelSelection = project('modelSelection');
+      const leadUsage = project('tokenUsage');
+      const leadStats = project('sessionStats');
+      const summaries = sessions((state) => (state && state.byId ? state.byId : undefined));
+      const projections = sessions((state) => (state && state.projectionsBySession ? state.projectionsBySession : undefined));
       const statusState = statuses((state) => state);
 
-      const [facts, setFacts] = useState({ status: 'loading', dir: '', run: null, plan: null, artifacts: [] });
+      const [facts, setFacts] = useState({ status: 'loading', dir: '', artifacts: [] });
       const [reload, setReload] = useState(0);
-      const loadRun = props.loadRun;
+      const [tick, setTick] = useState(0);
+      const [view, setView] = useState('graph');
+      const [selectedId, setSelectedId] = useState(null);
+      const [artifactsOpen, setArtifactsOpen] = useState(false);
+      const refreshed = useRef({});
 
       useEffect(() => {
         let live = true;
-        const tick = () => {
+        const run = () => {
           if (typeof loadRun !== 'function') {
-            if (live) setFacts({ status: 'unsupported', dir: '', run: null, plan: null, artifacts: [] });
+            if (live) setFacts({ status: 'unsupported', dir: '', artifacts: [] });
             return;
           }
           Promise.resolve()
             .then(() => loadRun())
             .then((next) => { if (live && next) setFacts(next); })
-            .catch(() => { if (live) setFacts({ status: 'error', dir: '', run: null, plan: null, artifacts: [] }); });
+            .catch(() => { if (live) setFacts({ status: 'error', dir: '', artifacts: [] }); });
         };
-        tick();
-        const timer = typeof setInterval === 'function' ? setInterval(tick, RUN_POLL_MS) : null;
-        // Node-style hosts expose unref: the poller must never hold a process open.
+        run();
+        const timer = typeof setInterval === 'function' ? setInterval(run, RUN_POLL_MS) : null;
         if (timer !== null && typeof timer === 'object' && typeof timer.unref === 'function') timer.unref();
         return () => {
           live = false;
@@ -1739,92 +1859,123 @@ window.__ModuleLoader__.load({
         };
       }, [loadRun, reload]);
 
-      const board = useMemo(() => boardTasks(team), [team]);
-      const runPlan = useMemo(() => planTasks(facts.run, facts.plan), [facts.run, facts.plan]);
-      const todo = useMemo(() => todoTasks(todos), [todos]);
-      const tasks = board || runPlan || todo || [];
-      const source = board ? 'board' : runPlan ? 'run' : todo ? 'todo' : 'none';
-      const stats = useMemo(() => runStats(tasks), [tasks]);
-      const graph = useMemo(() => graphFacts(tasks), [tasks]);
-      const model = useMemo(() => buildGraph({ tasks }), [tasks]);
-      const ownership = useMemo(() => buildOwnership(tasks, 24), [tasks]);
-      const subagents = useMemo(() => subagentRows(catalog), [catalog]);
+      const children = useMemo(
+        () => (Array.isArray(catalog) ? catalog.filter((entry) => entry && entry.mode !== 'external') : []),
+        [catalog],
+      );
 
-      const [view, setView] = useState(() => (tasks.length > 14 ? 'list' : 'graph'));
-      const [selectedId, setSelectedId] = useState(null);
-      const [hoverId, setHoverId] = useState(null);
-
-      const cyclic = graph.cycle !== null && graph.cycle !== undefined;
-      const effectiveView = cyclic && view === 'graph' ? 'list' : view;
-      const selected = selectedId === null ? null : tasks.find((task) => String(task.id) === selectedId) || null;
-
-      const runningOf = (id) => {
-        if (statusState && typeof statusState.get === 'function') {
-          const entry = statusState.get(id);
-          if (entry && typeof entry === 'object' && typeof entry.running === 'boolean') return entry.running;
+      // A child's summary carries only the summary keys; fetch the full projection set
+      // once per child so model, timing and turn/step facts arrive even for cold rows.
+      useEffect(() => {
+        if (refreshChild === null) return undefined;
+        for (const entry of children) {
+          const id = String(entry.id);
+          if (refreshed.current[id] === true) continue;
+          refreshed.current[id] = true;
+          Promise.resolve().then(() => refreshChild(id)).catch(() => {});
         }
-        const row = subagents.find((entry) => entry.id === id);
-        return Boolean(row && row.activity === 'running');
-      };
-      const titleOf = (id) => {
-        if (!sessionRows) return '';
-        const row = sessionRows[id];
-        return row && typeof row.title === 'string' ? row.title : '';
-      };
-      const openSession = (id, mode) => { if (typeof props.openSession === 'function') props.openSession(id, mode); };
-      const ownerAction = (task) => {
-        const owner = task && typeof task.ownerName === 'string' ? task.ownerName : '';
-        if (owner === '') return undefined;
-        const row = subagents.find((entry) => entry.label === owner || entry.role === owner);
-        return row === undefined ? undefined : () => openSession(row.id, row.mode);
+        return undefined;
+      }, [children, refreshChild]);
+
+      const valuesOf = (id) => {
+        const summary = summaries ? summaries[id] : undefined;
+        const snapshot = projections ? projections[id] : undefined;
+        const base = summary && summary.projectionValues ? summary.projectionValues : null;
+        const full = snapshot && snapshot.values ? snapshot.values : null;
+        if (base === null && full === null) return {};
+        if (base === null) return full;
+        if (full === null) return base;
+        return { ...base, ...full };
       };
 
-      const hasAnything = tasks.length > 0 || subagents.length > 0 || facts.artifacts.length > 0 || facts.status === 'ready';
-      const runState = facts.run && typeof facts.run.status === 'string' ? facts.run.status : '';
-      const runStateLabel = runState === 'running' ? text.runRunning : runState === 'completed' ? text.runCompleted : runState === 'stopped' ? text.runStopped : '';
-      const sourceLabel = source === 'board' ? text.sourceBoard : source === 'run' ? text.sourceRun : source === 'todo' ? text.sourceTodo : text.sourceNone;
-      const sourceHint = source === 'board' ? text.tasksBoardHint : source === 'run' ? text.tasksRunHint : source === 'todo' ? text.tasksTodoHint : text.tasksEmpty;
+      const sampled = nowOf();
+      const now = Number.isFinite(Number(sampled)) ? Number(sampled) : Date.now();
+
+      const rows = useMemo(() => children.map((entry) => agentRow({
+        entry,
+        summary: summaries ? summaries[String(entry.id)] : null,
+        values: valuesOf(String(entry.id)),
+        status: statusState && typeof statusState.get === 'function' ? statusState.get(String(entry.id)) : null,
+        now,
+        text,
+        lang,
+      })), [children, summaries, projections, statusState, now, lang, text, tick]);
+
+      const lead = useMemo(() => leadRowOf({
+        sessionId,
+        summary: summaries ? summaries[sessionId] : null,
+        values: { modelSelection: leadModelSelection, tokenUsage: leadUsage, sessionStats: leadStats },
+        status: statusState && typeof statusState.get === 'function' ? statusState.get(sessionId) : null,
+        text,
+        lang,
+      }), [sessionId, summaries, statusState, leadModelSelection, leadUsage, leadStats, text, lang, tick]);
+
+      const fleet = useMemo(() => fleetFacts(rows), [rows]);
+      const progress = useMemo(() => taskProgressOf(team, todos), [team, todos]);
+      const selected = selectedId === null ? null : rows.find((row) => row.id === selectedId) || null;
+
+      const active = rows.some((row) => row.running || row.waiting);
+      useEffect(() => {
+        if (!active) return undefined;
+        const timer = typeof setInterval === 'function' ? setInterval(() => setTick((current) => current + 1), 1000) : null;
+        if (timer !== null && typeof timer === 'object' && typeof timer.unref === 'function') timer.unref();
+        return () => {
+          if (timer !== null) clearInterval(timer);
+        };
+      }, [active]);
+
+      const openAgent = (row) => {
+        if (typeof props.openSession === 'function') props.openSession(row.id, row.mode);
+      };
+      const toggleAgent = (id) => setSelectedId((current) => (current === id ? null : id));
+      const refreshAll = () => {
+        setReload((current) => current + 1);
+        if (refreshChild === null) return;
+        for (const entry of children) {
+          const id = String(entry.id);
+          Promise.resolve().then(() => refreshChild(id)).catch(() => {});
+        }
+      };
 
       const viewTabs = h('div', { className: 'stwd-viewtabs', role: 'group', 'aria-label': text.viewGroup },
-        [['graph', text.viewDag], ['list', text.viewList], ['matrix', text.viewMatrix]].map(([key, label]) => h('button', {
+        [['graph', text.viewGraph], ['list', text.viewList]].map(([key, label]) => h('button', {
           key,
           type: 'button',
-          className: 'stwd-viewtab' + (effectiveView === key ? ' stwd-viewtab-active' : ''),
-          'aria-pressed': effectiveView === key ? 'true' : 'false',
-          disabled: key === 'graph' && cyclic,
+          className: 'stwd-viewtab' + (view === key ? ' stwd-viewtab-active' : ''),
+          'aria-pressed': view === key ? 'true' : 'false',
           onClick: () => setView(key),
         }, label)),
       );
 
-      const tasksBody = tasks.length === 0
-        ? h(EmptyState, { title: text.tasksEmptyTitle, note: sourceHint, steps: text.emptySteps })
-        : h('div', { className: 'stwd-board' },
-          cyclic ? h(Alert, { tone: 'warn' }, fmt(text.graphCycle, { ids: graph.cycle.join(' → ') })) : null,
-          effectiveView === 'graph' ? h(DagCanvas, {
+      const rosterActions = h('span', { className: 'stwd-roster-meta' },
+        fleet.counts.running > 0 ? h(StatusPill, { tone: 'progress' }, text.laneRunning + ' ' + fleet.counts.running) : null,
+        fleet.counts.waiting > 0 ? h(StatusPill, { tone: 'warn' }, text.laneWaiting + ' ' + fleet.counts.waiting) : null,
+        fleet.counts.done > 0 ? h(StatusPill, { tone: 'done' }, text.laneDone + ' ' + fleet.counts.done) : null,
+      );
+
+      const rosterBody = view === 'list'
+        ? (children.length === 0
+          ? h(EmptyState, { title: text.emptyTitle, note: text.emptyBody, steps: text.emptySteps })
+          : h('div', { className: 'stwd-rows' }, rows.map((row) => h(AgentRow, {
+            key: row.id,
             text,
-            graph: model,
-            tasks,
-            leadTitle: text.leadNode,
-            leadSubtitle: sourceLabel,
+            row,
+            selected: selectedId === row.id,
+            onOpen: openAgent,
+            onToggle: toggleAgent,
+          }))))
+        : h('div', { className: 'stwd-roster' },
+          h(TeamGraph, {
+            text,
+            lead,
+            rows,
             selectedId,
-            hoverId,
-            onSelect: (id) => setSelectedId(id === null ? null : String(id)),
-            onHover: setHoverId,
-          }) : null,
-          effectiveView === 'list' ? h('div', { className: 'stwd-rows' }, tasks.map((task) => h(TaskListRow, {
-            key: String(task.id),
-            text,
-            task,
-            tasks,
-            selected: selectedId !== null && String(task.id) === selectedId,
-            onSelect: (id) => setSelectedId(id === null ? null : String(id)),
-          }))) : null,
-          effectiveView === 'matrix' ? h(OwnershipMatrix, {
-            text,
-            grid: ownership,
-            selectedId,
-            onSelect: (id) => setSelectedId(id === null ? null : String(id)),
-          }) : null,
+            onOpen: openAgent,
+            onToggle: toggleAgent,
+          }),
+          children.length === 0
+            ? h(EmptyState, { title: text.emptyTitle, note: text.emptyBody, steps: text.emptySteps })
+            : null,
         );
 
       return h('div', { className: 'stwd-root stwd-panel' },
@@ -1839,78 +1990,39 @@ window.__ModuleLoader__.load({
               title: text.refresh,
               'aria-label': text.refresh,
               disabled: facts.status === 'loading',
-              onClick: () => setReload((current) => current + 1),
+              onClick: refreshAll,
             }, facts.status === 'loading' ? '…' : '⟳'),
           ),
-          h('p', { className: 'stwd-panel-sub' }, text.subtitle),
-          h('div', { className: 'stwd-runcard' },
-            h(RunDonut, { text, done: stats.done, total: stats.total }),
-            h('div', { className: 'stwd-run-body' },
-              h(SegmentedProgress, { text, tasks }),
-              h('div', { className: 'stwd-run-line' },
-                h('span', { className: 'stwd-run-number' }, stats.done + '/' + stats.total),
-                h('span', null, fmt(text.tasksCount, { tasks: stats.total, edges: graph.edges })),
-                h('span', { className: 'stwd-run-dot', 'aria-hidden': 'true' }, '·'),
-                h('span', null, text.subagentsTitle + ' ' + String(subagents.length)),
-                runStateLabel === '' ? null : h(StatusPill, { tone: runState === 'completed' ? 'done' : runState === 'stopped' ? 'warn' : 'progress' }, runStateLabel),
-              ),
-              facts.dir === '' ? null : h('p', { className: 'stwd-run-dir', title: facts.dir },
-                h('span', { className: 'stwd-run-dir-label' }, text.artifactsRun + ' '),
-                h('span', { className: 'stwd-mono' }, facts.dir),
-              ),
-            ),
+          h('div', { className: 'stwd-panel-subrow' },
+            h('p', { className: 'stwd-panel-sub' }, text.subtitle),
+            viewTabs,
           ),
         ),
+        h(ErrorBoundary, { fallbackTitle: text.sectionFailed }, h(TaskProgress, { text, progress })),
         h('section', { className: 'stwd-section' },
           h(SectionHead, {
-            title: text.tasksSection,
-            count: fmt(text.tasksCount, { tasks: stats.total, edges: graph.edges }),
-            actions: h('span', { className: 'stwd-pill stwd-pill-src-' + source, title: fmt(text.sourceHint, { source: sourceLabel }) }, sourceLabel),
+            title: text.roster,
+            count: fleet.total === 0 ? '' : String(fleet.total),
+            actions: rosterActions,
           }),
-          h('p', { className: 'stwd-note' }, sourceHint),
-          h(ErrorBoundary, { fallbackTitle: text.sectionFailed }, viewTabs),
-          h(ErrorBoundary, { fallbackTitle: text.sectionFailed }, tasksBody),
+          h(ErrorBoundary, { fallbackTitle: text.sectionFailed }, rosterBody),
           selected === null ? null : h(ErrorBoundary, { fallbackTitle: text.sectionFailed },
-            h(TaskDetail, {
+            h(AgentDetail, {
               text,
-              task: selected,
-              tasks,
+              row: selected,
               onClose: () => setSelectedId(null),
-              onSelect: (id) => setSelectedId(id === null ? null : String(id)),
-              onOpenOwner: ownerAction(selected),
-              onHover: setHoverId,
+              onOpen: openAgent,
             }),
           ),
+          h('p', { className: 'stwd-note stwd-native-note' }, text.nativeListNote),
         ),
-        h('section', { className: 'stwd-section' },
-          h(SectionHead, { title: text.subagentsTitle, count: String(subagents.length) }),
-          subagents.length === 0
-            ? h('p', { className: 'stwd-note' }, text.subagentsEmpty)
-            : h('div', { className: 'stwd-rows' }, subagents.map((row) => h(SubagentRow, {
-              key: row.id,
-              text,
-              row,
-              running: runningOf(row.id),
-              title: titleOf(row.id),
-              onOpen: () => openSession(row.id, row.mode),
-            }))),
-          subagents.length === 0 ? null : h('p', { className: 'stwd-note' }, text.subagentsHint),
-        ),
-        h('section', { className: 'stwd-section' },
-          h(SectionHead, { title: text.artifactsTitle, count: String(facts.artifacts.length) }),
-          facts.status === 'unsupported' || facts.status === 'error'
-            ? h(Alert, { tone: 'warn' }, text.artifactsMissing)
-            : facts.artifacts.length === 0
-              ? h('p', { className: 'stwd-note' }, text.artifactsEmpty)
-              : h('div', { className: 'stwd-rows' }, facts.artifacts.map((item) => h(ArtifactRow, {
-                key: item.path,
-                text,
-                item,
-                onOpen: () => { if (typeof props.openFile === 'function') props.openFile(item.path); },
-              }))),
-          facts.artifacts.length === 0 ? null : h('p', { className: 'stwd-note' }, text.artifactsHint),
-        ),
-        hasAnything ? null : h('p', { className: 'stwd-note stwd-panel-foot' }, text.emptyBody),
+        h(ErrorBoundary, { fallbackTitle: text.sectionFailed }, h(Artifacts, {
+          text,
+          facts,
+          open: artifactsOpen,
+          onToggle: () => setArtifactsOpen((current) => !current),
+          onOpen: (path) => { if (typeof props.openFile === 'function') props.openFile(path); },
+        })),
       );
     }
 
@@ -2217,202 +2329,223 @@ window.__ModuleLoader__.load({
 
     const STYLESHEET = [
       '/* --- shell ------------------------------------------------------------- */',
-      '.stwd-root{--stwd-border:var(--dsw-alias-border-l2);--stwd-border-soft:var(--dsw-alias-border-l1);--stwd-border-strong:var(--dsw-alias-border-l3,var(--dsw-alias-border-l2));--stwd-hover:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-1));--stwd-elev:var(--dsw-elevation-panel,0 1px 2px rgb(0 0 0 / 8%));--stwd-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-sizing:border-box;color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:18px;font-family:inherit}',
+      '.stwd-root{--stwd-border:var(--dsw-alias-border-l2);--stwd-border-soft:var(--dsw-alias-border-l1);--stwd-border-strong:var(--dsw-alias-border-l3,var(--dsw-alias-border-l2));--stwd-hover:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));--stwd-live:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary));--stwd-muted:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));--stwd-elev:var(--dsw-elevation-panel,0 1px 2px rgb(0 0 0 / 8%));--stwd-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-sizing:border-box;color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:18px;font-family:inherit}',
       '.stwd-root *{box-sizing:border-box}',
-      '.stwd-panel{display:flex;flex-direction:column;gap:14px;height:100%;min-height:0;overflow-y:auto;overflow-x:hidden;padding:12px 12px 20px}',
+      '.stwd-panel{display:flex;flex-direction:column;gap:12px;height:100%;min-height:0;overflow-y:auto;overflow-x:hidden;padding:12px 12px 20px}',
       '.stwd-panel>style{display:none}',
-      '.stwd-root-compact{display:flex;flex-direction:column;gap:8px;min-width:0}',
-      '.stwd-sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}',
       '.stwd-mono{font-family:var(--stwd-mono)}',
+      '.stwd-note{margin:0;font-size:11px;line-height:16px;color:var(--stwd-muted)}',
+      '.stwd-icon{display:block;flex:none}',
       '/* --- head --------------------------------------------------------------- */',
       '.stwd-panel-head{display:flex;flex-direction:column;gap:6px;min-width:0}',
       '.stwd-panel-head-row{display:flex;align-items:center;gap:8px;min-width:0}',
       '.stwd-panel-badge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex:none;border-radius:6px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-brand-primary)}',
       '.stwd-panel-title{margin:0;font-size:14px;line-height:20px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-panel-sub{margin:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}',
-      '.stwd-panel-foot{margin:0}',
-      '.stwd-icon{display:block;flex:none}',
-      '/* --- run card ----------------------------------------------------------- */',
-      '.stwd-runcard{display:flex;align-items:center;gap:10px;padding:8px 10px;border:.5px solid var(--stwd-border-soft);border-radius:10px;background:var(--dsw-alias-bg-layer-1);min-width:0}',
-      '.stwd-run-body{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}',
-      '.stwd-run-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}',
-      '.stwd-run-number{font-size:13px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-primary)}',
-      '.stwd-run-dot{opacity:.6}',
-      '.stwd-run-dir{margin:0;display:flex;gap:4px;align-items:baseline;font-size:10.5px;line-height:15px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));min-width:0}',
-      '.stwd-run-dir .stwd-mono{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-donut{position:relative;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;flex:none}',
-      '.stwd-donut-track{stroke:var(--dsw-alias-bg-layer-2);stroke-width:4}',
-      '.stwd-donut-value{stroke:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary));stroke-width:4;stroke-linecap:round}',
-      '.stwd-donut-text{position:absolute;font-size:9.5px;line-height:1;font-weight:500;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}',
-      '.stwd-segwrap{display:flex;flex-direction:column;gap:2px;min-width:0}',
-      '.stwd-segbar{display:flex;align-items:center;gap:2px;height:5px}',
-      '.stwd-seg{flex:1 1 0;min-width:3px;height:5px;border-radius:2px;background:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));opacity:.28}',
-      '.stwd-seg-ready{opacity:.45}',
-      '.stwd-seg-progress{background:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary));opacity:1;animation:stwd-breathe 2s ease-in-out infinite}',
-      '.stwd-seg-done{background:var(--dsw-alias-state-success-primary);opacity:1}',
-      '.stwd-seg-blocked{background:var(--dsw-alias-state-warn-primary);opacity:1}',
-      '.stwd-segticks{position:relative;height:3px}',
-      '.stwd-seg-tick{position:absolute;top:0;width:1px;height:3px;background:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));transform:translateX(-50%)}',
-      '@keyframes stwd-breathe{0%,100%{opacity:.55}50%{opacity:1}}',
+      '.stwd-panel-subrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}',
+      '.stwd-panel-sub{margin:0;flex:1 1 140px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}',
+      '/* --- view tabs ---------------------------------------------------------- */',
+      '.stwd-viewtabs{display:inline-flex;align-items:center;gap:2px;padding:2px;flex:none;border-radius:8px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
+      '.stwd-viewtab{min-height:20px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:16px;cursor:pointer}',
+      '.stwd-viewtab:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
+      '.stwd-viewtab-active{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:500;box-shadow:var(--stwd-elev)}',
+      '/* --- native task progress ---------------------------------------------- */',
+      '.stwd-tasks{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:.5px solid var(--stwd-border-soft);border-radius:10px;background:var(--dsw-alias-bg-layer-1);min-width:0}',
+      '.stwd-tasks-empty{flex-direction:row;align-items:baseline;gap:8px}',
+      '.stwd-tasks-head{display:flex;align-items:baseline;gap:6px;min-width:0}',
+      '.stwd-tasks-label{font-size:11px;line-height:16px;color:var(--stwd-muted)}',
+      '.stwd-tasks-count{font-size:13px;line-height:18px;font-weight:500;font-variant-numeric:tabular-nums}',
+      '.stwd-tasks-source{margin-left:auto;font-size:10.5px;line-height:16px;color:var(--stwd-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-tasks-note{font-size:11px;line-height:16px;color:var(--stwd-muted)}',
+      '.stwd-tasks-bar{display:flex;align-items:center;gap:2px;height:5px}',
+      '.stwd-tseg{flex:1 1 0;min-width:3px;height:5px;border-radius:2px;background:var(--stwd-muted);opacity:.25}',
+      '.stwd-tseg-done{background:var(--dsw-alias-state-success-primary);opacity:1}',
+      '.stwd-tseg-running{background:var(--stwd-live);opacity:1;animation:stwd-breathe 2s ease-in-out infinite}',
+      '.stwd-tseg-blocked{background:var(--dsw-alias-state-warn-primary);opacity:1}',
+      '.stwd-tasks-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:10.5px;line-height:15px;color:var(--stwd-muted);font-variant-numeric:tabular-nums}',
+      '.stwd-tasks-meta-item{white-space:nowrap}',
+      '.stwd-tasks-percent{margin-left:auto;font-variant-numeric:tabular-nums}',
+      '.stwd-tone-progress{color:var(--stwd-live)}',
+      '.stwd-tone-warn{color:var(--dsw-alias-state-warn-primary)}',
       '/* --- sections ----------------------------------------------------------- */',
       '.stwd-section{display:flex;flex-direction:column;gap:8px;min-width:0}',
-      '.stwd-section-head{display:flex;align-items:baseline;gap:8px;min-width:0}',
+      '.stwd-section-head{display:flex;align-items:center;gap:8px;min-width:0}',
       '.stwd-section-title{margin:0;font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-primary)}',
-      '.stwd-section-count{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));font-variant-numeric:tabular-nums}',
+      '.stwd-section-count{font-size:11px;line-height:16px;color:var(--stwd-muted);font-variant-numeric:tabular-nums}',
       '.stwd-section-actions{margin-left:auto;display:inline-flex;align-items:center;gap:6px;min-width:0}',
-      '.stwd-note{margin:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
+      '.stwd-roster-meta{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end}',
       '/* --- pills, dots, chips ------------------------------------------------- */',
-      '.stwd-pill{display:inline-flex;align-items:center;gap:4px;flex:none;padding:0 6px;border-radius:999px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:16px;white-space:nowrap}',
-      '.stwd-pill-progress{border-color:color-mix(in srgb,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)) 45%,transparent);color:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary))}',
+      '.stwd-pill{display:inline-flex;align-items:center;gap:4px;flex:none;padding:0 6px;border-radius:999px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:16px;white-space:nowrap;font-variant-numeric:tabular-nums}',
+      '.stwd-pill-progress{border-color:color-mix(in srgb,var(--stwd-live) 45%,transparent);color:var(--stwd-live)}',
       '.stwd-pill-done{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 45%,transparent);color:var(--dsw-alias-state-success-primary)}',
       '.stwd-pill-warn{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 50%,transparent);color:var(--dsw-alias-state-warn-primary)}',
-      '.stwd-pill-error{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 50%,transparent);color:var(--dsw-alias-state-error-primary)}',
-      '.stwd-pill-src-board{border-color:color-mix(in srgb,var(--dsw-alias-brand-primary) 40%,transparent);color:var(--dsw-alias-brand-primary)}',
-      '.stwd-pill-src-run{border-color:color-mix(in srgb,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)) 40%,transparent);color:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary))}',
-      '.stwd-dot{display:inline-block;width:6px;height:6px;flex:none;border-radius:50%;background:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
-      '.stwd-dot-progress{background:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary));animation:stwd-breathe 2s ease-in-out infinite}',
+      '.stwd-dot{display:inline-block;width:6px;height:6px;flex:none;border-radius:50%;background:var(--stwd-muted)}',
+      '.stwd-dot-progress{background:var(--stwd-live);animation:stwd-breathe 2s ease-in-out infinite}',
       '.stwd-dot-done{background:var(--dsw-alias-state-success-primary)}',
-      '.stwd-dot-warn{background:var(--dsw-alias-state-warn-primary)}',
-      '.stwd-dot-error{background:var(--dsw-alias-state-error-primary)}',
-      '.stwd-chip{display:inline-flex;align-items:center;max-width:100%;margin:0 3px 0 0;padding:0 5px;border-radius:4px;border:.5px solid var(--stwd-border);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-chip-mono{font-family:var(--stwd-mono)}',
-      '.stwd-chip-button{cursor:pointer;font:inherit;font-family:var(--stwd-mono);font-size:10.5px}',
-      '.stwd-chip-button:hover{background:var(--stwd-hover)}',
-      '/* --- view tabs ---------------------------------------------------------- */',
-      '.stwd-viewtabs{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:8px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1);align-self:flex-start}',
-      '.stwd-viewtab{min-height:22px;padding:1px 9px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;line-height:16px;cursor:pointer}',
-      '.stwd-viewtab:hover:not(:disabled){background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
-      '.stwd-viewtab:disabled{opacity:.45;cursor:default}',
-      '.stwd-viewtab-active{background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);font-weight:500;box-shadow:var(--stwd-elev)}',
-      '/* --- board + graph ------------------------------------------------------ */',
-      '.stwd-board{position:relative;border:.5px solid var(--stwd-border-soft);border-radius:10px;background:var(--dsw-alias-bg-layer-1);padding:6px;min-width:0}',
-      '.stwd-graph{width:100%;min-width:0;overflow-x:auto;overflow-y:hidden}',
-      '.stwd-graph-svg{display:block;max-width:none}',
-      '.stwd-edge{fill:none;stroke:var(--stwd-border);stroke-width:1}',
-      '.stwd-edge-dispatch{stroke:color-mix(in srgb,var(--dsw-alias-brand-primary) 55%,var(--dsw-alias-border-l2));stroke-width:1.2}',
-      '.stwd-edge-wait{stroke-dasharray:3 3}',
-      '.stwd-edge-hot{stroke:var(--dsw-alias-brand-primary);stroke-width:1.5}',
-      '.stwd-edge-dim{opacity:.35}',
-      '.stwd-arrow-head{fill:var(--stwd-border)}',
-      '.stwd-arrow-head-dispatch{fill:var(--dsw-alias-brand-primary)}',
-      '.stwd-node{cursor:pointer;outline:none}',
-      '.stwd-node-bg{fill:var(--dsw-alias-bg-layer-2);stroke:var(--stwd-border);stroke-width:1}',
-      '.stwd-node:hover .stwd-node-bg{stroke:var(--stwd-border-strong)}',
-      '.stwd-node-dim{opacity:.45}',
-      '.stwd-node-accent{fill:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
-      '.stwd-node-ready .stwd-node-accent{fill:var(--dsw-alias-state-business-tertiary,var(--dsw-alias-border-l2))}',
-      '.stwd-node-progress .stwd-node-accent{fill:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary));animation:stwd-breathe 2s ease-in-out infinite}',
-      '.stwd-node-done .stwd-node-accent{fill:var(--dsw-alias-state-success-primary)}',
-      '.stwd-node-blocked .stwd-node-bg{stroke-dasharray:4 3}',
-      '.stwd-node-blocked .stwd-node-accent{fill:var(--dsw-alias-state-warn-primary)}',
-      '.stwd-node-selected .stwd-node-bg,.stwd-node-focused .stwd-node-bg{stroke:var(--dsw-alias-brand-primary);stroke-width:1.5}',
-      '.stwd-node-ring{fill:none;stroke:var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));stroke-width:2;opacity:.55}',
-      '.stwd-node-gate .stwd-node-bg{fill:var(--dsw-alias-bg-layer-1)}',
-      '.stwd-node-todo .stwd-node-accent{fill:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
-      '.stwd-node-lead .stwd-node-lead-bg{fill:color-mix(in srgb,var(--dsw-alias-brand-primary) 9%,var(--dsw-alias-bg-layer-1));stroke:color-mix(in srgb,var(--dsw-alias-brand-primary) 55%,transparent);stroke-width:1}',
-      '.stwd-node-lead-dot{fill:var(--dsw-alias-brand-primary)}',
-      '.stwd-node-lead-title{fill:var(--dsw-alias-label-primary);font-size:12px;font-weight:500}',
-      '.stwd-node-lead-sub{fill:var(--dsw-alias-label-secondary);font-size:10px}',
-      '.stwd-node-id{fill:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));font-family:var(--stwd-mono);font-size:10px}',
-      '.stwd-node-title{fill:var(--dsw-alias-label-primary);font-size:11.5px}',
-      '.stwd-node-owner{fill:var(--dsw-alias-label-secondary);font-family:var(--stwd-mono);font-size:10px}',
-      '.stwd-node-count{fill:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));font-size:10px}',
-      '.stwd-node-avatar-bg{fill:var(--dsw-alias-bg-layer-1);stroke:var(--stwd-border-soft);stroke-width:1}',
-      '.stwd-node-avatar{fill:var(--dsw-alias-label-secondary);font-size:8px;font-weight:500}',
-      '/* --- ownership matrix --------------------------------------------------- */',
-      '.stwd-matrix-wrap{overflow-x:auto;min-width:0}',
-      '.stwd-matrix{width:100%;border-collapse:separate;border-spacing:0;font-size:11px;line-height:16px}',
-      '.stwd-matrix th,.stwd-matrix td{padding:5px 6px;text-align:left;vertical-align:middle;border-bottom:.5px solid var(--stwd-border-soft)}',
-      '.stwd-matrix thead th{font-size:10.5px;line-height:15px;font-weight:400;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));background:var(--dsw-alias-bg-layer-1);position:sticky;top:0;z-index:1}',
-      '.stwd-matrix-agent{display:inline-flex;align-items:center;gap:4px;margin-left:4px;color:var(--dsw-alias-label-secondary)}',
-      '.stwd-matrix-path{font-family:var(--stwd-mono);font-size:10.5px;line-height:15px;font-weight:400;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary)}',
-      '.stwd-matrix-cell{white-space:nowrap}',
-      '.stwd-matrix-none{color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
-      '.stwd-matrix-chip{display:inline-flex;align-items:center;margin:0 3px 0 0;padding:0 5px;border-radius:4px;border:.5px solid var(--stwd-border);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-family:var(--stwd-mono);font-size:10.5px;line-height:16px;cursor:pointer}',
-      '.stwd-matrix-chip:hover{border-color:var(--stwd-border-strong);background:var(--stwd-hover)}',
-      '.stwd-matrix-chip-progress{border-color:color-mix(in srgb,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)) 40%,transparent)}',
-      '.stwd-matrix-chip-done{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 40%,transparent)}',
-      '.stwd-matrix-chip-blocked{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 45%,transparent)}',
-      '.stwd-matrix-chip-selected{box-shadow:inset 0 0 0 1.5px var(--dsw-alias-brand-primary)}',
-      '.stwd-matrix-row-overlap th,.stwd-matrix-row-overlap td{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 6%,transparent)}',
-      '.stwd-matrix-overlap{font-size:10.5px;line-height:15px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));white-space:nowrap}',
-      '.stwd-matrix-row-overlap .stwd-matrix-overlap{color:var(--dsw-alias-state-warn-primary);font-weight:500}',
-      '.stwd-matrix-more{font-size:10.5px;line-height:15px;color:var(--dsw-alias-label-secondary);text-align:left}',
-      '/* --- rows --------------------------------------------------------------- */',
+      '.stwd-dot-warn{background:var(--dsw-alias-state-warn-primary);animation:stwd-breathe 2s ease-in-out infinite}',
+      '.stwd-dot-idle{background:var(--dsw-alias-state-idle-primary,var(--stwd-muted))}',
+      '/* --- team graph --------------------------------------------------------- */',
+      '.stwd-graph{position:relative;min-width:0;width:100%}',
+      '.stwd-graph-view{position:relative;overflow:hidden;border-radius:10px;border:.5px solid var(--stwd-border-soft);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 55%,transparent);touch-action:none;cursor:grab;min-width:0}',
+      '.stwd-graph-view-moving{cursor:grabbing}',
+      '.stwd-graph-view:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}',
+      '.stwd-graph-stage{position:relative;transform-origin:0 0;will-change:transform}',
+      '.stwd-graph-edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}',
+      '.stwd-graph-canvas{position:relative;width:100%;min-width:0}',
+      '.stwd-graph-bar{display:flex;flex-direction:column;gap:4px;min-width:0;margin-bottom:4px}',
+      '.stwd-graph-bar-row{display:flex;align-items:center;gap:8px;min-height:22px;min-width:0}',
+      '.stwd-graph-hint{flex:1;margin:0;font-size:10.5px;line-height:15px;color:var(--stwd-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.stwd-graph-tools{display:flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
+      '.stwd-graph-tool{min-width:20px;height:20px;padding:0 4px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
+      '.stwd-graph-tool:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
+      '.stwd-graph-zoom{min-width:38px;font-variant-numeric:tabular-nums}',
+      '.stwd-graph-filters{flex-wrap:wrap;gap:6px}',
+      '.stwd-filters{display:inline-flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
+      '.stwd-filter{height:20px;padding:0 8px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:1;cursor:pointer;white-space:nowrap}',
+      '.stwd-filter:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
+      '.stwd-filter-on{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:500}',
+      '.stwd-graph-hidden{font-size:10px;line-height:14px;color:var(--stwd-muted);white-space:nowrap}',
+      '.stwd-graph-links{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}',
+      '.stwd-link{fill:none;stroke:color-mix(in srgb,var(--stwd-muted) 75%,var(--stwd-border-strong));stroke-width:1.3;stroke-linejoin:round}',
+      '.stwd-link-trunk{stroke:color-mix(in srgb,var(--dsw-alias-brand-primary) 40%,var(--stwd-border-strong))}',
+      '.stwd-link-branch{stroke:var(--stwd-border-strong)}',
+      '.stwd-link-active{stroke:var(--dsw-alias-state-warn-primary);stroke-dasharray:4 3}',
+      '.stwd-link-head{fill:var(--stwd-border-strong);stroke:none}',
+      '.stwd-hub{position:absolute;border-radius:9px;border:.5px solid var(--stwd-border-soft);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 60%,transparent)}',
+      '.stwd-hub:hover{border-color:var(--stwd-border-strong)}',
+      '.stwd-hub-waiting{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 50%,transparent)}',
+      '.stwd-hub-collapsed{background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent)}',
+      '.stwd-hub-head{display:flex;align-items:center;gap:5px;width:100%;height:100%;margin:0;padding:0 8px;border:0;border-radius:9px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:1;text-align:left;cursor:pointer;white-space:nowrap}',
+      '.stwd-hub-head:hover{color:var(--dsw-alias-label-primary)}',
+      '.stwd-hub-title{letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis}',
+      '.stwd-hub-count{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);flex:none}',
+      '.stwd-hub-waiting-dot{width:5px;height:5px;border-radius:50%;background:var(--dsw-alias-state-warn-primary);flex:none}',
+      '.stwd-hub-caret{margin-left:auto;font-size:10px;line-height:1;flex:none}',
+      '.stwd-graph-empty{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:18px 14px;border-radius:10px;border:.5px dashed var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
+      '.stwd-graph-empty-title{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary)}',
+      '.stwd-graph-empty-hint{margin:0;font-size:11px;line-height:16px;color:var(--stwd-muted)}',
+      '.stwd-graph-reset{margin-top:4px;height:24px;padding:0 10px;border:.5px solid var(--stwd-border-strong);border-radius:6px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;cursor:pointer}',
+      '.stwd-leadnode{position:absolute;display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:10px;border:.5px solid color-mix(in srgb,var(--dsw-alias-brand-primary) 45%,transparent);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 6%,var(--dsw-alias-bg-layer-1));overflow:hidden}',
+      '.stwd-leadnode-avatar{margin-top:1px;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex:none;border-radius:50%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-brand-primary);font-size:10px;font-weight:500}',
+      '.stwd-leadnode-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}',
+      '.stwd-leadnode-row{display:flex;align-items:center;gap:5px;min-width:0}',
+      '.stwd-leadnode-title{font-size:11.5px;line-height:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-leadnode-state{margin-left:auto;font-size:9.5px;line-height:13px;color:var(--stwd-muted);white-space:nowrap;flex:none}',
+      '.stwd-leadnode-meta{display:flex;align-items:baseline;gap:6px;min-width:0;font-size:9.5px;line-height:13px;color:var(--dsw-alias-label-secondary)}',
+      '.stwd-leadnode-model{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
+      '.stwd-leadnode-metrics{margin-top:auto;font-size:9px;line-height:12px;color:var(--stwd-muted);white-space:nowrap;font-variant-numeric:tabular-nums}',
+      '.stwd-leadnode-task{font-size:10.5px;line-height:14px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-gnode{position:absolute;display:flex;flex-direction:column;border-radius:10px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1);min-width:0}',
+      '.stwd-gnode-running{box-shadow:inset 2px 0 0 var(--stwd-live);border-color:color-mix(in srgb,var(--stwd-live) 40%,var(--stwd-border-soft))}',
+      '.stwd-gnode-waiting{box-shadow:inset 2px 0 0 var(--dsw-alias-state-warn-primary);border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 55%,transparent)}',
+      '.stwd-gnode-done{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 35%,transparent)}',
+      '.stwd-gnode-pending{border-style:dashed}',
+      '.stwd-gnode-selected{box-shadow:inset 0 0 0 1.5px var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary))}',
+      '.stwd-gnode-main{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;padding:5px 8px 6px;border:0;border-radius:9px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;overflow:hidden}',
+      '.stwd-gnode-main:hover{background:var(--stwd-hover)}',
+      '.stwd-gnode-top{display:flex;align-items:center;gap:5px;min-width:0}',
+      '.stwd-gnode-avatar{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:none;border-radius:50%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:9.5px;line-height:1;font-weight:500}',
+      '.stwd-gnode-role{font-size:11.5px;line-height:16px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-gnode-state{margin-left:auto;display:inline-flex;align-items:center;gap:4px;flex:none;font-size:9.5px;line-height:14px;color:var(--stwd-muted);white-space:nowrap}',
+      '.stwd-gnode-model{font-size:9.5px;line-height:14px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
+      '.stwd-gnode-metrics{margin-top:auto;padding-right:20px;font-size:9px;line-height:13px;color:var(--stwd-muted);white-space:nowrap;font-variant-numeric:tabular-nums}',
+      '.stwd-gnode-task{font-size:10.5px;line-height:15px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-gnode-more{position:absolute;right:2px;bottom:2px;width:20px;height:18px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--stwd-muted);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
+      '.stwd-gnode-more:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
+      '/* --- agent rows --------------------------------------------------------- */',
       '.stwd-rows{display:flex;flex-direction:column;gap:2px;min-width:0}',
       '.stwd-row{display:flex;align-items:center;gap:7px;width:100%;padding:5px 7px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;min-width:0}',
       '.stwd-row:hover{background:var(--stwd-hover)}',
-      '.stwd-row-selected{background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-layer-1))}',
       '.stwd-row-body{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}',
       '.stwd-row-title{font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-row-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:10.5px;line-height:15px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
-      '.stwd-row-meta-group{display:inline-flex;align-items:center;gap:3px;min-width:0}',
-      '.stwd-row-arrow{flex:none;font-size:11px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
-      '.stwd-artrow-glyph{flex:none;width:16px;text-align:center;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
-      '/* --- detail ------------------------------------------------------------- */',
-      '.stwd-detail{display:flex;flex-direction:column;gap:6px;padding:9px 10px;border:.5px solid var(--stwd-border);border-radius:10px;background:var(--dsw-alias-bg-layer-2);min-width:0}',
-      '.stwd-detail-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}',
-      '.stwd-detail-id{font-family:var(--stwd-mono);font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary);flex:none}',
-      '.stwd-detail-title{margin:0;font-size:12px;line-height:18px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-detail-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}',
-      '.stwd-detail-meta-item{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;min-width:0}',
-      '.stwd-detail-owner{font-family:var(--stwd-mono);color:var(--dsw-alias-label-primary)}',
-      '.stwd-detail-warn{font-size:10.5px;line-height:16px;color:var(--dsw-alias-state-warn-primary);margin:0}',
-      '.stwd-detail-desc{margin:0;font-size:11px;line-height:17px;color:var(--dsw-alias-label-secondary);display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}',
-      '.stwd-detail-scopes{display:flex;flex-wrap:wrap;gap:2px}',
-      '.stwd-detail-actions{display:flex;align-items:center;gap:8px}',
-      '/* --- avatars, alerts, empty states -------------------------------------- */',
-      '.stwd-avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:50%;border:1px solid var(--stwd-border);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}',
-      '.stwd-avatar-text{font-size:9px;line-height:1;font-weight:500}',
+      '.stwd-arow{position:relative;display:flex;border-radius:8px;min-width:0}',
+      '.stwd-arow-running{box-shadow:inset 2px 0 0 var(--stwd-live)}',
+      '.stwd-arow-waiting{box-shadow:inset 2px 0 0 var(--dsw-alias-state-warn-primary)}',
+      '.stwd-arow-selected{background:var(--dsw-alias-bg-layer-2)}',
+      '.stwd-arow-main{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;padding:6px 26px 6px 8px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}',
+      '.stwd-arow-main:hover{background:var(--stwd-hover)}',
+      '.stwd-arow-top{display:flex;align-items:center;gap:5px;min-width:0;font-size:11.5px;line-height:16px}',
+      '.stwd-arow-avatar{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:none;border-radius:50%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:9.5px;line-height:1;font-weight:500}',
+      '.stwd-arow-role{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-arow-roleid{font-family:var(--stwd-mono);font-size:9.5px;line-height:14px;color:var(--stwd-muted);white-space:nowrap}',
+      '.stwd-arow-state{margin-left:auto;display:inline-flex;align-items:center;gap:4px;flex:none;font-size:9.5px;line-height:14px;color:var(--stwd-muted);white-space:nowrap}',
+      '.stwd-arow-model{font-size:10px;line-height:15px;color:var(--stwd-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}',
+      '.stwd-arow-line{display:flex;align-items:baseline;gap:6px;min-width:0}',
+      '.stwd-arow-task{font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-arow-meta{font-size:9.5px;line-height:14px;color:var(--stwd-muted);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none}',
+      '.stwd-arow-more{position:absolute;right:2px;bottom:2px;width:20px;height:18px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--stwd-muted);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
+      '.stwd-arow-more:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
+      '.stwd-artrow-glyph{flex:none;width:16px;text-align:center;color:var(--stwd-muted)}',
+      '/* --- agent detail ------------------------------------------------------- */',
+      '.stwd-gdetail{display:flex;flex-direction:column;gap:7px;padding:9px 10px;border:.5px solid var(--stwd-border);border-radius:10px;background:var(--dsw-alias-bg-layer-2);min-width:0}',
+      '.stwd-gdetail-head{display:flex;align-items:center;gap:6px;min-width:0}',
+      '.stwd-gdetail-title{font-size:12px;line-height:18px;font-weight:500}',
+      '.stwd-gdetail-role{font-size:10.5px;line-height:16px;color:var(--stwd-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
+      '.stwd-gdetail-close{margin-left:auto;flex:none}',
+      '.stwd-gdetail-hint{margin:0;font-size:10.5px;line-height:15px;color:var(--dsw-alias-state-warn-primary)}',
+      '.stwd-gdetail-grid{display:grid;grid-template-columns:minmax(52px,auto) minmax(0,1fr);gap:3px 8px;margin:0;min-width:0}',
+      '.stwd-gdetail-grid dt{font-size:10.5px;line-height:15px;color:var(--stwd-muted);white-space:nowrap}',
+      '.stwd-gdetail-grid dd{margin:0;font-size:11px;line-height:15px;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere;min-width:0}',
+      '.stwd-gdetail-tokens{margin:0;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}',
+      '/* --- artifacts ---------------------------------------------------------- */',
+      '.stwd-artifacts{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:.5px solid var(--stwd-border-soft);min-width:0}',
+      '.stwd-artifacts-head{display:flex;align-items:center;gap:6px;min-height:22px;padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;text-align:left;min-width:0}',
+      '.stwd-artifacts-head:hover .stwd-artifacts-title{color:var(--dsw-alias-brand-primary)}',
+      '.stwd-artifacts-title{font-size:12px;line-height:18px;font-weight:500}',
+      '.stwd-artifacts-count{font-size:11px;line-height:16px;color:var(--stwd-muted);font-variant-numeric:tabular-nums}',
+      '.stwd-artifacts-caret{margin-left:auto;font-size:10px;line-height:16px;color:var(--stwd-muted)}',
+      '.stwd-artifacts-dir{display:flex;gap:4px;align-items:baseline;margin:0;font-size:10.5px;line-height:15px;color:var(--stwd-muted);min-width:0}',
+      '.stwd-artifacts-dir-label{flex:none}',
+      '.stwd-artifacts-dir .stwd-mono{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '/* --- alerts, empty states, skeletons ------------------------------------ */',
       '.stwd-alert{display:flex;gap:6px;margin:0;padding:6px 8px;border-radius:8px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1);font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}',
-      '.stwd-alert-warn{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 40%,transparent);color:var(--dsw-alias-state-warn-primary)}',
-      '.stwd-alert-error{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 40%,transparent);color:var(--dsw-alias-state-error-primary)}',
-      '.stwd-alert-ok{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 40%,transparent);color:var(--dsw-alias-state-success-primary)}',
       '.stwd-empty{display:flex;flex-direction:column;gap:6px;padding:10px;border:.5px dashed var(--stwd-border);border-radius:10px;min-width:0}',
       '.stwd-empty-title{margin:0;font-size:12px;line-height:18px;font-weight:500}',
       '.stwd-empty-text{margin:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}',
-      '.stwd-empty-steps{margin:0;padding-left:16px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
+      '.stwd-empty-steps{margin:0;padding-left:16px;font-size:11px;line-height:16px;color:var(--stwd-muted)}',
       '.stwd-skeleton-block{display:flex;flex-direction:column;gap:6px}',
       '.stwd-skeleton{display:block;height:12px;border-radius:4px;background:var(--dsw-alias-bg-layer-2)}',
       '/* --- controls ----------------------------------------------------------- */',
       '.stwd-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:.5px solid transparent;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:1;cursor:pointer}',
       '.stwd-iconbtn:hover:not(:disabled){background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
       '.stwd-iconbtn:disabled{opacity:.5;cursor:default}',
-      '.stwd-iconbtn-stub{display:inline-block;width:22px;height:22px}',
-      '.stwd-btn{min-height:24px;padding:2px 10px;border:.5px solid var(--stwd-border);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;line-height:18px;cursor:pointer}',
+      '.stwd-panel-refresh{margin-left:auto}',
+      '.stwd-btn{min-height:24px;padding:2px 10px;border:.5px solid var(--stwd-border);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;line-height:18px;cursor:pointer;align-self:flex-start}',
       '.stwd-btn:hover:not(:disabled){background:var(--stwd-hover)}',
       '.stwd-btn:disabled{opacity:.5;cursor:default}',
-      '.stwd-btn-primary{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-label-primary))}',
-      '.stwd-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}',
-      '.stwd-spacer{flex:1}',
       '.stwd-state{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}',
       '.stwd-state-dirty{color:var(--dsw-alias-state-warn-primary)}',
       '.stwd-select{width:100%;min-height:24px;padding:1px 6px;border:.5px solid var(--stwd-border);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;line-height:18px}',
       '.stwd-select:disabled{opacity:.55}',
+      '.stwd-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}',
+      '.stwd-spacer{flex:1}',
       '/* --- configuration table ------------------------------------------------ */',
       '.stwd-table{display:flex;flex-direction:column;border:.5px solid var(--stwd-border-soft);border-radius:10px;overflow:hidden;background:var(--dsw-alias-bg-layer-1)}',
       '.stwd-tr{display:grid;grid-template-columns:minmax(112px,1.1fr) repeat(3,minmax(96px,1fr)) minmax(84px,.8fr);gap:8px;align-items:center;padding:7px 9px;border-top:.5px solid var(--stwd-border-soft)}',
       '.stwd-tr:first-child{border-top:0}',
-      '.stwd-tr-head{padding:5px 9px;background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-layer-1))}',
+      '.stwd-tr-head{padding:5px 9px;background:var(--dsw-alias-bg-layer-2)}',
       '.stwd-tr-default{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 4%,transparent)}',
-      '.stwd-th{font-size:10.5px;line-height:16px;font-weight:400;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
+      '.stwd-th{font-size:10.5px;line-height:16px;font-weight:400;color:var(--stwd-muted)}',
       '.stwd-th-last,.stwd-cell-last{display:flex;align-items:center;gap:5px;justify-content:flex-start}',
       '.stwd-cell{display:flex;flex-direction:column;gap:2px;min-width:0}',
-      '.stwd-cell-label{font-size:10px;line-height:14px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary))}',
+      '.stwd-cell-label{font-size:10px;line-height:14px;color:var(--stwd-muted)}',
       '.stwd-cell-hint{font-size:10px;line-height:14px;color:var(--dsw-alias-state-warn-primary)}',
       '.stwd-cell-role{display:flex;flex-direction:column;gap:1px;min-width:0}',
       '.stwd-role-name{font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-role-sub{font-size:10px;line-height:14px;color:var(--dsw-alias-label-tertiary,var(--dsw-alias-label-secondary));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-role-sub{font-size:10px;line-height:14px;color:var(--stwd-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.stwd-role-id{font-family:var(--stwd-mono)}',
       '/* --- host header + tab chip --------------------------------------------- */',
       '.stwd-headbtn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}',
-      '.stwd-headbtn:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary)}',
+      '.stwd-headbtn:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
       '.stwd-headwrap{display:inline-flex;align-items:center}',
       '.stwd-headwrap>style,.stwd-tabtitle>style{display:none}',
       '.stwd-tabtitle{display:inline-flex;align-items:center;gap:5px;min-width:0}',
       '.stwd-tabtitle-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '/* --- responsive --------------------------------------------------------- */',
-      '@media (max-width:520px){',
+      '/* --- motion + responsive ------------------------------------------------ */',
+      '@keyframes stwd-breathe{0%,100%{opacity:.5}50%{opacity:1}}',
+      '@keyframes stwd-flow{to{stroke-dashoffset:-14}}',
+      '@media (max-width:420px){',
+      '.stwd-arow-roleid{display:none}',
+      '.stwd-gnode-model{font-size:9.5px}',
       '.stwd-tr{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}',
       '.stwd-tr-head{display:none}',
       '.stwd-cell-role{grid-column:1 / -1}',
@@ -2423,7 +2556,6 @@ window.__ModuleLoader__.load({
       '.stwd-root *{animation:none !important;transition:none !important}',
       '}',
     ].join('\n');
-
     // --- plugin ---------------------------------------------------------------------
 
     /** Open this Session's board tab; false when the host offers no right Sidebar. */
@@ -2438,13 +2570,23 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** The injected face of one Session's board: filesystem facts and navigation. */
+    /** The injected face of one Session's board: artifacts, clock, projections and navigation. */
     function makePanelFace(ctx, sessionId, text, lang) {
       const loader = createRunLoader(ctx, sessionId);
       return {
         text,
         lang,
+        now: () => Date.now(),
         loadRun: () => loader.load(),
+        refreshChild: (childId) => {
+          const sessions = ctx ? ctx.sessions : undefined;
+          if (!sessions || typeof sessions.refreshProjections !== 'function') return Promise.resolve();
+          try {
+            return Promise.resolve(sessions.refreshProjections(childId)).catch(() => {});
+          } catch {
+            return Promise.resolve();
+          }
+        },
         openSession: (childId, mode) => {
           const right = ctx ? ctx.sidebarRight : undefined;
           if (right && typeof right.openResource === 'function') {

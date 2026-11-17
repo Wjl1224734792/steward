@@ -19,7 +19,7 @@
 
 - **ZCode 侧**：`node zcode/scripts/build.mjs --check` → `node --test zcode/scripts/tests/` → `zcode commands list` 确认命令注册。只更新 ZCode：`zcode plugins update steward@<marketplace>`。
 - **MiniMax 侧**：`node zcode/scripts/build.mjs` → `node --test zcode/scripts/tests/` → `node --test host/minimax/tests/` → `node zcode/scripts/agent-config.mjs install`（演练）或 `install --apply`（镜像）。只更新 MiniMax，不跑 ZCode 插件更新。
-- **DSH 侧（独立构建，不写其他目录）**：`node host/dsh/build.mjs`（或 `--check`）→ `node --test host/dsh/tests/` → 用插件管理器 `install_bundle` 指向 `dsh/` 安装/更新；装完在**设置 → Steward** 分区核对 7 个角色的模型/档位，并在任一会话点标题栏的 Steward 图标打开右侧栏看板，确认 `steward_dispatch` / `steward_board` 正常、看板能显示任务图 / 子代理 / 产物。DSH 构建器只读 `shared/`（含 `shared/scripts/`）、`zcode/skills/steward/references/` 参考库、`host/dsh/`，只写 `dsh/`；自 v1.1.0 起不再读取 `zcode/scripts/`。
+- **DSH 侧（独立构建，不写其他目录）**：`node host/dsh/build.mjs`（或 `--check`）→ `node --test host/dsh/tests/` → 用插件管理器 `install_bundle` 指向 `dsh/` 安装/更新；装完在**设置 → Steward** 分区核对 7 个角色的模型/档位，并在任一会话点标题栏的 Steward 图标打开右侧栏面板，确认 `steward_dispatch` / `steward_board` 正常、面板默认显示**分层工作流树**（Lead 在左上作根，主干串起需求 → 架构 → 实施 → 质量 → 验收 → 评审 各枢纽，枢纽向右分叉卡片（宽面板自动 2–3 列）；节点带角色 / 实际模型 / 任务 / 状态 / 耗时 / 用量，点节点进子会话；节点可拖动、枢纽可折叠、可隐藏已完成）、顶部任务进度条与原生任务板计数一致、产物可展开，且**面板里没有任务列表**。DSH 构建器只读 `shared/`（含 `shared/scripts/`）、`zcode/skills/steward/references/` 参考库、`host/dsh/`，只写 `dsh/`；自 v1.1.0 起不再读取 `zcode/scripts/`。
 - **共享源改动**：`shared/`（含 `shared/scripts/`）变更要验证 ZCode/MiniMax（构建 + 测试），并重跑 `node host/dsh/build.mjs` 刷新 DSH 生成物；提交信息注明「跨宿主」。
 
 ## 禁止

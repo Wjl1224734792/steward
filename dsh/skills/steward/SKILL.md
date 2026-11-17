@@ -7,7 +7,7 @@ description: Steward 研发团队调度手册（Tech Lead，DSH 宿主）。当�
 
 # Steward · Tech Lead 手册
 
-> 当前版本（DSH 侧 1.4.1）：功能交付（六阶段 + 批准门）+ 需求澄清（第一性原理 + 提问预算）+ 任务 DAG / 文件所有权 + Bug 通道（B0–B3）+ 可信变更门禁（计划校验 / 独立验证 / 基线守卫 / run-state）+ 维护循环 + 接手存量 + 浏览器证据契约 + 学习循环 + 收尾 + **文档入口拆分**（`docs-new` 新建项目 / `docs-takeover` 接手存量 / `docs-feature` 单个功能 / `docs-review` 审查，规范与模板在 `docs-rules`）+ **文档就绪硬门**（`scripts/docs-ready.mjs` 闭环机检 + 收据；docTier=3 时 `backend-dev` / `frontend-dev` 派发前强校验）+ 文档治理（`docs-governance` 增量层：拆分 / 归档 / `history/` 版本快照 + `docs-gate` / `doc-snapshot` 门禁）+ 项目全生命周期（`project-lifecycle`：含文档就绪硬门）+ **Steward 右侧栏看板**（每会话一份：依赖图 / 任务列表 / 归属矩阵 + 子代理实时状态点击进子会话 + `tmp/steward/` 产物；任务来源按共享任务板 > run.json > 待办清单回落；会话标题栏图标打开，首次派发自动打开）+ 设置页逐角色模型表格 + 项目级子代理模型路由（`steward.config.json` 优先于设置页）+ **Agent Teams 共享任务板**。角色是**派单时注入的章程**：本插件不注册 Agent Preset，7 个角色不会出现在模式选择器里。
+> 当前版本（DSH 侧 1.5.0）：功能交付（六阶段 + 批准门）+ 需求澄清（第一性原理 + 提问预算）+ 任务 DAG / 文件所有权 + Bug 通道（B0–B3）+ 可信变更门禁（计划校验 / 独立验证 / 基线守卫 / run-state）+ 维护循环 + 接手存量 + 浏览器证据契约 + 学习循环 + 收尾 + **文档入口拆分**（`docs-new` 新建项目 / `docs-takeover` 接手存量 / `docs-feature` 单个功能 / `docs-review` 审查，规范与模板在 `docs-rules`）+ **文档就绪硬门**（`scripts/docs-ready.mjs` 闭环机检 + 收据；docTier=3 时 `backend-dev` / `frontend-dev` 派发前强校验）+ 文档治理（`docs-governance` 增量层：拆分 / 归档 / `history/` 版本快照 + `docs-gate` / `doc-snapshot` 门禁）+ 项目全生命周期（`project-lifecycle`：含文档就绪硬门）+ **Steward 右侧栏团队面板**（每会话一份：默认分层工作流树（Lead 左上作根，主干串起需求 → 架构 → 实施 → 质量 → 验收 → 评审 各枢纽、枢纽向右分叉卡片；节点可拖动、枢纽可折叠、可隐藏已完成），节点带角色 / 实际模型 / 任务 / 状态 / 耗时 / 用量，点节点进子会话；顶部原生任务进度条只给计数与来源，**不复制任务列表**；`tmp/steward/` 产物折叠在底部；会话标题栏图标打开，首次派发自动打开）+ 设置页逐角色模型表格 + 项目级子代理模型路由（`steward.config.json` 优先于设置页）+ **Agent Teams 共享任务板**。角色是**派单时注入的章程**：本插件不注册 Agent Preset，7 个角色不会出现在模式选择器里。
 >
 > **DSH 宿主映射（读正文前先记住这几条）**：
 > ①文中 `steward:<角色>` 指 `steward_dispatch` 工具的 `role` 参数（`pm` / `architect` / `backend-dev` / `frontend-dev` / `qa-engineer` / `browser-tester` / `reviewer`），派发时**只填 role，不手写模型**——子代理以 DSH 内置 `standard` 组合启动，角色章程由工具拼在派单正文前，模型与思考强度按「项目根 `steward.config.json` 的 `modelRouting.<role>` > 设置页该角色 > 设置页默认 > 继承主代理」解析；
@@ -150,7 +150,7 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 ## 共享任务板（Agent Teams，DSH）
 
-宿主启用「智能体团队」后，Agent Teams 任务板是**权威来源**：会话页头的 Team 面板里有成员状态（provisioning / running / inactive / failed）与任务板（未开始 = 灰点、被依赖阻塞 = 橙点、进行中 = loading、完成 = 绿点），并显示负责人、依赖、就绪态、写入范围与**文件重叠告警**。Steward 的**右侧栏看板**把这张板和 `run.json` / 待办清单统一成同一张图（Agent Teams 未启用时按 `run.json` > 待办清单回落）；会话页头的原生 Team 面板仍然存在。Lead 不再靠脑子记「谁在做哪张单」。
+宿主启用「智能体团队」后，Agent Teams 任务板是任务的**权威来源**：会话页头的 Team 面板里有成员状态（provisioning / running / inactive / failed）与任务板（未开始 = 灰点、被依赖阻塞 = 橙点、进行中 = loading、完成 = 绿点），并显示负责人、依赖、就绪态、写入范围与**文件重叠告警**。Steward 的**右侧栏团队面板不再复刻任务**：它画的是智能体（角色 / 实际模型 / 任务 / 状态 / 耗时 / 用量），顶部只用一条进度条数任务（`完成/总数` + 进行中 / 被阻塞 + 来源）。读任务请用原生 Team 面板。Lead 不再靠脑子记「谁在做哪张单」。
 
 **建板（计划批准后一次）**：`steward_board(action="sync", plan="<工件目录>/03-plan.json", level="M")`。不要手写板上的任务：
 
@@ -170,9 +170,9 @@ pm 仅在需求模糊或跨域时派；需求已清晰具体就跳过，你自�
 
 **回派与修复**：缺陷回派给**同一个** teammate（`send_message`），不要为同一角色反复 spawn（teammate 名字永久占用）；板上把该任务 `reopen` 回 `pending` 并在描述里记轮次。
 
-**看板自检**：`steward_board(action="status", plan="<…>")` 返回与面板一致的文本快照（门禁进度 / 每单状态·负责人·阻塞·就绪）。向用户同步进度时贴它，不要自己编。
+**任务板自检**：`steward_board(action="status", plan="<…>")` 返回与原生 Team 面板一致的文本快照（门禁进度 / 每单状态·负责人·阻塞·就绪）。向用户同步任务进度时贴它，不要自己编；右侧栏团队面板只负责「谁在用哪个模型做哪件事」。
 
-**没启用团队时**：会话里没有 `agentTeams` 服务，`steward_board` 会直接报错——此时走单人模式（`steward_dispatch` + `run.json`），照 DAG 派活；右侧栏看板回落到 `run.json` / 待办清单，仍然有内容。
+**没启用团队时**：会话里没有 `agentTeams` 服务，`steward_board` 会直接报错——此时走单人模式（`steward_dispatch` + `run.json`），照 DAG 派活；右侧栏团队面板的进度条回落到会话任务列表（`todo_write`），智能体图不受影响。
 
 ## 调度规则（串行/并行的唯一依据）
 
