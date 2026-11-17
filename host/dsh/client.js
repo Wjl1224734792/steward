@@ -685,9 +685,6 @@ window.__ModuleLoader__.load({
     const VIEW_MAX_H_DRAG = 560;
     const VIEW_EMPTY_H = 110;
     const VIEW_RESERVED_BELOW = 160;
-    const TOOLS_GAP = 8;
-    const TOOLS_W = 240;
-    const TOOLS_H = 28;
 
     function clampZoom(value) {
       const number = Number(value);
@@ -770,24 +767,6 @@ window.__ModuleLoader__.load({
         usedAbove = Math.max(0, Math.round(viewEl.getBoundingClientRect().top - panel.getBoundingClientRect().top));
       }
       return Math.max(VIEW_MIN_H, Math.min(VIEW_MAX_H_DRAG, panelH - usedAbove - VIEW_RESERVED_BELOW));
-    }
-
-    function graphToolsStyle(lead, originX, originY, view, viewWidth, viewHeight) {
-      if (!lead) return { display: 'none' };
-      const zoom = Number(view && view.zoom) || 1;
-      const vx = Number(view && view.x) || 0;
-      const vy = Number(view && view.y) || 0;
-      let left = (lead.x - originX) * zoom + vx + lead.w * zoom / 2;
-      let top = (lead.y - originY) * zoom + vy + lead.h * zoom + TOOLS_GAP;
-      const margin = 6;
-      const half = TOOLS_W / 2;
-      const minLeft = margin + half;
-      const maxLeft = Math.max(minLeft, viewWidth - margin - half);
-      const minTop = margin;
-      const maxTop = Math.max(minTop, viewHeight - margin - TOOLS_H);
-      left = Math.min(maxLeft, Math.max(minLeft, left));
-      top = Math.min(maxTop, Math.max(minTop, top));
-      return { left: left + 'px', top: top + 'px' };
     }
 
     function normalizePanelPrefs(parsed) {
@@ -1430,6 +1409,15 @@ window.__ModuleLoader__.load({
 
     function stopCanvasDrag(event) {
       if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+    }
+
+    function clearTextSelection(event) {
+      if (event && typeof event.preventDefault === 'function') event.preventDefault();
+      const root = (typeof globalThis !== 'undefined' && globalThis.window) ? globalThis.window : globalThis;
+      const sel = (root && typeof root.getSelection === 'function')
+        ? root.getSelection()
+        : (typeof document !== 'undefined' && document.getSelection ? document.getSelection() : null);
+      if (sel && typeof sel.removeAllRanges === 'function') sel.removeAllRanges();
     }
 
     // --- subagents ------------------------------------------------------------------
@@ -2126,12 +2114,40 @@ window.__ModuleLoader__.load({
         });
       };
 
-      const applyLayout = (mode) => {
-        setLayoutMode(normalizeLayoutMode(mode));
-        setPositions({});
+      const centerViewOnLead = (nextLayout) => {
+        if (!nextLayout || !nextLayout.lead) return;
+        const lead = nextLayout.lead;
+        const originX = Number(nextLayout.originX) || 0;
+        const originY = Number(nextLayout.originY) || 0;
+        const cx = lead.x - originX + lead.w / 2;
+        const cy = lead.y - originY + lead.h / 2;
+        dimsRef.current = {
+          ...dimsRef.current,
+          contentWidth: nextLayout.width,
+          contentHeight: nextLayout.height,
+        };
+        setViewState((current) => {
+          const zoom = current.zoom;
+          const dims = dimsRef.current;
+          return clampToDims({
+            zoom,
+            x: dims.width / 2 - cx * zoom,
+            y: dims.height / 2 - cy * zoom,
+          });
+        });
       };
 
-      const relayout = () => setPositions({});
+      const applyLayout = (mode) => {
+        const nextMode = normalizeLayoutMode(mode);
+        setLayoutMode(nextMode);
+        setPositions({});
+        centerViewOnLead(dagLayout({ rows: layoutRows, positions: {}, layout: nextMode }));
+      };
+
+      const relayout = () => {
+        setPositions({});
+        centerViewOnLead(dagLayout({ rows: layoutRows, positions: {}, layout: layoutMode }));
+      };
 
       const zoomAt = (factor, originX, originY) => {
         setViewState((current) => {
@@ -2212,6 +2228,7 @@ window.__ModuleLoader__.load({
         const target = event.target;
         if (target && typeof target.closest === 'function'
           && target.closest('.stwd-graph-tools, .stwd-graph-filters, .stwd-gnode-more, .stwd-gdetail, .stwd-graph-resize')) return;
+        clearTextSelection(event);
         const nodeId = nodeAt(event);
         const origin = nodeId === '' ? null : (positions[nodeId] || (nodeId === LEAD_NODE_ID ? layout.lead : placed.find((node) => node.id === nodeId)) || { x: 0, y: 0 });
         dragRef.current = {
@@ -2236,6 +2253,7 @@ window.__ModuleLoader__.load({
         if (!start.moved) {
           if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
           start.moved = true;
+          clearTextSelection(event);
           if (start.nodeId === '') setMoving(true);
           else suppressRef.current = Date.now() + 400;
           capturePointer(event);
@@ -2346,7 +2364,7 @@ window.__ModuleLoader__.load({
       const onResizePointerDown = (event) => {
         if (!event || (event.button !== undefined && event.button !== 0)) return;
         stopCanvasDrag(event);
-        if (typeof event.preventDefault === 'function') event.preventDefault();
+        clearTextSelection(event);
         resizeDragRef.current = {
           y: Number(event.clientY) || 0,
           h: viewHeight,
@@ -2446,58 +2464,6 @@ window.__ModuleLoader__.load({
               }),
             ),
           ),
-          visibleIds.has(LEAD_NODE_ID) ? h('div', {
-            className: 'stwd-graph-tools',
-            role: 'group',
-            'aria-label': text.zoomGroup,
-            style: graphToolsStyle(layout.lead, originX, originY, view, viewWidth, viewHeight),
-            onPointerDown: stopCanvasDrag,
-          },
-            h('button', {
-              type: 'button',
-              className: 'stwd-graph-tool',
-              'aria-label': text.zoomOut,
-              title: text.zoomOut,
-              onClick: () => zoomAt(1 / 1.12, viewWidth / 2, viewHeight / 2),
-            }, '−'),
-            h('button', {
-              type: 'button',
-              className: 'stwd-graph-tool stwd-graph-zoom',
-              'aria-label': text.zoomReset,
-              title: text.zoomReset,
-              onClick: resetView,
-            }, zoomPercent),
-            h('button', {
-              type: 'button',
-              className: 'stwd-graph-tool',
-              'aria-label': text.zoomIn,
-              title: text.zoomIn,
-              onClick: () => zoomAt(1.12, viewWidth / 2, viewHeight / 2),
-            }, '+'),
-            h('button', {
-              type: 'button',
-              className: 'stwd-graph-tool',
-              'aria-label': text.zoomFit,
-              title: text.zoomFit,
-              onClick: fitView,
-            }, '⤢'),
-            ...[['map', text.layoutMap], ['fishbone', text.layoutFishbone], ['tree', text.layoutTree]].map(([key, label]) => h('button', {
-              key: 'layout-' + key,
-              type: 'button',
-              className: 'stwd-graph-tool' + (layoutMode === key ? ' stwd-graph-tool-on' : ''),
-              'aria-label': label,
-              title: label,
-              'aria-pressed': layoutMode === key ? 'true' : 'false',
-              onClick: () => applyLayout(key),
-            }, label)),
-            h('button', {
-              type: 'button',
-              className: 'stwd-graph-tool',
-              'aria-label': text.relayout,
-              title: text.relayout,
-              onClick: relayout,
-            }, '⟲'),
-          ) : null,
           h('div', {
             className: 'stwd-graph-resize',
             role: 'separator',
@@ -2513,8 +2479,56 @@ window.__ModuleLoader__.load({
 
       return h('div', { className: 'stwd-graph', ref: wrapRef },
         h('div', { className: 'stwd-graph-bar' },
-          h('div', { className: 'stwd-graph-bar-row stwd-graph-filters' },
+          h('div', { className: 'stwd-graph-bar-row' },
             h('span', { className: 'stwd-graph-hint' }, text.canvasHint),
+            h('div', { className: 'stwd-graph-tools', role: 'group', 'aria-label': text.zoomGroup },
+              h('button', {
+                type: 'button',
+                className: 'stwd-graph-tool',
+                'aria-label': text.zoomOut,
+                title: text.zoomOut,
+                onClick: () => zoomAt(1 / 1.12, viewWidth / 2, viewHeight / 2),
+              }, '−'),
+              h('button', {
+                type: 'button',
+                className: 'stwd-graph-tool stwd-graph-zoom',
+                'aria-label': text.zoomReset,
+                title: text.zoomReset,
+                onClick: resetView,
+              }, zoomPercent),
+              h('button', {
+                type: 'button',
+                className: 'stwd-graph-tool',
+                'aria-label': text.zoomIn,
+                title: text.zoomIn,
+                onClick: () => zoomAt(1.12, viewWidth / 2, viewHeight / 2),
+              }, '+'),
+              h('button', {
+                type: 'button',
+                className: 'stwd-graph-tool',
+                'aria-label': text.zoomFit,
+                title: text.zoomFit,
+                onClick: fitView,
+              }, '⤢'),
+              ...[['map', text.layoutMap], ['fishbone', text.layoutFishbone], ['tree', text.layoutTree]].map(([key, label]) => h('button', {
+                key: 'layout-' + key,
+                type: 'button',
+                className: 'stwd-graph-tool' + (layoutMode === key ? ' stwd-graph-tool-on' : ''),
+                'aria-label': label,
+                title: label,
+                'aria-pressed': layoutMode === key ? 'true' : 'false',
+                onClick: () => applyLayout(key),
+              }, label)),
+              h('button', {
+                type: 'button',
+                className: 'stwd-graph-tool',
+                'aria-label': text.relayout,
+                title: text.relayout,
+                onClick: relayout,
+              }, '⟲'),
+            ),
+          ),
+          h('div', { className: 'stwd-graph-bar-row stwd-graph-filters' },
             h('div', { className: 'stwd-filters', role: 'group', 'aria-label': text.viewGroup },
               [['all', text.filterAll], ['active', text.filterActive]].map(([key, label]) => h('button', {
                 key: 'view-' + key,
@@ -3239,8 +3253,8 @@ window.__ModuleLoader__.load({
       '.stwd-dot-warn{background:var(--dsw-alias-state-warn-primary);animation:stwd-breathe 2s ease-in-out infinite}',
       '.stwd-dot-idle{background:var(--dsw-alias-state-idle-primary,var(--stwd-muted))}',
       '/* --- team graph --------------------------------------------------------- */',
-      '.stwd-graph{position:relative;flex:none;min-width:0;width:100%}',
-      '.stwd-graph-view{position:relative;overflow:hidden;border-radius:10px;border:.5px solid var(--stwd-border-soft);background:radial-gradient(circle at 1px 1px,color-mix(in srgb,var(--stwd-border-strong) 70%,transparent) 1px,transparent 0) 0 0 / 22px 22px,color-mix(in srgb,var(--dsw-alias-bg-layer-2) 70%,transparent);touch-action:none;cursor:grab;min-width:0}',
+      '.stwd-graph{position:relative;flex:none;min-width:0;width:100%;-webkit-user-select:none;user-select:none}',
+      '.stwd-graph-view{position:relative;overflow:hidden;border-radius:10px;border:.5px solid var(--stwd-border-soft);background:radial-gradient(circle at 1px 1px,color-mix(in srgb,var(--stwd-border-strong) 70%,transparent) 1px,transparent 0) 0 0 / 22px 22px,color-mix(in srgb,var(--dsw-alias-bg-layer-2) 70%,transparent);touch-action:none;cursor:grab;min-width:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
       '.stwd-graph-view-moving{cursor:grabbing}',
       '.stwd-graph-view-resizing{cursor:ns-resize}',
       '.stwd-graph-view:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}',
@@ -3250,7 +3264,7 @@ window.__ModuleLoader__.load({
       '.stwd-graph-bar{display:flex;flex-direction:column;gap:4px;min-width:0;margin-bottom:6px}',
       '.stwd-graph-bar-row{display:flex;align-items:center;gap:8px;min-height:22px;min-width:0}',
       '.stwd-graph-hint{flex:1 1 120px;margin:0;font-size:10.5px;line-height:15px;color:var(--stwd-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}',
-      '.stwd-graph-tools{position:absolute;display:flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 94%,transparent);box-shadow:0 4px 12px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent);transform:translateX(-50%);z-index:12;cursor:default;pointer-events:auto;touch-action:auto}',
+      '.stwd-graph-tools{display:flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
       '.stwd-graph-tool{min-width:20px;height:20px;padding:0 4px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
       '.stwd-graph-tool:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
       '.stwd-graph-tool-on{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:500}',
@@ -3353,7 +3367,7 @@ window.__ModuleLoader__.load({
       '.stwd-arow-more:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
       '.stwd-artrow-glyph{flex:none;width:16px;text-align:center;color:var(--stwd-muted)}',
       '/* --- agent detail ------------------------------------------------------- */',
-      '.stwd-gdetail{display:flex;flex-direction:column;gap:7px;padding:9px 10px;border:.5px solid var(--stwd-border);border-radius:10px;background:var(--dsw-alias-bg-layer-2);min-width:0}',
+      '.stwd-gdetail{display:flex;flex-direction:column;gap:7px;padding:9px 10px;border:.5px solid var(--stwd-border);border-radius:10px;background:var(--dsw-alias-bg-layer-2);min-width:0;-webkit-user-select:text;user-select:text}',
       '.stwd-gdetail-head{display:flex;align-items:center;gap:6px;min-width:0}',
       '.stwd-gdetail-title{font-size:12px;line-height:18px;font-weight:500}',
       '.stwd-gdetail-role{font-size:10.5px;line-height:16px;color:var(--stwd-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',

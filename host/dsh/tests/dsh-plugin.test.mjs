@@ -1674,6 +1674,34 @@ function boxMetrics(node) {
   return { left, top, width, height, cx: left + width / 2, cy: top + height / 2 };
 }
 
+function stageCamera(stage) {
+  const match = String(stage.props.style.transform).match(/translate\((-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px\) scale\((-?\d+(?:\.\d+)?)\)/);
+  return {
+    x: match ? Number(match[1]) : 0,
+    y: match ? Number(match[2]) : 0,
+    zoom: match ? Number(match[3]) : 1,
+  };
+}
+
+function leadScreenCenter(harness, host) {
+  const lead = boxMetrics(harness.collect(host, harness.byClass('stwd-leadnode'))[0]);
+  const camera = stageCamera(harness.collect(host, harness.byClass('stwd-graph-stage'))[0]);
+  return {
+    x: lead.cx * camera.zoom + camera.x,
+    y: lead.cy * camera.zoom + camera.y,
+    zoom: camera.zoom,
+  };
+}
+
+/** Convert a stage-space box into viewport pointer coordinates. */
+function pointerAt(harness, host, box, dx = 0, dy = 0) {
+  const camera = stageCamera(harness.collect(host, harness.byClass('stwd-graph-stage'))[0]);
+  return {
+    clientX: (box.cx * camera.zoom + camera.x) + dx,
+    clientY: (box.cy * camera.zoom + camera.y) + dy,
+  };
+}
+
 function toolByLabel(harness, host, needle) {
   return harness.collect(host, harness.byClass('stwd-graph-tool'))
     .find((node) => String(node.props['aria-label']).indexOf(needle) >= 0);
@@ -1779,10 +1807,9 @@ test('layout presets tidy the board and ⟲ restores the last chosen arrangement
     const fishboneCard = cardOf(host, '导出接口');
     const fishbonePos = boxMetrics(fishboneCard);
     const view = harness.collect(host, harness.byClass('stwd-graph-view'))[0];
-    const startX = fishbonePos.cx;
-    const startY = fishbonePos.cy;
-    view.props.onPointerDown({ button: 0, clientX: startX, clientY: startY, pointerId: 3, target: null });
-    view.props.onPointerMove({ clientX: startX + 50, clientY: startY + 30, pointerId: 3, target: null });
+    const fishStart = pointerAt(harness, host, fishbonePos);
+    view.props.onPointerDown({ button: 0, clientX: fishStart.clientX, clientY: fishStart.clientY, pointerId: 3, target: null });
+    view.props.onPointerMove({ clientX: fishStart.clientX + 50, clientY: fishStart.clientY + 30, pointerId: 3, target: null });
     view.props.onPointerUp({ pointerId: 3, target: null });
     host = await harness.settle(render);
     const dragged = boxMetrics(cardOf(host, '导出接口'));
@@ -1803,8 +1830,9 @@ test('layout presets tidy the board and ⟲ restores the last chosen arrangement
     assert.ok(cards.every((box) => box.top >= lead.top + lead.height - 1), 'the tree places the Lead above every sub-agent');
     const treeCard = boxMetrics(cardOf(host, '导出接口'));
     const treeView = harness.collect(host, harness.byClass('stwd-graph-view'))[0];
-    treeView.props.onPointerDown({ button: 0, clientX: treeCard.cx, clientY: treeCard.cy, pointerId: 4, target: null });
-    treeView.props.onPointerMove({ clientX: treeCard.cx + 40, clientY: treeCard.cy + 20, pointerId: 4, target: null });
+    const treeStart = pointerAt(harness, host, treeCard);
+    treeView.props.onPointerDown({ button: 0, clientX: treeStart.clientX, clientY: treeStart.clientY, pointerId: 4, target: null });
+    treeView.props.onPointerMove({ clientX: treeStart.clientX + 40, clientY: treeStart.clientY + 20, pointerId: 4, target: null });
     treeView.props.onPointerUp({ pointerId: 4, target: null });
     host = await harness.settle(render);
     const treeDragged = boxMetrics(cardOf(host, '导出接口'));
@@ -1819,8 +1847,9 @@ test('layout presets tidy the board and ⟲ restores the last chosen arrangement
     // A card dragged well above the Lead must stay inside the stage, not clip.
     const clipView = harness.collect(host, harness.byClass('stwd-graph-view'))[0];
     const beforeClip = boxMetrics(cardOf(host, '导出接口'));
-    clipView.props.onPointerDown({ button: 0, clientX: beforeClip.cx, clientY: beforeClip.cy, pointerId: 5, target: null });
-    clipView.props.onPointerMove({ clientX: beforeClip.cx, clientY: beforeClip.cy - 400, pointerId: 5, target: null });
+    const clipStart = pointerAt(harness, host, beforeClip);
+    clipView.props.onPointerDown({ button: 0, clientX: clipStart.clientX, clientY: clipStart.clientY, pointerId: 5, target: null });
+    clipView.props.onPointerMove({ clientX: clipStart.clientX, clientY: clipStart.clientY - 400, pointerId: 5, target: null });
     clipView.props.onPointerUp({ pointerId: 5, target: null });
     host = await harness.settle(render);
     const clipped = boxMetrics(cardOf(host, '导出接口'));
@@ -1882,12 +1911,18 @@ test('the canvas remembers its zoom across remounts for the same session', async
     toolByLabel(harness, host, '鱼骨').props.onClick();
     host = await harness.settle(panelRender(registered, 'session-zoom-a', props));
     assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '112%', 'tidying does not change zoom');
-    assert.equal(String(stageOf(host).props.style.transform), savedTransform, 'tidying keeps the same camera position');
+    const tidiedTransform = String(stageOf(host).props.style.transform);
+    assert.match(tidiedTransform, /scale\(1\.12\)/, 'tidying keeps the current zoom');
+    assert.notEqual(tidiedTransform, savedTransform, 'tidying recenters the camera on the Lead');
+    const tidiedLead = leadScreenCenter(harness, host);
+    const tidiedViewH = Number(String(viewOf(host).props.style.height).replace('px', ''));
+    assert.ok(Math.abs(tidiedLead.x - 170) < 8, 'after a tidy the Lead is horizontally centered in the view');
+    assert.ok(Math.abs(tidiedLead.y - tidiedViewH / 2) < 8, 'after a tidy the Lead is vertically centered in the view');
 
     harness.reset();
     host = await harness.settle(panelRender(registered, 'session-zoom-a', props));
     assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '112%', 'the same session remounts at 112%');
-    assert.equal(String(stageOf(host).props.style.transform), savedTransform, 'remount restores zoom and pan');
+    assert.equal(String(stageOf(host).props.style.transform), tidiedTransform, 'remount restores zoom and the recentered pan');
 
     harness.reset();
     host = await harness.settle(panelRender(registered, 'session-zoom-b', props));
@@ -1935,94 +1970,115 @@ test('the graph viewport stays short enough to reach artifacts below', async () 
 });
 
 /**
- * Zoom / layout tools sit on the canvas, horizontally centered just below the
- * Lead, and they follow the Lead when that card is dragged.
+ * Zoom / layout tools live in the top bar again. Clicking a tidy preset or ⟲
+ * keeps the current zoom and recenters the viewport on the Lead.
  */
-test('the graph tools sit on the canvas and stay centered on the Lead', async () => {
+test('tidying recenters the board on the Lead and leaves the tools in the top bar', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
   const { ctx, registered } = createClientContext();
   instance.apply(ctx);
 
-  const props = {
-    now: () => 1700000000000,
-    loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
-    useProjection: (key) => (key === 'subagentCatalog' ? [
-      { id: 'child-a', mode: 'one-shot', label: 'pm · 写规格', createdAt: 1 },
-      { id: 'child-b', mode: 'continuable', label: 'architect · 出方案', createdAt: 2 },
-    ] : undefined),
-    useSessions: (selector) => selector({ byId: {}, projectionsBySession: {} }),
-    useSessionStatus: (selector) => selector(new Map()),
-    openSession: () => {},
-    openFile: () => {},
+  const { storage } = isolatedStorage();
+  const previousWindow = globalThis.window;
+  const selections = [];
+  globalThis.window = {
+    localStorage: storage,
+    getSelection: () => ({
+      removeAllRanges: () => { selections.push('cleared'); },
+    }),
   };
-  const render = panelRender(registered, 'session-tools-lead', props);
-  const viewOf = (host) => harness.collect(host, harness.byClass('stwd-graph-view'))[0];
-  const toolsOf = (host) => harness.collect(host, harness.byClass('stwd-graph-tools'))[0];
-  const leadScreen = (host) => {
-    const lead = boxMetrics(harness.collect(host, harness.byClass('stwd-leadnode'))[0]);
-    const transform = String(harness.collect(host, harness.byClass('stwd-graph-stage'))[0].props.style.transform);
-    const match = transform.match(/translate\((-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px\) scale\((-?\d+(?:\.\d+)?)\)/);
-    const vx = match ? Number(match[1]) : 0;
-    const vy = match ? Number(match[2]) : 0;
-    const zoom = match ? Number(match[3]) : 1;
-    return {
-      x: lead.cx * zoom + vx,
-      y: (lead.top + lead.height) * zoom + vy,
-      cx: lead.cx * zoom + vx,
-      cy: lead.cy * zoom + vy,
+  try {
+    const props = {
+      now: () => 1700000000000,
+      loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+      useProjection: (key) => (key === 'subagentCatalog' ? [
+        { id: 'child-a', mode: 'one-shot', label: 'pm · 写规格', createdAt: 1 },
+        { id: 'child-b', mode: 'continuable', label: 'architect · 出方案', createdAt: 2 },
+      ] : undefined),
+      useSessions: (selector) => selector({ byId: {}, projectionsBySession: {} }),
+      useSessionStatus: (selector) => selector(new Map()),
+      openSession: () => {},
+      openFile: () => {},
     };
-  };
+    const render = panelRender(registered, 'session-tools-lead', props);
+    const viewOf = (host) => harness.collect(host, harness.byClass('stwd-graph-view'))[0];
+    const stageOf = (host) => harness.collect(host, harness.byClass('stwd-graph-stage'))[0];
 
-  let host = await harness.settle(render);
-  const view = viewOf(host);
-  const tools = toolsOf(host);
-  assert.ok(tools, 'the tool cluster is rendered');
-  assert.equal(harness.collect([view], harness.byClass('stwd-graph-tools')).length, 1, 'the tools live inside the graph view');
-  const bar = harness.collect(host, harness.byClass('stwd-graph-bar'))[0];
-  assert.equal(harness.collect([bar], harness.byClass('stwd-graph-tools')).length, 0, 'the tools are no longer in the top bar');
-  assert.deepEqual(
-    harness.collect(host, harness.byClass('stwd-graph-tool')).map(harness.textOf),
-    ['−', '100%', '+', '⤢', '辐射', '鱼骨', '树状', '⟲'],
-    'the zoom, layout presets and re-layout controls keep their labels',
-  );
-  const viewHeight = Number(String(view.props.style.height).replace('px', ''));
-  const toolsLeft = pxOf(tools, 'left');
-  const toolsTop = pxOf(tools, 'top');
-  assert.ok(toolsLeft >= 0 && toolsLeft <= 340, 'clamped tools stay horizontally inside the view');
-  assert.ok(toolsTop >= 0 && toolsTop <= viewHeight, 'clamped tools stay vertically inside the view');
+    let host = await harness.settle(render);
+    const view = viewOf(host);
+    const bar = harness.collect(host, harness.byClass('stwd-graph-bar'))[0];
+    assert.equal(harness.collect([bar], harness.byClass('stwd-graph-tools')).length, 1, 'the tools live in the top bar');
+    assert.equal(harness.collect([view], harness.byClass('stwd-graph-tools')).length, 0, 'the tools are not overlaid on the canvas');
+    assert.deepEqual(
+      harness.collect(host, harness.byClass('stwd-graph-tool')).map(harness.textOf),
+      ['−', '100%', '+', '⤢', '辐射', '鱼骨', '树状', '⟲'],
+      'the zoom, layout presets and re-layout controls keep their labels',
+    );
 
-  // Stretch the viewport so the cluster can sit below the Lead without clamping.
-  const handle = harness.collect(host, harness.byClass('stwd-graph-resize'))[0];
-  const startHeight = Number(String(view.props.style.height).replace('px', ''));
-  handle.props.onPointerDown({ button: 0, clientY: 400, pointerId: 10, stopPropagation() {}, preventDefault() {} });
-  handle.props.onPointerMove({ clientY: 400 + 200, pointerId: 10, stopPropagation() {} });
-  handle.props.onPointerUp({ pointerId: 10, stopPropagation() {} });
-  host = await harness.settle(render);
-  assert.ok(Number(String(viewOf(host).props.style.height).replace('px', '')) >= startHeight + 200, 'the taller viewport leaves room under the Lead');
+    // Pan the camera away, then zoom in, then tidy.
+    view.props.onPointerDown({ button: 0, clientX: 200, clientY: 80, pointerId: 31, target: null, preventDefault() {} });
+    view.props.onPointerMove({ clientX: 80, clientY: 20, pointerId: 31, target: null, preventDefault() {} });
+    view.props.onPointerUp({ pointerId: 31, target: null });
+    host = await harness.settle(render);
+    toolByLabel(harness, host, '放大').props.onClick();
+    host = await harness.settle(render);
+    assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '112%');
+    const panned = String(stageOf(host).props.style.transform);
 
-  // Drag the Lead into the viewport so the cluster can sit on its center.
-  const start = leadScreen(host);
-  viewOf(host).props.onPointerDown({ button: 0, clientX: start.cx, clientY: start.cy, pointerId: 11, target: null });
-  viewOf(host).props.onPointerMove({ clientX: 170, clientY: start.cy, pointerId: 11, target: null });
-  viewOf(host).props.onPointerUp({ pointerId: 11, target: null });
-  host = await harness.settle(render);
-  const placed = leadScreen(host);
-  const placedTools = toolsOf(host);
-  assert.ok(Math.abs(pxOf(placedTools, 'left') - placed.x) < 2, 'tools are horizontally centered on the Lead');
-  assert.ok(pxOf(placedTools, 'top') >= placed.y, 'tools sit below the Lead');
-  assert.ok(pxOf(placedTools, 'top') <= placed.y + 16, 'tools sit just below the Lead with a small gap');
+    toolByLabel(harness, host, '鱼骨').props.onClick();
+    host = await harness.settle(render);
+    assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '112%', 'tidying does not change zoom');
+    assert.notEqual(String(stageOf(host).props.style.transform), panned, 'tidying moves the camera');
+    let lead = leadScreenCenter(harness, host);
+    let viewH = Number(String(viewOf(host).props.style.height).replace('px', ''));
+    assert.ok(Math.abs(lead.x - 170) < 8, 'the Lead is horizontally centered after a preset');
+    assert.ok(Math.abs(lead.y - viewH / 2) < 8, 'the Lead is vertically centered after a preset');
 
-  viewOf(host).props.onPointerDown({ button: 0, clientX: placed.cx, clientY: placed.cy, pointerId: 12, target: null });
-  viewOf(host).props.onPointerMove({ clientX: placed.cx + 36, clientY: placed.cy, pointerId: 12, target: null });
-  viewOf(host).props.onPointerUp({ pointerId: 12, target: null });
-  host = await harness.settle(render);
-  const after = leadScreen(host);
-  const movedTools = toolsOf(host);
-  assert.ok(Math.abs(pxOf(movedTools, 'left') - after.x) < 2, 'tools follow the Lead after a drag');
-  assert.ok(pxOf(movedTools, 'top') >= after.y);
-  assert.ok(pxOf(movedTools, 'top') <= after.y + 16);
+    // Drag a card, then ⟲: cards snap back and the camera recenters again.
+    const card = harness.collect(host, harness.byClass('stwd-gnode'))[0];
+    const start = boxMetrics(card);
+    const cardStart = pointerAt(harness, host, start);
+    viewOf(host).props.onPointerDown({ button: 0, clientX: cardStart.clientX, clientY: cardStart.clientY, pointerId: 32, target: null, preventDefault() {} });
+    viewOf(host).props.onPointerMove({ clientX: cardStart.clientX + 80, clientY: cardStart.clientY + 40, pointerId: 32, target: null, preventDefault() {} });
+    viewOf(host).props.onPointerUp({ pointerId: 32, target: null });
+    host = await harness.settle(render);
+    viewOf(host).props.onPointerDown({ button: 0, clientX: 40, clientY: 40, pointerId: 33, target: null, preventDefault() {} });
+    viewOf(host).props.onPointerMove({ clientX: 140, clientY: 10, pointerId: 33, target: null, preventDefault() {} });
+    viewOf(host).props.onPointerUp({ pointerId: 33, target: null });
+    host = await harness.settle(render);
+    toolByLabel(harness, host, '重新布局').props.onClick();
+    host = await harness.settle(render);
+    assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-graph-zoom'))[0]), '112%', '⟲ keeps the current zoom');
+    lead = leadScreenCenter(harness, host);
+    viewH = Number(String(viewOf(host).props.style.height).replace('px', ''));
+    assert.ok(Math.abs(lead.x - 170) < 8, '⟲ centers the Lead horizontally');
+    assert.ok(Math.abs(lead.y - viewH / 2) < 8, '⟲ centers the Lead vertically');
+
+    const prevented = { down: false };
+    viewOf(host).props.onPointerDown({
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+      pointerId: 34,
+      target: null,
+      preventDefault: () => { prevented.down = true; },
+    });
+    viewOf(host).props.onPointerMove({
+      clientX: 50,
+      clientY: 40,
+      pointerId: 34,
+      target: null,
+      preventDefault: () => {},
+    });
+    viewOf(host).props.onPointerUp({ pointerId: 34, target: null });
+    assert.ok(prevented.down, 'a canvas drag suppresses the native text-selection default');
+    assert.ok(selections.length > 0, 'a canvas drag clears an existing text selection');
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
 });
 
 test('the graph viewport can be dragged taller without burying artifacts', async () => {
