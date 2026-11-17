@@ -5,6 +5,18 @@
 
 > 对照 [ROADMAP.md](ROADMAP.md) §6 的交付表逐项记录：项 / 状态 / 证据 / 备注。状态 ∈ 未开始 / 进行中 / 已实现 / 部分实现。证据以真实命令输出为准。
 
+## MiniMax 侧 Mini App 与子代理模型配置页修复（清单 description 超长 + 包根定位）— 2026-11-17
+
+> 用户反馈「用 minimax 开发这一侧的插件，但没法启动这个 miniapp，设置也没法设置这些子代理的模型和思考等级」。定位：两条症状都落在 MiniMax 侧插件包上——Mini App 打不开的根因是宿主对清单 `description` 的长度上限（超长即整包被拒，宿主一次都不请求页面）；本地配置页 500 的根因是安装布局下包根定位多退两级。
+
+| # | 交付 | 状态 | 证据 | 备注 |
+|---|---|---|---|---|
+| MX7 | Mini App 可打开（清单 description 精简 + 常驻守卫） | 已实现 | `minimax/.minimax-plugin/plugin.json` description 2341 → 686 字；实测边界 2341 失败 / 1905 通过；`host/minimax/tests/manifest-guard.test.mjs` 3 例（≤1200 字 / 无重复长句 / 声明文件存在） | 宿主拒包只给 `RUNTIME_FAILED` / `start_failed`，且不请求页面 |
+| MX8 | 本地配置页可打开（包根定位 + 页面资产） | 已实现 | `zcode/scripts/agent-config-core.mjs` `PACKAGE_ROOTS` 两候选 + `resolveClientDir({packageRoots})`；`agent-config.test.mjs` 新增 2 例 | 安装布局与源码仓布局都命中 |
+| MX9 | Mini App 页面资源路由 + 默认值回退 | 已实现 | 客户端根绝对路径 + 服务端根/前缀双路由（`host/minimax/tests/miniapp-server.test.mjs` 8 例）；`readPackagedDefaults()` 从包内 `agents/<role>.md` 读 model/effort，`buildState` 回退（2 例） | 页面显示 7 个角色当前模型/档位与来源「插件默认」 |
+| MX10 | 宿主内打开与写入闭环 | 已实现 | `miniapp publish` + `miniapp open steward` → `opened: true`；请求台账 `/steward` `/app.css` `/app.js` `/api/state` 全 200；UI 改模型/档位后保存 → `steward.config.json` 落盘（校验器 PASS） | 保存范围「只写项目级 / 只写插件默认 / 两者都写」按页面口径 |
+| MX11 | 门禁复跑与版本随列车推进 | 已实现 | `build.mjs` PASS；`zcode/scripts/tests/` 97 pass；`host/minimax/tests/` 33 pass；`host/dsh/build.mjs` PASS；`host/dsh/tests/` 100 pass；MiniMax 1.4.1 = DSH 1.4.1，ZCode 1.3.2 不领先列车 | 唯一 warning：两宿主版本不一致（按设计，ZCode 不领先列车） |
+
 ## 通用 harness 技能对齐 DSH 1.3.0（文档就绪硬门通用化）— 2026-11-17
 
 > DSH / MiniMax / ZCode 三侧的「文档入口拆分 + 文档就绪硬门」已在 1.2.0–1.3.0 落地；通用 harness 侧（不装整包、直接投放 `shared/skills/` 下 4 个宿主无关技能的任意 harness）此前停在 DSH 0.9.0 的文档治理口径。本节把就绪硬门通用化并去掉宿主专有字段名。

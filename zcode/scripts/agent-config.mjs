@@ -16,6 +16,7 @@
 import http from 'node:http';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
@@ -33,8 +34,28 @@ import {
 
 /** 本脚本所在目录（安装后的插件目录里也能跑） */
 const HERE = import.meta.dirname;
-/** 包根：zcode/scripts 的上两级 */
-const PACKAGE_ROOT = resolve(HERE, '..', '..');
+/**
+ * 包根候选：安装后的插件包里脚本在 <包根>/scripts/ 下（上一级即包根）；
+ * 源码仓里脚本在 <仓库>/zcode/scripts/ 下（上两级即仓库根）。两种布局都要能命中。
+ */
+const PACKAGE_ROOTS = [resolve(HERE, '..'), resolve(HERE, '..', '..')];
+
+/**
+ * 当前所在的插件包根（含 agents/ 与 skills/）：安装后是 scripts 的上一级，
+ * 源码仓里是 zcode/scripts 的上两级。用于在「找不到源码仓库」时仍能读到
+ * 插件默认分配（包内 agents/<role>.md 的 frontmatter）。
+ * @returns {string | null}
+ */
+function packageRootOf() {
+  for (const root of PACKAGE_ROOTS) {
+    try {
+      if (existsSync(join(root, 'agents'))) return root;
+    } catch {
+      // 不可读就试下一个候选
+    }
+  }
+  return null;
+}
 
 const PLUGIN_NAME = 'steward';
 const DEFAULT_PORT = 7317;
@@ -174,6 +195,7 @@ function cmdShow(args) {
   const state = buildState({
     projectRoot: projectOf(args),
     repoRoot: repoOf(args),
+    packageRoot: packageRootOf(),
     configPath: typeof args.config === 'string' ? args.config : undefined,
   });
   if (args.json) {
@@ -308,7 +330,9 @@ function cmdServe(args) {
 
   const projectDir = projectOf(args);
   const repoDir = repoOf(args, projectDir);
-  const clientDir = resolveClientDir({ packageRoot: PACKAGE_ROOT, repoRoot: repoDir });
+  const clientDir = PACKAGE_ROOTS
+    .map((root) => resolveClientDir({ packageRoot: root, repoRoot: repoDir }))
+    .find((dir) => Boolean(dir)) || null;
   if (!clientDir) {
     console.error('[agent-config] 警告：未找到页面资产目录（期望 host/minimax/miniapp/client/index.html）；'
       + '/ 已经可用，但 / 会返回 500。');

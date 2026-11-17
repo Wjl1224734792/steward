@@ -14,7 +14,7 @@
  * 端口：只用宿主分配的 context.listen.host / context.listen.port（宿主带端口鉴权守卫），
  * 自己绝不选端口。运行状态写 context.dataDir，绝不写 pluginRoot。
  */
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, normalize, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -35,16 +35,34 @@ export async function start(context) {
 
   // 宿主按 miniapp.json 的 surface.path 打开页面（例如 /settings），该路径必须能拿到首页；
   // 这里从清单里读出真实路径一并服务，避免「清单写 /settings、只服务 /」导致宿主打开就是 404。
+  // 带尾斜杠的形式（/settings/）也要命中：宿主用哪种形式打开，决定页面里相对资源引用的解析位置。
   const surfacePaths = new Set(['/', '/index.html']);
+  let surfacePrefix = '';
   try {
     const manifest = JSON.parse(await readFile(join(context.pluginRoot, 'miniapp', 'miniapp.json'), 'utf8'));
     const declared = typeof manifest?.surface?.path === 'string' ? manifest.surface.path.trim() : '';
-    if (declared && declared.startsWith('/')) surfacePaths.add(declared);
+    if (declared && declared.startsWith('/')) {
+      surfacePrefix = declared.replace(/\/+$/, '');
+      surfacePaths.add(surfacePrefix);
+      surfacePaths.add(surfacePrefix + '/');
+    }
   } catch (error) {
     if (typeof context.logger.warn === 'function') {
       context.logger.warn('miniapp.manifest.surface_unreadable', { message: String(error?.message ?? error) });
     }
   }
+
+  // 请求台账：写 context.dataDir（宿主拥有的运行态目录），用于核对宿主到底请求了哪些路径、拿到什么状态。
+  // 只记方法、路径与资源名，不记凭据与业务内容；条数有上限，避免日志无限增长。
+  const logFile = join(context.dataDir, 'requests.log');
+  let logCount = 0;
+  const logRecord = (record) => {
+    if (logCount >= 300) return;
+    logCount += 1;
+    const line = JSON.stringify({ ts: new Date().toISOString(), ...record }) + '\n';
+    void appendFile(logFile, line, 'utf8').catch(() => {});
+  };
+  logRecord({ event: 'start', pluginRoot: context.pluginRoot, clientRoot, surfacePath: surfacePrefix });
 
   // 核心模块必须从运行副本定位：源码目录里没有 scripts/，构建后才会有。
   const coreUrl = pathToFileURL(join(context.pluginRoot, 'scripts', 'agent-config-core.mjs')).href;
@@ -71,9 +89,13 @@ export async function start(context) {
 
   // 核心模块的处理器签名是原生 (req, res) => void，直接复用同一套路由与校验规则，
   // 保证 Mini App 与本地页（agent-config.mjs serve）行为一致。
+  // 仓库根：从进程工作目录向上找源码仓库；找不到也能读包内 agent frontmatter
+  // （Mini App 跑在宿主暂存的包副本里，这是常态）。
+  const repoRoot = typeof core.resolveRepoRoot === 'function' ? core.resolveRepoRoot(process.cwd()) : null;
   const coreHandler = core.createRequestHandler({
     pluginRoot: context.pluginRoot,
-    repoRoot: null,
+    packageRoot: context.pluginRoot,
+    repoRoot,
     clientDir: clientRoot,
   });
 
@@ -86,17 +108,24 @@ export async function start(context) {
       // 静态白名单优先：非白名单的页面路径一律 404，绝不放行到任意文件。
       if ((method === 'GET' || method === 'HEAD') && surfacePaths.has(path)) {
         sendAsset(assets, response, 'index.html', method);
+        logRecord({ event: 'asset', method, path, file: 'index.html' });
         return;
       }
-      if ((method === 'GET' || method === 'HEAD') && (path === '/app.css' || path === '/app.js')) {
-        sendAsset(assets, response, path.slice(1), method);
+      // 资源在根路径与 surface 前缀下都提供：宿主以 /settings 打开时相对引用解析到根，
+      // 以 /settings/ 打开时解析到前缀，两种都得能取到资源，否则页面空白。
+      const assetName = resolveAssetName(path, surfacePrefix);
+      if ((method === 'GET' || method === 'HEAD') && assetName) {
+        sendAsset(assets, response, assetName, method);
+        logRecord({ event: 'asset', method, path, file: assetName });
         return;
       }
       if (path === '/api/state' || path === '/api/save') {
         coreHandler(request, response);
+        logRecord({ event: 'api', method, path });
         return;
       }
       sendJson(response, 404, { ok: false, error: 'not_found', message: '未找到该路径' });
+      logRecord({ event: 'miss', method, path });
     } catch (error) {
       context.logger.error('miniapp.request.failed', { message: String(error?.message ?? error) });
       if (!response.headersSent) {
@@ -108,6 +137,7 @@ export async function start(context) {
   });
 
   await listen(server, context.listen.host, context.listen.port);
+  logRecord({ event: 'listening', host: context.listen.host, port: context.listen.port, assets: assets.size });
   context.logger.info('miniapp.steward.settings.listening', { assets: assets.size });
 
   let disposed = false;
@@ -131,6 +161,22 @@ export async function start(context) {
   }
 
   return { dispose };
+}
+
+/**
+ * 把请求路径解析成白名单内的资源文件名：根路径与 surface 前缀都接受，其余一律不认。
+ * @param {string} path 请求路径
+ * @param {string} surfacePrefix 清单里的 surface.path（已去掉尾斜杠）
+ * @returns {string | null} 白名单内的文件名，或 null（不在白名单）
+ */
+function resolveAssetName(path, surfacePrefix) {
+  const prefixes = surfacePrefix ? [surfacePrefix + '/', '/'] : ['/'];
+  for (const prefix of prefixes) {
+    if (!path.startsWith(prefix)) continue;
+    const name = path.slice(prefix.length);
+    if (CLIENT_ASSETS.has(name)) return name;
+  }
+  return null;
 }
 
 /**

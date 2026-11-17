@@ -1,4 +1,8 @@
 {
+  "name": "steward",
+  "version": "1.4.1",
+  "private": true,
+  "type": "module",
   "mcode": {
     "schemaVersion": 2,
     "miniApp": "./miniapp/miniapp.json"

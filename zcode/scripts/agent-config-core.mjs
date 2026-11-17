@@ -59,7 +59,11 @@ const BOM = String.fromCharCode(0xfeff);
 
 /** 本模块所在目录（用于找 validate-config.mjs）与包根 */
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PACKAGE_ROOT = resolve(HERE, '..', '..');
+/**
+ * 包根候选：安装后的插件包里本模块在 <包根>/scripts/ 下（上一级即包根）；
+ * 源码仓里本模块在 <仓库>/zcode/scripts/ 下（上两级即仓库根）。两种布局都要能命中。
+ */
+const PACKAGE_ROOTS = [resolve(HERE, '..'), resolve(HERE, '..', '..')];
 
 // ============================================================================
 // YAML 子集解析
@@ -771,9 +775,14 @@ export function resolveClientDir(options) {
     if (!base) return;
     candidateList.push(join(resolve(base), ...parts));
   };
-  push(opts.packageRoot, ['host', 'minimax', 'miniapp', 'client']);
-  push(opts.packageRoot, ['miniapp', 'client']);
-  push(opts.packageRoot, ['client']);
+  const roots = Array.isArray(opts.packageRoots)
+    ? opts.packageRoots
+    : (opts.packageRoot ? [opts.packageRoot] : []);
+  for (const root of roots) {
+    push(root, ['host', 'minimax', 'miniapp', 'client']);
+    push(root, ['miniapp', 'client']);
+    push(root, ['client']);
+  }
   push(opts.repoRoot, ['host', 'minimax', 'miniapp', 'client']);
   for (const dir of candidateList) {
     try {
@@ -864,6 +873,63 @@ export function readPluginDefaults(repoRoot) {
     for (const role of ROLES) if (parsed[role]) roster[role] = parsed[role];
   }
 
+  return { ok: errors.length === 0, root, agents, roster, errors };
+}
+
+/**
+ * 读取「已安装插件包」里的 agent 默认分配。
+ *
+ * 为什么需要：Mini App 运行时跑在宿主暂存的包副本里（没有源码仓库），
+ * 这时若只读仓库里的 host/minimax/agents/*.frontmatter.md，页面会把每个角色显示成
+ * 「未指定模型」——看起来像没配过。包里 agents/<role>.md 的 frontmatter 就是 build
+ * 渲染出来的默认值，与源码同源，所以可以直接读它。
+ *
+ * @param {string} packageRoot 插件包根（含 agents/ 与 skills/steward/roster.md）
+ * @returns {{ ok: boolean, root: string | null, agents: object, roster: object, errors: string[] }}
+ */
+export function readPackagedDefaults(packageRoot) {
+  const root = packageRoot ? resolve(packageRoot) : null;
+  const agents = {};
+  const roster = {};
+  const errors = [];
+  for (const role of ROLES) {
+    agents[role] = { model: null, effort: null, displayName: ROLE_LABELS[role] };
+    roster[role] = { model: null, effort: null };
+  }
+  if (!root) {
+    errors.push('未提供插件包根');
+    return { ok: false, root: null, agents, roster, errors };
+  }
+  for (const role of ROLES) {
+    const file = join(root, 'agents', role + '.md');
+    if (!existsSync(file)) { errors.push('包内缺少 agent 文件：' + file); continue; }
+    let text = '';
+    try {
+      text = readFileSync(file, 'utf8');
+    } catch (e) {
+      errors.push('读取 ' + file + ' 失败：' + e.message);
+      continue;
+    }
+    const parts = splitFrontmatter(text);
+    if (parts.fm === null) { errors.push(file + ' 缺 frontmatter（--- 块）'); continue; }
+    agents[role] = {
+      model: readFrontmatterField(parts.fm, 'model'),
+      effort: readFrontmatterField(parts.fm, 'effort'),
+      displayName: readDisplayName(parts.fm) || ROLE_LABELS[role],
+    };
+  }
+  // 名册表：包里没有也不算错（agent frontmatter 才是权威来源），有就一并读。
+  const rosterPath = join(root, 'skills', 'steward', 'roster.md');
+  if (existsSync(rosterPath)) {
+    let text = '';
+    try {
+      text = readFileSync(rosterPath, 'utf8');
+    } catch (e) {
+      errors.push('读取 ' + rosterPath + ' 失败：' + e.message);
+    }
+    const parsed = parseRoster(text);
+    for (const role of ROLES) if (parsed[role]) roster[role] = parsed[role];
+  }
   return { ok: errors.length === 0, root, agents, roster, errors };
 }
 
@@ -1151,7 +1217,7 @@ function projectEntry(projectConfig, role) {
  *
  * 生效优先级：项目级 modelRouting > 插件 frontmatter 默认 > 无。
  *
- * @param {{ projectRoot?: string, repoRoot?: string, configPath?: string }} [options] 起点
+ * @param {{ projectRoot?: string, repoRoot?: string, packageRoot?: string, configPath?: string }} [options] 起点
  * @returns {object} state
  */
 export function buildState(options) {
@@ -1162,9 +1228,20 @@ export function buildState(options) {
   const projectCfg = readProjectConfig(projectDir);
   const detectedRepo = opts.repoRoot ? resolve(opts.repoRoot) : resolveRepoRoot(projectDir);
   const repoOk = Boolean(detectedRepo && isRepoRoot(detectedRepo));
-  const plugin = repoOk
-    ? readPluginDefaults(detectedRepo)
-    : { ok: false, root: null, agents: {}, roster: {}, errors: ['未找到 Steward 源码仓库'] };
+  // 插件默认值有两个来源：源码仓库（host/minimax/agents/*.frontmatter.md）与
+  // 已安装插件包（agents/<role>.md，build 渲染产物）。后者在 Mini App 场景下是唯一可用的来源。
+  let plugin;
+  let pluginSource;
+  if (repoOk) {
+    plugin = readPluginDefaults(detectedRepo);
+    pluginSource = 'repo';
+  } else if (opts.packageRoot) {
+    plugin = readPackagedDefaults(opts.packageRoot);
+    pluginSource = 'package';
+  } else {
+    plugin = { ok: false, root: null, agents: {}, roster: {}, errors: ['未找到 Steward 源码仓库'] };
+    pluginSource = 'none';
+  }
 
   const roles = ROLES.map((role) => {
     const pluginAgent = (plugin.agents && plugin.agents[role]) || {};
@@ -1205,6 +1282,7 @@ export function buildState(options) {
     generatedAt: localIsoString(),
     project: { root: projectDir, configPath: projectCfg.path, exists: projectCfg.exists },
     repo: { root: detectedRepo, detected: repoOk },
+    plugin: { ok: plugin.ok, root: plugin.root, source: pluginSource, errors: plugin.errors || [] },
     catalog: { ok: catalog.ok, source: catalog.source, warning: catalog.warning, models: catalog.models },
     roles,
   };
@@ -1310,10 +1388,11 @@ export function createRequestHandler(options) {
   const opts = options || {};
   const projectRoot = opts.projectRoot;
   const repoRoot = opts.repoRoot;
+  const packageRoot = opts.packageRoot;
   const configPath = opts.configPath;
   let busy = false;
   const client = opts.clientDir || resolveClientDir({
-    packageRoot: PACKAGE_ROOT,
+    packageRoots: PACKAGE_ROOTS,
     repoRoot: repoRoot || resolveRepoRoot(projectRoot || process.cwd()),
   });
 
@@ -1455,7 +1534,7 @@ export function createRequestHandler(options) {
     if (pathname === '/api/state') {
       if (method !== 'GET' && method !== 'HEAD') { sendJson(res, 405, { ok: false, errors: ['/api/state 只支持 GET'] }); return; }
       try {
-        sendJson(res, 200, buildState({ projectRoot, repoRoot, configPath }));
+        sendJson(res, 200, buildState({ projectRoot, repoRoot, packageRoot, configPath }));
       } catch (e) {
         sendJson(res, 500, { ok: false, errors: ['读取状态失败：' + e.message] });
       }

@@ -26,6 +26,7 @@ import {
   loadCatalog,
   mirrorDir,
   parseYaml,
+  readPackagedDefaults,
   readPluginDefaults,
   readProjectConfig,
   resolveClientDir,
@@ -764,6 +765,70 @@ describe('readPluginDefaults / resolveRepoRoot / resolveClientDir', () => {
     assert.equal(resolveClientDir({ packageRoot: dir }), clientDir);
     const empty = makeTemp('client-empty');
     assert.equal(resolveClientDir({ packageRoot: empty }), null);
+  });
+
+  test('readPackagedDefaults：从包内 agents/<role>.md 读出 model / effort / displayName', () => {
+    // Mini App 跑在宿主暂存的包副本里，没有源码仓库；包内 agent frontmatter 是默认值来源。
+    const pkg = makeTemp('packaged-defaults');
+    mkdirSync(join(pkg, 'agents'), { recursive: true });
+    // 包里 7 个角色文件都在才算读全（Mini App 的暂存包就是这样）
+    for (const role of ROLES) {
+      const lines = ['---', 'name: ' + role, 'description: "角色 ' + role + '"'];
+      if (role === 'pm') {
+        lines.push('model: "custom_provider:provider-aaaa/step-5-preview"', 'effort: "high"', 'x-mavis:', '  displayName: 需求分析师 PM');
+      } else if (role === 'reviewer') {
+        lines.push('model: "minimax/MiniMax-M3"');
+      } else {
+        lines.push('model: "minimax/MiniMax-M3.1-Flash"', 'effort: "low"');
+      }
+      lines.push('---', '', '正文', '');
+      writeFileSync(join(pkg, 'agents', role + '.md'), lines.join('\n'), 'utf8');
+    }
+    const res = readPackagedDefaults(pkg);
+    assert.equal(res.ok, true);
+    assert.equal(res.agents.pm.model, 'custom_provider:provider-aaaa/step-5-preview');
+    assert.equal(res.agents.pm.effort, 'high');
+    assert.equal(res.agents.pm.displayName, '需求分析师 PM');
+    assert.equal(res.agents.reviewer.model, 'minimax/MiniMax-M3');
+    assert.equal(res.agents.reviewer.effort, null);
+    assert.equal(res.agents['backend-dev'].model, 'minimax/MiniMax-M3.1-Flash');
+    assert.equal(res.agents['backend-dev'].effort, 'low');
+  });
+
+  test('buildState：没有源码仓库时用包内默认值兜底（来源标为 package）', () => {
+    const pkg = makeTemp('packaged-state');
+    mkdirSync(join(pkg, 'agents'), { recursive: true });
+    for (const role of ROLES) {
+      const lines = ['---', 'name: ' + role, 'description: "角色 ' + role + '"'];
+      if (role === 'pm') lines.push('model: "minimax/MiniMax-M3"', 'effort: "medium"');
+      else lines.push('model: "minimax/MiniMax-M3.1-Flash"');
+      lines.push('---', '', '正文', '');
+      writeFileSync(join(pkg, 'agents', role + '.md'), lines.join('\n'), 'utf8');
+    }
+    const project = makeTemp('packaged-state-project');
+    const state = buildState({ projectRoot: project, packageRoot: pkg, repoRoot: null });
+    assert.equal(state.repo.detected, false);
+    assert.equal(state.plugin.source, 'package');
+    const pm = state.roles.find((r) => r.role === 'pm');
+    assert.equal(pm.model, 'minimax/MiniMax-M3');
+    assert.equal(pm.effort, 'medium');
+    assert.equal(pm.source, 'plugin');
+  });
+
+  test('resolveClientDir：安装后的包布局（scripts 的上一级即包根）也能命中 miniapp/client', () => {
+    // 安装布局：<包根>/scripts/agent-config*.mjs + <包根>/miniapp/client/index.html
+    const packageRoot = makeTemp('installed-layout');
+    mkdirSync(join(packageRoot, 'scripts'), { recursive: true });
+    const clientDir = join(packageRoot, 'miniapp', 'client');
+    mkdirSync(clientDir, { recursive: true });
+    writeFileSync(join(clientDir, 'index.html'), '<!doctype html>', 'utf8');
+    // 只给上一级作为包根时，必须命中（这正是安装后 serve 找不到页面、/ 返回 500 的根因）
+    assert.equal(resolveClientDir({ packageRoots: [packageRoot] }), clientDir);
+    // 多个候选包根时取第一个命中的
+    const other = makeTemp('installed-layout-other');
+    assert.equal(resolveClientDir({ packageRoots: [other, packageRoot] }), clientDir);
+    // 旧接口 packageRoot 仍可用
+    assert.equal(resolveClientDir({ packageRoot: packageRoot }), clientDir);
   });
 });
 

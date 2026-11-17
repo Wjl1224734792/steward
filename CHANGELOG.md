@@ -6,6 +6,33 @@
 
 （暂无。发布下一个版本前，把本节条目移入对应版本小节。）
 
+## [ZCode 1.3.2 / MiniMax 1.4.1 / DSH 1.4.1] - 2026-11-17
+
+> **MiniMax 侧 Mini App 起不来 + 子代理模型配置页失效的根因修复（跨宿主）**：Steward 的 Mini App 一直打不开（`miniapp open` 报 `RUNTIME_FAILED`），「设置里改不了子代理模型 / 思考强度」的本地配置页也打不开（`/` 返回 500）。两条症状都在同一个插件包上，但根因不同，本版一次修掉：① 宿主对插件清单 `description` 有长度上限，**超长即整包被拒**——本仓库该字段 2341 字且英文段被拼了两遍，宿主因此从未拉取过板子页面（而运行时本身是健康的：`runtime.ready`、端口在听、页面可服务）；② `agent-config-core.mjs` 的 `PACKAGE_ROOT` 在**安装布局**下多退两级 → 找不到页面资产目录 → 本地页 500。版本随发布列车推进：**MiniMax = DSH 1.4.1，ZCode 1.3.2**（不领先列车）。
+
+### Fixed
+
+- **Mini App 起不来（清单 description 超长 → 宿主拒包）**：`minimax/.minimax-plugin/plugin.json` 的 `description` 由 2341 字精简到 **686 字**（删掉重复的那一份英文段，中英口径保持一致）。实测边界：2341 字失败、1905 字通过、686 字通过。宿主拒包时只给 `RUNTIME_FAILED` / `start_failed` 这类泛化错误，且**一次都不会请求板子页面**。新增 `host/minimax/tests/manifest-guard.test.mjs` 把「≤1200 字 + 不含重复长句 + 声明文件都存在」做成常驻守卫。
+- **本地配置页 `/` 返回 500**：`zcode/scripts/agent-config-core.mjs` 的 `PACKAGE_ROOT` 改为按「`scripts` 的上一级 / 上两级」两个候选取（安装布局与源码仓布局都能命中），`resolveClientDir` 支持 `packageRoots` 数组；`agent-config.mjs` 同步。症状：装好的插件里跑 `serve` 会打印「未找到页面资产目录」。
+- **Mini App 页面资源 404**：宿主可能以 `/steward/`（带尾斜杠）打开页面，此时相对资源引用会解析到前缀下。客户端改用根绝对路径（`/app.css`、`/app.js`），服务端在根路径与 surface 前缀下都提供同一份白名单资源。
+- **Mini App 里每个角色都显示「未指定模型」**：Mini App 跑在宿主暂存的包副本里，读不到源码仓库，读默认值就全空了。新增 `readPackagedDefaults()`——从包内 `agents/<role>.md` 的 frontmatter 读 model / effort（与源码同源），`buildState` 在仓库不可用时自动回退，页面来源列显示「插件默认」。
+- **宿主刷新插件包报 `EBUSY`**：`miniapp publish` 报 `WORKSPACE_INSTALL_FAILED` + `reasonCode: EBUSY`——有进程把插件安装目录当工作目录（典型就是从该目录里跑 `serve`），宿主装不进去。本地页改从仓库目录启动即可绕开。
+
+### Changed
+
+- **Mini App 页面路径**：`host/minimax/miniapp/miniapp.json` 的 `surface.path` 由 `/settings` 改为 `/steward`（`/settings` 与宿主自身设置路由同名易混），页面与服务端路由同步。
+- **包根声明补齐**：`host/minimax/package.json` / `minimax/package.json` 补 `name` / `version` / `private` / `type: module`（此前只有 `mcode` 扩展段），与官方 Mini App 契约一致。
+- **请求台账**：Mini App 节点进程把每个请求（方法 / 路径 / 资源名）写进 `context.dataDir/requests.log`（条数有上限，不记凭据与业务内容）——宿主到底有没有请求你的页面，一眼可辨。
+- **版本**：`minimax/.minimax-plugin/plugin.json` 与 `host/dsh/package.json` 1.4.0 → **1.4.1**（MiniMax 与 DSH 同号）；`zcode/.zcode-plugin/plugin.json` 1.3.1 → **1.3.2**（不领先发布列车）；三处 banner 版本行与两份 README 版本行同步。
+
+### 验证
+
+- `node zcode/scripts/build.mjs` → PASS（唯一 warning：两宿主版本不一致，ZCode 按设计不领先列车）。
+- `node --test zcode/scripts/tests/` → **97 pass / 0 fail**。
+- `node --test host/minimax/tests/` → **33 pass / 0 fail**（含 MiniMax = DSH 同号、ZCode 不领先列车两条版本断言；新增 MiniApp 路由契约 8 例 + 清单守卫 3 例）。
+- `node host/dsh/build.mjs` → PASS；`node --test host/dsh/tests/` → **100 pass / 0 fail**。
+- **宿主内实测**：`miniapp publish` + `miniapp open steward` → `opened: true`；宿主请求台账实录 `/steward`、`/app.css`、`/app.js`、`/api/state` 全部 200；页面渲染 7 个角色、来源列显示「插件默认」；在页面上改模型与档位后点保存 → `POST /api/save` → 页面显示「已保存」→ 目标项目 `steward.config.json` 落盘（校验器 PASS）。
+
 ## [ZCode 1.3.1] - 2026-11-17
 
 > **文档四入口命令化**：ZCode 1.2.0 拆出的四个文档入口此前只有技能形态（靠触发语 + `using-steward` 路由自动命中），本版补齐 ZCode 斜杠命令，与 `/steward:fix` / `:plan` / `:take-over` / `:maintain` / `:inline` 的既有形态对齐；技能描述保留，自动触发兜底不丢。同时修正 `using-steward` 的 ZCode 路由表——拆分时漏更，仍把文档需求指向旧形态「`/steward` + `docTier: 3` 读 `references/doc-pipeline/README.md`」。`steward:docs-rules`（规范总库）与 `steward:docs-governance`（增量层）维持纯技能，不做命令。
