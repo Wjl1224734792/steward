@@ -1935,6 +1935,187 @@ test('the graph viewport stays short enough to reach artifacts below', async () 
 });
 
 /**
+ * Zoom / layout tools sit on the canvas, horizontally centered just below the
+ * Lead, and they follow the Lead when that card is dragged.
+ */
+test('the graph tools sit on the canvas and stay centered on the Lead', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const props = {
+    now: () => 1700000000000,
+    loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+    useProjection: (key) => (key === 'subagentCatalog' ? [
+      { id: 'child-a', mode: 'one-shot', label: 'pm · 写规格', createdAt: 1 },
+      { id: 'child-b', mode: 'continuable', label: 'architect · 出方案', createdAt: 2 },
+    ] : undefined),
+    useSessions: (selector) => selector({ byId: {}, projectionsBySession: {} }),
+    useSessionStatus: (selector) => selector(new Map()),
+    openSession: () => {},
+    openFile: () => {},
+  };
+  const render = panelRender(registered, 'session-tools-lead', props);
+  const viewOf = (host) => harness.collect(host, harness.byClass('stwd-graph-view'))[0];
+  const toolsOf = (host) => harness.collect(host, harness.byClass('stwd-graph-tools'))[0];
+  const leadScreen = (host) => {
+    const lead = boxMetrics(harness.collect(host, harness.byClass('stwd-leadnode'))[0]);
+    const transform = String(harness.collect(host, harness.byClass('stwd-graph-stage'))[0].props.style.transform);
+    const match = transform.match(/translate\((-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px\) scale\((-?\d+(?:\.\d+)?)\)/);
+    const vx = match ? Number(match[1]) : 0;
+    const vy = match ? Number(match[2]) : 0;
+    const zoom = match ? Number(match[3]) : 1;
+    return {
+      x: lead.cx * zoom + vx,
+      y: (lead.top + lead.height) * zoom + vy,
+      cx: lead.cx * zoom + vx,
+      cy: lead.cy * zoom + vy,
+    };
+  };
+
+  let host = await harness.settle(render);
+  const view = viewOf(host);
+  const tools = toolsOf(host);
+  assert.ok(tools, 'the tool cluster is rendered');
+  assert.equal(harness.collect([view], harness.byClass('stwd-graph-tools')).length, 1, 'the tools live inside the graph view');
+  const bar = harness.collect(host, harness.byClass('stwd-graph-bar'))[0];
+  assert.equal(harness.collect([bar], harness.byClass('stwd-graph-tools')).length, 0, 'the tools are no longer in the top bar');
+  assert.deepEqual(
+    harness.collect(host, harness.byClass('stwd-graph-tool')).map(harness.textOf),
+    ['−', '100%', '+', '⤢', '辐射', '鱼骨', '树状', '⟲'],
+    'the zoom, layout presets and re-layout controls keep their labels',
+  );
+  const viewHeight = Number(String(view.props.style.height).replace('px', ''));
+  const toolsLeft = pxOf(tools, 'left');
+  const toolsTop = pxOf(tools, 'top');
+  assert.ok(toolsLeft >= 0 && toolsLeft <= 340, 'clamped tools stay horizontally inside the view');
+  assert.ok(toolsTop >= 0 && toolsTop <= viewHeight, 'clamped tools stay vertically inside the view');
+
+  // Stretch the viewport so the cluster can sit below the Lead without clamping.
+  const handle = harness.collect(host, harness.byClass('stwd-graph-resize'))[0];
+  const startHeight = Number(String(view.props.style.height).replace('px', ''));
+  handle.props.onPointerDown({ button: 0, clientY: 400, pointerId: 10, stopPropagation() {}, preventDefault() {} });
+  handle.props.onPointerMove({ clientY: 400 + 200, pointerId: 10, stopPropagation() {} });
+  handle.props.onPointerUp({ pointerId: 10, stopPropagation() {} });
+  host = await harness.settle(render);
+  assert.ok(Number(String(viewOf(host).props.style.height).replace('px', '')) >= startHeight + 200, 'the taller viewport leaves room under the Lead');
+
+  // Drag the Lead into the viewport so the cluster can sit on its center.
+  const start = leadScreen(host);
+  viewOf(host).props.onPointerDown({ button: 0, clientX: start.cx, clientY: start.cy, pointerId: 11, target: null });
+  viewOf(host).props.onPointerMove({ clientX: 170, clientY: start.cy, pointerId: 11, target: null });
+  viewOf(host).props.onPointerUp({ pointerId: 11, target: null });
+  host = await harness.settle(render);
+  const placed = leadScreen(host);
+  const placedTools = toolsOf(host);
+  assert.ok(Math.abs(pxOf(placedTools, 'left') - placed.x) < 2, 'tools are horizontally centered on the Lead');
+  assert.ok(pxOf(placedTools, 'top') >= placed.y, 'tools sit below the Lead');
+  assert.ok(pxOf(placedTools, 'top') <= placed.y + 16, 'tools sit just below the Lead with a small gap');
+
+  viewOf(host).props.onPointerDown({ button: 0, clientX: placed.cx, clientY: placed.cy, pointerId: 12, target: null });
+  viewOf(host).props.onPointerMove({ clientX: placed.cx + 36, clientY: placed.cy, pointerId: 12, target: null });
+  viewOf(host).props.onPointerUp({ pointerId: 12, target: null });
+  host = await harness.settle(render);
+  const after = leadScreen(host);
+  const movedTools = toolsOf(host);
+  assert.ok(Math.abs(pxOf(movedTools, 'left') - after.x) < 2, 'tools follow the Lead after a drag');
+  assert.ok(pxOf(movedTools, 'top') >= after.y);
+  assert.ok(pxOf(movedTools, 'top') <= after.y + 16);
+});
+
+test('the graph viewport can be dragged taller without burying artifacts', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const { store, storage } = isolatedStorage();
+  const previousWindow = globalThis.window;
+  globalThis.window = { localStorage: storage };
+  try {
+    const catalog = [];
+    const roles = ['pm', 'architect', 'backend-dev', 'frontend-dev', 'qa-engineer', 'reviewer'];
+    for (let index = 0; index < 24; index += 1) {
+      catalog.push({
+        id: 'child-resize-' + index,
+        mode: 'one-shot',
+        label: roles[index % roles.length] + ' · 任务' + (index + 1),
+        createdAt: index + 1,
+      });
+    }
+    const props = {
+      now: () => 1700000000000,
+      loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+      useProjection: (key) => (key === 'subagentCatalog' ? catalog : undefined),
+      useSessions: (selector) => selector({ byId: {}, projectionsBySession: {} }),
+      useSessionStatus: (selector) => selector(new Map()),
+      openSession: () => {},
+      openFile: () => {},
+    };
+    const render = panelRender(registered, 'session-resize', props);
+    const viewOf = (host) => harness.collect(host, harness.byClass('stwd-graph-view'))[0];
+    const heightOf = (host) => Number(String(viewOf(host).props.style.height).replace('px', ''));
+
+    let host = await harness.settle(render);
+    const startHeight = heightOf(host);
+    assert.ok(startHeight <= 400, 'the default graph window stays short enough to reach artifacts');
+    assert.ok(startHeight >= 220, 'the default graph window still has a usable height');
+    assert.equal(harness.collect(host, harness.byClass('stwd-artifacts')).length, 1, 'artifacts stay below the graph');
+
+    const handle = harness.collect(host, harness.byClass('stwd-graph-resize'))[0];
+    assert.ok(handle, 'the bottom edge has a resize handle');
+    assert.equal(handle.props['aria-label'], '调整画板高度');
+    const stopped = { down: false, up: false };
+    handle.props.onPointerDown({
+      button: 0,
+      clientY: 400,
+      pointerId: 21,
+      stopPropagation: () => { stopped.down = true; },
+      preventDefault: () => {},
+    });
+    handle.props.onPointerMove({ clientY: 480, pointerId: 21, stopPropagation: () => {} });
+    host = await harness.settle(render);
+    assert.equal(heightOf(host), startHeight + 80, 'dragging the handle changes the viewport height');
+    harness.collect(host, harness.byClass('stwd-graph-resize'))[0].props.onPointerUp({
+      pointerId: 21,
+      stopPropagation: () => { stopped.up = true; },
+    });
+    host = await harness.settle(render);
+    assert.ok(stopped.down, 'resize pointerdown does not bubble into a canvas pan');
+    assert.equal(heightOf(host), startHeight + 80);
+
+    const far = harness.collect(host, harness.byClass('stwd-graph-resize'))[0];
+    far.props.onPointerDown({
+      button: 0,
+      clientY: 0,
+      pointerId: 22,
+      stopPropagation: () => {},
+      preventDefault: () => {},
+    });
+    far.props.onPointerMove({ clientY: 4000, pointerId: 22, stopPropagation: () => {} });
+    far.props.onPointerUp({ pointerId: 22, stopPropagation: () => {} });
+    host = await harness.settle(render);
+    const clamped = heightOf(host);
+    assert.ok(clamped <= 560, 'a very long drag still clamps to the hard cap');
+    assert.ok(clamped >= startHeight + 80, 'the clamped height is at least as tall as the earlier drag');
+    assert.equal(harness.collect(host, harness.byClass('stwd-artifacts')).length, 1, 'artifacts remain below a resized graph');
+    const stored = JSON.parse(store.get('dsh-steward.panel.filters'));
+    assert.equal(stored.graphHeight, clamped, 'the preferred height is written to panel prefs');
+
+    harness.reset();
+    host = await harness.settle(render);
+    assert.equal(heightOf(host), clamped, 'the preferred height survives a remount');
+    assert.equal(harness.collect(host, harness.byClass('stwd-artifacts')).length, 1);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+});
+
+/**
  * The graph is a canvas: it zooms from the toolbar or the keyboard, pans on a drag,
  * and resets on a double click — all without changing which node opens a session.
  */

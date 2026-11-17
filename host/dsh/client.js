@@ -124,6 +124,7 @@ window.__ModuleLoader__.load({
         zoomIn: '放大',
         zoomOut: '缩小',
         zoomReset: '复位视图',
+        resizeCanvas: '调整画板高度',
         nativeListNote: '任务进度取自 DSH 自带的任务列表；这里不重复展示任务。',
         emptyTitle: '这个会话还没有派发智能体',
         emptyBody: 'Lead 用 steward_dispatch 派一个角色后，这里会画出它的角色、模型、任务与状态。',
@@ -268,6 +269,7 @@ window.__ModuleLoader__.load({
         zoomIn: 'Zoom in',
         zoomOut: 'Zoom out',
         zoomReset: 'Reset view',
+        resizeCanvas: 'Resize canvas',
         nativeListNote: 'Task progress is counted from the task list DSH itself keeps; the tasks are not repeated here.',
         emptyTitle: 'No agent dispatched in this session yet',
         emptyBody: 'Once the lead calls steward_dispatch, its role, model, task and state are drawn here.',
@@ -680,6 +682,12 @@ window.__ModuleLoader__.load({
     const ZOOM_MAX = 1.8;
     const VIEW_MIN_H = 220;
     const VIEW_MAX_H = 400;
+    const VIEW_MAX_H_DRAG = 560;
+    const VIEW_EMPTY_H = 110;
+    const VIEW_RESERVED_BELOW = 160;
+    const TOOLS_GAP = 8;
+    const TOOLS_W = 240;
+    const TOOLS_H = 28;
 
     function clampZoom(value) {
       const number = Number(value);
@@ -737,10 +745,56 @@ window.__ModuleLoader__.load({
       return LAYOUT_MODES.indexOf(value) >= 0 ? value : LAYOUT_DEFAULT;
     }
 
+    function normalizeGraphHeight(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return null;
+      return Math.round(Math.min(VIEW_MAX_H_DRAG, Math.max(VIEW_EMPTY_H, number)));
+    }
+
+    function visibleViewHeight(pref, totalRows, layoutHeight, panelMax) {
+      if (pref == null) {
+        return totalRows === 0 ? VIEW_EMPTY_H : Math.min(VIEW_MAX_H, Math.max(VIEW_MIN_H, layoutHeight + 10));
+      }
+      const minH = totalRows === 0 ? VIEW_EMPTY_H : VIEW_MIN_H;
+      const cap = Math.max(minH, Math.min(VIEW_MAX_H_DRAG, Number(panelMax) || VIEW_MAX_H_DRAG));
+      return Math.round(Math.min(cap, Math.max(minH, pref)));
+    }
+
+    function measurePanelMaxHeight(viewEl, wrapEl) {
+      const start = (viewEl && typeof viewEl.closest === 'function' ? viewEl : wrapEl);
+      const panel = start && typeof start.closest === 'function' ? start.closest('.stwd-panel') : null;
+      const panelH = panel ? Number(panel.clientHeight) : 0;
+      if (!Number.isFinite(panelH) || panelH <= 0) return VIEW_MAX_H_DRAG;
+      let usedAbove = 0;
+      if (viewEl && panel && typeof viewEl.getBoundingClientRect === 'function' && typeof panel.getBoundingClientRect === 'function') {
+        usedAbove = Math.max(0, Math.round(viewEl.getBoundingClientRect().top - panel.getBoundingClientRect().top));
+      }
+      return Math.max(VIEW_MIN_H, Math.min(VIEW_MAX_H_DRAG, panelH - usedAbove - VIEW_RESERVED_BELOW));
+    }
+
+    function graphToolsStyle(lead, originX, originY, view, viewWidth, viewHeight) {
+      if (!lead) return { display: 'none' };
+      const zoom = Number(view && view.zoom) || 1;
+      const vx = Number(view && view.x) || 0;
+      const vy = Number(view && view.y) || 0;
+      let left = (lead.x - originX) * zoom + vx + lead.w * zoom / 2;
+      let top = (lead.y - originY) * zoom + vy + lead.h * zoom + TOOLS_GAP;
+      const margin = 6;
+      const half = TOOLS_W / 2;
+      const minLeft = margin + half;
+      const maxLeft = Math.max(minLeft, viewWidth - margin - half);
+      const minTop = margin;
+      const maxTop = Math.max(minTop, viewHeight - margin - TOOLS_H);
+      left = Math.min(maxLeft, Math.max(minLeft, left));
+      top = Math.min(maxTop, Math.max(minTop, top));
+      return { left: left + 'px', top: top + 'px' };
+    }
+
     function normalizePanelPrefs(parsed) {
-      const fallback = { view: 'all', hideDone: false, hideIdle: false, hidePending: false, layout: LAYOUT_DEFAULT };
+      const fallback = { view: 'all', hideDone: false, hideIdle: false, hidePending: false, layout: LAYOUT_DEFAULT, graphHeight: null };
       if (!parsed || typeof parsed !== 'object') return fallback;
       const layout = normalizeLayoutMode(parsed.layout);
+      const graphHeight = normalizeGraphHeight(parsed.graphHeight);
       if (parsed.filter === 'hide-done') {
         return {
           view: 'all',
@@ -748,9 +802,12 @@ window.__ModuleLoader__.load({
           hideIdle: Boolean(parsed.hideIdle),
           hidePending: Boolean(parsed.hidePending),
           layout,
+          graphHeight,
         };
       }
-      if (parsed.filter === 'active') return { view: 'active', hideDone: false, hideIdle: false, hidePending: false, layout };
+      if (parsed.filter === 'active') {
+        return { view: 'active', hideDone: false, hideIdle: false, hidePending: false, layout, graphHeight };
+      }
       const view = parsed.view === 'active' ? 'active' : 'all';
       return {
         view,
@@ -758,6 +815,7 @@ window.__ModuleLoader__.load({
         hideIdle: view === 'all' && Boolean(parsed.hideIdle),
         hidePending: view === 'all' && Boolean(parsed.hidePending),
         layout,
+        graphHeight,
       };
     }
 
@@ -774,7 +832,7 @@ window.__ModuleLoader__.load({
     }
 
     function readPanelPrefs() {
-      const fallback = { view: 'all', hideDone: false, hideIdle: false, hidePending: false, layout: LAYOUT_DEFAULT };
+      const fallback = { view: 'all', hideDone: false, hideIdle: false, hidePending: false, layout: LAYOUT_DEFAULT, graphHeight: null };
       try {
         const storage = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
         if (!storage || typeof storage.getItem !== 'function') return fallback;
@@ -791,7 +849,15 @@ window.__ModuleLoader__.load({
         const storage = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
         if (!storage || typeof storage.setItem !== 'function') return;
         const next = normalizePanelPrefs(value);
-        storage.setItem(FILTER_KEY, JSON.stringify(next));
+        const payload = {
+          view: next.view,
+          hideDone: next.hideDone,
+          hideIdle: next.hideIdle,
+          hidePending: next.hidePending,
+          layout: next.layout,
+        };
+        if (next.graphHeight != null) payload.graphHeight = next.graphHeight;
+        storage.setItem(FILTER_KEY, JSON.stringify(payload));
       } catch {
         // private mode or a hostile storage: the panel keeps working, prefs just stay session-only
       }
@@ -1866,22 +1932,31 @@ window.__ModuleLoader__.load({
       const [hideIdle, setHideIdle] = useState(prefs.hideIdle);
       const [hidePending, setHidePending] = useState(prefs.hidePending);
       const [layoutMode, setLayoutMode] = useState(() => normalizeLayoutMode(prefs.layout));
+      const [graphHeight, setGraphHeight] = useState(() => normalizeGraphHeight(prefs.graphHeight));
+      const [panelMaxH, setPanelMaxH] = useState(VIEW_MAX_H_DRAG);
+      const [resizing, setResizing] = useState(false);
+      const resizeDragRef = useRef(null);
+      const measureMaxViewHeight = () => measurePanelMaxHeight(viewRef.current, wrapRef.current);
       useEffect(() => {
         const host = wrapRef.current;
         if (!host || typeof ResizeObserver === 'undefined') return undefined;
         const measure = () => {
           const next = Math.round(host.clientWidth || 0);
           if (next > 0) setWidth((current) => (current === next ? current : next));
+          const cap = measureMaxViewHeight();
+          setPanelMaxH((current) => (current === cap ? current : cap));
         };
         measure();
         const observer = new ResizeObserver(measure);
         observer.observe(host);
+        const panel = typeof host.closest === 'function' ? host.closest('.stwd-panel') : null;
+        if (panel) observer.observe(panel);
         return () => observer.disconnect();
       }, []);
 
       useEffect(() => {
-        writePanelPrefs({ view: graphView, hideDone, hideIdle, hidePending, layout: layoutMode });
-      }, [graphView, hideDone, hideIdle, hidePending, layoutMode]);
+        writePanelPrefs({ view: graphView, hideDone, hideIdle, hidePending, layout: layoutMode, graphHeight });
+      }, [graphView, hideDone, hideIdle, hidePending, layoutMode, graphHeight]);
 
       const positionSessionRef = useRef(sessionKey);
       useEffect(() => {
@@ -1976,7 +2051,7 @@ window.__ModuleLoader__.load({
         return { tokens, elapsed };
       }, [props.rows, props.lead]);
 
-      const viewHeight = totalRows === 0 ? 110 : Math.min(VIEW_MAX_H, Math.max(VIEW_MIN_H, layout.height + 10));
+      const viewHeight = visibleViewHeight(graphHeight, totalRows, layout.height, panelMaxH);
       const viewWidth = Math.max(120, width);
       dimsRef.current = {
         width: viewWidth,
@@ -2130,13 +2205,13 @@ window.__ModuleLoader__.load({
       };
 
       const interactiveTarget = (target) => Boolean(target && typeof target.closest === 'function'
-        && target.closest('.stwd-gnode, .stwd-leadnode, .stwd-gdetail, .stwd-gnode-more, .stwd-graph-tools, .stwd-graph-filters'));
+        && target.closest('.stwd-gnode, .stwd-leadnode, .stwd-gdetail, .stwd-gnode-more, .stwd-graph-tools, .stwd-graph-filters, .stwd-graph-resize'));
 
       const onPointerDown = (event) => {
         if (!event || (event.button !== undefined && event.button !== 0)) return;
         const target = event.target;
         if (target && typeof target.closest === 'function'
-          && target.closest('.stwd-graph-tools, .stwd-graph-filters, .stwd-gnode-more, .stwd-gdetail')) return;
+          && target.closest('.stwd-graph-tools, .stwd-graph-filters, .stwd-gnode-more, .stwd-gdetail, .stwd-graph-resize')) return;
         const nodeId = nodeAt(event);
         const origin = nodeId === '' ? null : (positions[nodeId] || (nodeId === LEAD_NODE_ID ? layout.lead : placed.find((node) => node.id === nodeId)) || { x: 0, y: 0 });
         dragRef.current = {
@@ -2246,6 +2321,60 @@ window.__ModuleLoader__.load({
         setHidePending(false);
       };
 
+      const captureResizePointer = (event) => {
+        const handle = event && event.currentTarget;
+        if (!handle || typeof handle.setPointerCapture !== 'function') return;
+        if (event.pointerId === undefined) return;
+        try {
+          handle.setPointerCapture(event.pointerId);
+        } catch {
+          // a pointer that already went away needs no capture
+        }
+      };
+
+      const releaseResizePointer = (event) => {
+        const handle = event && event.currentTarget;
+        if (!handle || typeof handle.releasePointerCapture !== 'function') return;
+        if (event.pointerId === undefined) return;
+        try {
+          handle.releasePointerCapture(event.pointerId);
+        } catch {
+          // already released
+        }
+      };
+
+      const onResizePointerDown = (event) => {
+        if (!event || (event.button !== undefined && event.button !== 0)) return;
+        stopCanvasDrag(event);
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        resizeDragRef.current = {
+          y: Number(event.clientY) || 0,
+          h: viewHeight,
+        };
+        setResizing(true);
+        captureResizePointer(event);
+      };
+
+      const onResizePointerMove = (event) => {
+        const start = resizeDragRef.current;
+        if (!start || !event) return;
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        const dy = (Number(event.clientY) || 0) - start.y;
+        const cap = measureMaxViewHeight();
+        setPanelMaxH((current) => (current === cap ? current : cap));
+        const next = normalizeGraphHeight(start.h + dy);
+        if (next == null) return;
+        setGraphHeight((current) => (current === next ? current : next));
+      };
+
+      const onResizePointerUp = (event) => {
+        if (!resizeDragRef.current) return;
+        if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+        resizeDragRef.current = null;
+        setResizing(false);
+        releaseResizePointer(event);
+      };
+
       const zoomPercent = Math.round(view.zoom * 100) + '%';
       const originX = Number(layout.originX) || 0;
       const originY = Number(layout.originY) || 0;
@@ -2267,7 +2396,7 @@ window.__ModuleLoader__.load({
           }, text.filterAll),
         )
         : h('div', {
-          className: 'stwd-graph-view' + (moving ? ' stwd-graph-view-moving' : ''),
+          className: 'stwd-graph-view' + (moving ? ' stwd-graph-view-moving' : '') + (resizing ? ' stwd-graph-view-resizing' : ''),
           ref: viewRef,
           style: { height: viewHeight + 'px' },
           role: 'group',
@@ -2317,60 +2446,75 @@ window.__ModuleLoader__.load({
               }),
             ),
           ),
+          visibleIds.has(LEAD_NODE_ID) ? h('div', {
+            className: 'stwd-graph-tools',
+            role: 'group',
+            'aria-label': text.zoomGroup,
+            style: graphToolsStyle(layout.lead, originX, originY, view, viewWidth, viewHeight),
+            onPointerDown: stopCanvasDrag,
+          },
+            h('button', {
+              type: 'button',
+              className: 'stwd-graph-tool',
+              'aria-label': text.zoomOut,
+              title: text.zoomOut,
+              onClick: () => zoomAt(1 / 1.12, viewWidth / 2, viewHeight / 2),
+            }, '−'),
+            h('button', {
+              type: 'button',
+              className: 'stwd-graph-tool stwd-graph-zoom',
+              'aria-label': text.zoomReset,
+              title: text.zoomReset,
+              onClick: resetView,
+            }, zoomPercent),
+            h('button', {
+              type: 'button',
+              className: 'stwd-graph-tool',
+              'aria-label': text.zoomIn,
+              title: text.zoomIn,
+              onClick: () => zoomAt(1.12, viewWidth / 2, viewHeight / 2),
+            }, '+'),
+            h('button', {
+              type: 'button',
+              className: 'stwd-graph-tool',
+              'aria-label': text.zoomFit,
+              title: text.zoomFit,
+              onClick: fitView,
+            }, '⤢'),
+            ...[['map', text.layoutMap], ['fishbone', text.layoutFishbone], ['tree', text.layoutTree]].map(([key, label]) => h('button', {
+              key: 'layout-' + key,
+              type: 'button',
+              className: 'stwd-graph-tool' + (layoutMode === key ? ' stwd-graph-tool-on' : ''),
+              'aria-label': label,
+              title: label,
+              'aria-pressed': layoutMode === key ? 'true' : 'false',
+              onClick: () => applyLayout(key),
+            }, label)),
+            h('button', {
+              type: 'button',
+              className: 'stwd-graph-tool',
+              'aria-label': text.relayout,
+              title: text.relayout,
+              onClick: relayout,
+            }, '⟲'),
+          ) : null,
+          h('div', {
+            className: 'stwd-graph-resize',
+            role: 'separator',
+            'aria-orientation': 'horizontal',
+            'aria-label': text.resizeCanvas,
+            title: text.resizeCanvas,
+            onPointerDown: onResizePointerDown,
+            onPointerMove: onResizePointerMove,
+            onPointerUp: onResizePointerUp,
+            onPointerCancel: onResizePointerUp,
+          }),
         );
 
       return h('div', { className: 'stwd-graph', ref: wrapRef },
         h('div', { className: 'stwd-graph-bar' },
-          h('div', { className: 'stwd-graph-bar-row' },
-            h('span', { className: 'stwd-graph-hint' }, text.canvasHint),
-            h('div', { className: 'stwd-graph-tools', role: 'group', 'aria-label': text.zoomGroup },
-              h('button', {
-                type: 'button',
-                className: 'stwd-graph-tool',
-                'aria-label': text.zoomOut,
-                title: text.zoomOut,
-                onClick: () => zoomAt(1 / 1.12, viewWidth / 2, viewHeight / 2),
-              }, '−'),
-              h('button', {
-                type: 'button',
-                className: 'stwd-graph-tool stwd-graph-zoom',
-                'aria-label': text.zoomReset,
-                title: text.zoomReset,
-                onClick: resetView,
-              }, zoomPercent),
-              h('button', {
-                type: 'button',
-                className: 'stwd-graph-tool',
-                'aria-label': text.zoomIn,
-                title: text.zoomIn,
-                onClick: () => zoomAt(1.12, viewWidth / 2, viewHeight / 2),
-              }, '+'),
-              h('button', {
-                type: 'button',
-                className: 'stwd-graph-tool',
-                'aria-label': text.zoomFit,
-                title: text.zoomFit,
-                onClick: fitView,
-              }, '⤢'),
-              ...[['map', text.layoutMap], ['fishbone', text.layoutFishbone], ['tree', text.layoutTree]].map(([key, label]) => h('button', {
-                key: 'layout-' + key,
-                type: 'button',
-                className: 'stwd-graph-tool' + (layoutMode === key ? ' stwd-graph-tool-on' : ''),
-                'aria-label': label,
-                title: label,
-                'aria-pressed': layoutMode === key ? 'true' : 'false',
-                onClick: () => applyLayout(key),
-              }, label)),
-              h('button', {
-                type: 'button',
-                className: 'stwd-graph-tool',
-                'aria-label': text.relayout,
-                title: text.relayout,
-                onClick: relayout,
-              }, '⟲'),
-            ),
-          ),
           h('div', { className: 'stwd-graph-bar-row stwd-graph-filters' },
+            h('span', { className: 'stwd-graph-hint' }, text.canvasHint),
             h('div', { className: 'stwd-filters', role: 'group', 'aria-label': text.viewGroup },
               [['all', text.filterAll], ['active', text.filterActive]].map(([key, label]) => h('button', {
                 key: 'view-' + key,
@@ -3098,14 +3242,15 @@ window.__ModuleLoader__.load({
       '.stwd-graph{position:relative;flex:none;min-width:0;width:100%}',
       '.stwd-graph-view{position:relative;overflow:hidden;border-radius:10px;border:.5px solid var(--stwd-border-soft);background:radial-gradient(circle at 1px 1px,color-mix(in srgb,var(--stwd-border-strong) 70%,transparent) 1px,transparent 0) 0 0 / 22px 22px,color-mix(in srgb,var(--dsw-alias-bg-layer-2) 70%,transparent);touch-action:none;cursor:grab;min-width:0}',
       '.stwd-graph-view-moving{cursor:grabbing}',
+      '.stwd-graph-view-resizing{cursor:ns-resize}',
       '.stwd-graph-view:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}',
       '.stwd-graph-stage{position:relative;transform-origin:0 0;will-change:transform}',
       '.stwd-graph-edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}',
       '.stwd-graph-canvas{position:relative;width:100%;min-width:0}',
-      '.stwd-graph-bar{display:flex;flex-direction:column;gap:6px;min-width:0;margin-bottom:8px}',
-      '.stwd-graph-bar-row{display:flex;align-items:center;gap:8px;min-height:24px;min-width:0}',
-      '.stwd-graph-hint{flex:1;margin:0;font-size:10.5px;line-height:15px;color:var(--stwd-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.stwd-graph-tools{display:flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
+      '.stwd-graph-bar{display:flex;flex-direction:column;gap:4px;min-width:0;margin-bottom:6px}',
+      '.stwd-graph-bar-row{display:flex;align-items:center;gap:8px;min-height:22px;min-width:0}',
+      '.stwd-graph-hint{flex:1 1 120px;margin:0;font-size:10.5px;line-height:15px;color:var(--stwd-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}',
+      '.stwd-graph-tools{position:absolute;display:flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 94%,transparent);box-shadow:0 4px 12px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent);transform:translateX(-50%);z-index:12;cursor:default;pointer-events:auto;touch-action:auto}',
       '.stwd-graph-tool{min-width:20px;height:20px;padding:0 4px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
       '.stwd-graph-tool:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
       '.stwd-graph-tool-on{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:500}',
@@ -3131,6 +3276,9 @@ window.__ModuleLoader__.load({
       '.stwd-graph-empty-title{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary)}',
       '.stwd-graph-empty-hint{margin:0;font-size:11px;line-height:16px;color:var(--stwd-muted)}',
       '.stwd-graph-reset{margin-top:4px;height:24px;padding:0 10px;border:.5px solid var(--stwd-border-strong);border-radius:6px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;cursor:pointer}',
+      '.stwd-graph-resize{position:absolute;left:0;right:0;bottom:0;height:10px;z-index:8;cursor:ns-resize;touch-action:none;background:transparent}',
+      '.stwd-graph-resize:before{content:"";position:absolute;left:50%;bottom:3px;width:36px;height:3px;margin-left:-18px;border-radius:2px;background:color-mix(in srgb,var(--stwd-border-strong) 80%,transparent);opacity:.75}',
+      '.stwd-graph-resize:hover:before,.stwd-graph-view-resizing .stwd-graph-resize:before{opacity:1;background:var(--dsw-alias-brand-primary,var(--stwd-border-strong))}',
       '.stwd-face{position:absolute;left:50%;top:-8px;width:44px;height:44px;margin-left:-22px;z-index:2;pointer-events:none;filter:drop-shadow(0 3px 4px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent))}',
       '.stwd-face-head{transform-origin:50% 70%}',
       '.stwd-face-eyes{transform-origin:32px 26px}',
