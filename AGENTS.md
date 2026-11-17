@@ -19,7 +19,7 @@
 
 - **ZCode 侧**：`node zcode/scripts/build.mjs --check` → `node --test zcode/scripts/tests/` → `zcode commands list` 确认命令注册。只更新 ZCode：`zcode plugins update steward@<marketplace>`。
 - **MiniMax 侧**：`node zcode/scripts/build.mjs` → `node --test zcode/scripts/tests/` → `node --test host/minimax/tests/` → `node zcode/scripts/agent-config.mjs install`（演练）或 `install --apply`（镜像）。只更新 MiniMax，不跑 ZCode 插件更新。
-- **DSH 侧（独立构建，不写其他目录）**：`node host/dsh/build.mjs`（或 `--check`）→ `node --test host/dsh/tests/` → 用插件管理器 `install_bundle` 指向 `dsh/` 安装/更新；装完在**设置 → Steward** 分区核对 7 个角色的模型/档位，并在任一会话点标题栏的 Steward 图标打开右侧栏面板，确认 `steward_dispatch` / `steward_board` 正常、面板默认显示**可自由拖拽的 DAG 画板**（Lead 与每个子代理都是带纯色头像的卡片，按需求 → 架构 → 实施 → 质量 → 验收 → 评审分层排布并用连线表示依赖，质检可有多个父节点；节点带角色 / 模型 / 思考强度 / 任务 / 状态 / 耗时 / 用量，点节点进子会话；可平移缩放、隐藏已完成与空闲，过滤时其余卡片不重排）、顶部任务进度条与原生任务板计数一致、产物可展开，且**面板里没有任务列表**。DSH 构建器只读 `shared/`（含 `shared/scripts/`）、`zcode/skills/steward/references/` 参考库、`host/dsh/`，只写 `dsh/`；自 v1.1.0 起不再读取 `zcode/scripts/`。
+- **DSH 侧（独立构建，不写其他目录）**：`node host/dsh/build.mjs`（或 `--check`）→ `node --test host/dsh/tests/` → 用插件管理器 `install_bundle` 指向 `dsh/` 安装/更新；装完在**设置 → Steward** 分区核对 7 个角色的模型/档位，并在任一会话点标题栏的 Steward 图标打开右侧栏面板，确认 `steward_dispatch` / `steward_board` 正常、面板默认显示**可自由拖拽的 DAG 画板**（Lead 与每个子代理都是带纯色头像的卡片，默认以主代理为中心向外辐射；工具栏可一键整理为辐射 / 鱼骨 / 树状且仍可自由拖拽；连线是 Lead→每个子代理的星形、无箭头；节点带角色 / 模型 / 思考强度 / 任务 / 状态 / 耗时 / 用量，点节点进子会话；可平移缩放且记住缩放，隐藏已完成与空闲，过滤时其余卡片不重排）、顶部任务进度条与原生任务板计数一致、产物可展开，且**面板里没有任务列表**。DSH 构建器只读 `shared/`（含 `shared/scripts/`）、`zcode/skills/steward/references/` 参考库、`host/dsh/`，只写 `dsh/`；自 v1.1.0 起不再读取 `zcode/scripts/`。
 - **共享源改动**：`shared/`（含 `shared/scripts/`）变更要验证 ZCode/MiniMax（构建 + 测试），并重跑 `node host/dsh/build.mjs` 刷新 DSH 生成物；提交信息注明「跨宿主」。
 
 ## 禁止

@@ -102,6 +102,10 @@ window.__ModuleLoader__.load({
         zoomFit: '适应窗口',
         zoomGroup: '缩放',
         relayout: '重新布局',
+        layoutGroup: '布局',
+        layoutMap: '辐射',
+        layoutFishbone: '鱼骨',
+        layoutTree: '树状',
         filterGroup: '过滤',
         filterAll: '全部',
         filterHideDone: '隐藏已完成',
@@ -241,6 +245,10 @@ window.__ModuleLoader__.load({
         zoomFit: 'Fit to view',
         zoomGroup: 'Zoom',
         relayout: 'Re-layout',
+        layoutGroup: 'Layout',
+        layoutMap: 'Map',
+        layoutFishbone: 'Fishbone',
+        layoutTree: 'Tree',
         filterGroup: 'Filter',
         filterAll: 'All',
         filterHideDone: 'Hide done',
@@ -645,9 +653,10 @@ window.__ModuleLoader__.load({
     }
 
     // --- team graph layout ----------------------------------------------------------
-    // A free-drag DAG canvas: the Lead and every specialist are cards, edges follow
-    // the delivery flow (and a node may have two parents, as QA does). Stage hubs are
-    // not structural nodes. Positions are absolute; filters hide cards without reflow.
+    // A free-drag DAG canvas: the Lead and every specialist are cards, edges are a
+    // star from the Lead to each child. Stage hubs are not structural nodes.
+    // Positions are absolute; filters hide cards without reflow. One-click presets
+    // tidy the board (map / fishbone / tree) but never lock dragging.
 
     const ZOOM_MIN = 0.4;
     const NODE_W = 252;
@@ -713,17 +722,27 @@ window.__ModuleLoader__.load({
 
     const FILTER_KEY = 'dsh-steward.panel.filters';
     const POSITION_KEY = 'dsh-steward.panel.positions';
+    const CAMERA_KEY = 'dsh-steward.panel.camera';
+    const LAYOUT_MODES = ['map', 'fishbone', 'tree'];
+    const LAYOUT_DEFAULT = 'map';
+    const LAYOUT_PAD = 24;
+
+    function normalizeLayoutMode(value) {
+      return LAYOUT_MODES.indexOf(value) >= 0 ? value : LAYOUT_DEFAULT;
+    }
 
     function normalizePanelPrefs(parsed) {
-      const fallback = { view: 'all', hideDone: false, hideIdle: false };
+      const fallback = { view: 'all', hideDone: false, hideIdle: false, layout: LAYOUT_DEFAULT };
       if (!parsed || typeof parsed !== 'object') return fallback;
-      if (parsed.filter === 'hide-done') return { view: 'all', hideDone: true, hideIdle: Boolean(parsed.hideIdle) };
-      if (parsed.filter === 'active') return { view: 'active', hideDone: false, hideIdle: false };
+      const layout = normalizeLayoutMode(parsed.layout);
+      if (parsed.filter === 'hide-done') return { view: 'all', hideDone: true, hideIdle: Boolean(parsed.hideIdle), layout };
+      if (parsed.filter === 'active') return { view: 'active', hideDone: false, hideIdle: false, layout };
       const view = parsed.view === 'active' ? 'active' : 'all';
       return {
         view,
         hideDone: view === 'all' && Boolean(parsed.hideDone),
         hideIdle: view === 'all' && Boolean(parsed.hideIdle),
+        layout,
       };
     }
 
@@ -739,7 +758,7 @@ window.__ModuleLoader__.load({
     }
 
     function readPanelPrefs() {
-      const fallback = { view: 'all', hideDone: false, hideIdle: false };
+      const fallback = { view: 'all', hideDone: false, hideIdle: false, layout: LAYOUT_DEFAULT };
       try {
         const storage = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
         if (!storage || typeof storage.getItem !== 'function') return fallback;
@@ -816,6 +835,48 @@ window.__ModuleLoader__.load({
       }
     }
 
+    function cleanCamera(parsed) {
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { zoom: 1, x: 0, y: 0 };
+      const x = Number(parsed.x);
+      const y = Number(parsed.y);
+      return {
+        zoom: clampZoom(parsed.zoom),
+        x: Number.isFinite(x) ? x : 0,
+        y: Number.isFinite(y) ? y : 0,
+      };
+    }
+
+    function cameraBag(sessionId) {
+      const key = String(sessionId || '') === '' ? '_' : String(sessionId);
+      try {
+        const storage = storageOf();
+        if (!storage || typeof storage.getItem !== 'function') return { all: {}, key, bag: cleanCamera(null) };
+        const raw = storage.getItem(CAMERA_KEY);
+        if (typeof raw !== 'string' || raw === '') return { all: {}, key, bag: cleanCamera(null) };
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { all: {}, key, bag: cleanCamera(null) };
+        return { all: parsed, key, bag: cleanCamera(parsed[key]) };
+      } catch {
+        return { all: {}, key, bag: cleanCamera(null) };
+      }
+    }
+
+    function readPanelCamera(sessionId) {
+      return cameraBag(sessionId).bag;
+    }
+
+    function writePanelCamera(sessionId, camera) {
+      try {
+        const storage = storageOf();
+        if (!storage || typeof storage.setItem !== 'function') return;
+        const state = cameraBag(sessionId);
+        const next = { ...state.all, [state.key]: cleanCamera(camera) };
+        storage.setItem(CAMERA_KEY, JSON.stringify(next));
+      } catch {
+        // same private-mode rule as the filter prefs
+      }
+    }
+
     function sortAgents(rows) {
       return (rows || []).filter(Boolean).slice().sort((left, right) => {
         const rank = AGENT_STATES.indexOf(left.state) - AGENT_STATES.indexOf(right.state);
@@ -848,49 +909,123 @@ window.__ModuleLoader__.load({
       })).filter((stage) => stage.rows.length > 0);
     }
 
-    function placeRow(items, y, columns) {
-      const count = items.length;
-      const cols = Math.max(1, Math.min(columns, count));
-      const width = cols * NODE_W + (cols - 1) * NODE_GAP_X;
-      const positions = {};
-      items.forEach((row, index) => {
-        const column = index % cols;
-        const line = Math.floor(index / cols);
-        positions[row.id] = {
-          x: column * (NODE_W + NODE_GAP_X),
-          y: y + line * (NODE_H + NODE_GAP_X),
-        };
+    function shiftPositions(pos, pad) {
+      const ids = Object.keys(pos || {});
+      if (ids.length === 0) return {};
+      let minX = Infinity;
+      let minY = Infinity;
+      for (const id of ids) {
+        minX = Math.min(minX, pos[id].x);
+        minY = Math.min(minY, pos[id].y);
+      }
+      const dx = minX < pad ? pad - minX : 0;
+      const dy = minY < pad ? pad - minY : 0;
+      if (dx === 0 && dy === 0) return pos;
+      const out = {};
+      for (const id of ids) out[id] = { x: pos[id].x + dx, y: pos[id].y + dy };
+      return out;
+    }
+
+    /** One side of a mind map: role groups stack vertically, centered on the Lead. */
+    function placeMapSide(pos, groups, side, lead) {
+      const vGap = NODE_GAP_X;
+      const gGap = NODE_GAP_Y;
+      let height = 0;
+      for (let index = 0; index < groups.length; index += 1) {
+        if (index > 0) height += gGap - vGap;
+        const count = groups[index].rows.length;
+        height += count * NODE_H + Math.max(0, count - 1) * vGap;
+      }
+      const x = side === 'right' ? lead.x + NODE_W + NODE_GAP_Y : lead.x - NODE_W - NODE_GAP_Y;
+      let y = lead.y + NODE_H / 2 - height / 2;
+      groups.forEach((group, groupIndex) => {
+        if (groupIndex > 0) y += gGap - vGap;
+        group.rows.forEach((row, index) => {
+          const outward = index * 10;
+          pos[row.id] = { x: side === 'right' ? x + outward : x - outward, y };
+          y += NODE_H + vGap;
+        });
       });
-      const lines = Math.ceil(count / cols);
-      return { positions, width, height: lines * NODE_H + (lines - 1) * NODE_GAP_X };
+    }
+
+    /** Lead in the middle; pipeline stages alternate left and right, cards stack. */
+    function defaultMapPositions(rows) {
+      const layers = layerRowsOf(rows);
+      const lead = { x: 0, y: 0 };
+      const pos = { [LEAD_NODE_ID]: { x: lead.x, y: lead.y } };
+      const left = [];
+      const right = [];
+      for (const layer of layers) {
+        const index = stageIndexOf(layer.rows[0] && layer.rows[0].role);
+        (index % 2 === 0 ? right : left).push(layer);
+      }
+      placeMapSide(pos, right, 'right', lead);
+      placeMapSide(pos, left, 'left', lead);
+      return shiftPositions(pos, LAYOUT_PAD);
+    }
+
+    function placeFishboneRibs(pos, groups, side, lead) {
+      const hGap = NODE_GAP_Y;
+      const vGap = NODE_GAP_Y;
+      const stepX = NODE_W + NODE_GAP_X;
+      let cursorX = side === 'right' ? lead.x + NODE_W + hGap : lead.x - NODE_W - hGap;
+      groups.forEach((group, index) => {
+        const above = index % 2 === 0;
+        let cursorY = above ? lead.y - NODE_H - vGap : lead.y + NODE_H + vGap;
+        const yStep = above ? -(NODE_H + NODE_GAP_X) : (NODE_H + NODE_GAP_X);
+        for (const row of group.rows) {
+          pos[row.id] = { x: cursorX, y: cursorY };
+          cursorY += yStep;
+        }
+        cursorX += side === 'right' ? stepX : -stepX;
+      });
     }
 
     /**
-     * Default layered DAG positions: Lead on top, then each pipeline stage as a
-     * wrapping row (up to five cards). Same-role siblings sit side by side.
+     * Lead on the spine. Role groups are ribs that alternate above and below;
+     * with many stages they also grow left and right, like an Ishikawa bone.
      */
-    function defaultDagPositions(rows) {
+    function defaultFishbonePositions(rows) {
       const layers = layerRowsOf(rows);
-      const columns = 5;
-      const layerLayouts = [];
-      let y = NODE_H + NODE_GAP_Y;
-      let contentWidth = NODE_W;
-      for (const layer of layers) {
-        const placed = placeRow(layer.rows, y, columns);
-        layerLayouts.push({ key: layer.key, rows: layer.rows, ...placed });
-        contentWidth = Math.max(contentWidth, placed.width);
-        y += placed.height + NODE_GAP_Y;
+      const lead = { x: 0, y: 0 };
+      const pos = { [LEAD_NODE_ID]: { x: lead.x, y: lead.y } };
+      if (layers.length >= 4) {
+        const mid = Math.ceil(layers.length / 2);
+        placeFishboneRibs(pos, layers.slice(0, mid), 'right', lead);
+        placeFishboneRibs(pos, layers.slice(mid), 'left', lead);
+      } else {
+        placeFishboneRibs(pos, layers, 'right', lead);
       }
+      return shiftPositions(pos, LAYOUT_PAD);
+    }
+
+    /** Lead at the top center; each stage is a downward column under a stem. */
+    function defaultTreePositions(rows) {
+      const layers = layerRowsOf(rows);
+      const count = Math.max(1, layers.length);
+      const contentWidth = count * NODE_W + (count - 1) * NODE_GAP_X;
       const leadX = Math.max(0, Math.round((contentWidth - NODE_W) / 2));
       const pos = { [LEAD_NODE_ID]: { x: leadX, y: 0 } };
-      for (const layer of layerLayouts) {
-        const offset = Math.max(0, Math.round((contentWidth - layer.width) / 2));
-        for (const row of layer.rows) {
-          const local = layer.positions[row.id];
-          pos[row.id] = { x: local.x + offset, y: local.y };
-        }
-      }
-      return pos;
+      const childY = NODE_H + NODE_GAP_Y;
+      layers.forEach((layer, index) => {
+        const colX = index * (NODE_W + NODE_GAP_X);
+        layer.rows.forEach((row, rowIndex) => {
+          pos[row.id] = { x: colX, y: childY + rowIndex * (NODE_H + NODE_GAP_X) };
+        });
+      });
+      return shiftPositions(pos, LAYOUT_PAD);
+    }
+
+    /**
+     * Default positions for a layout preset. `map` is the initial generation:
+     * Lead in the middle, role groups radiating left and right. After a tidy,
+     * cards stay freely draggable; missing ids (new agents) use this preset.
+     */
+    function defaultDagPositions(rows, mode) {
+      const layout = normalizeLayoutMode(mode);
+      if (layout === 'fishbone') return defaultFishbonePositions(rows);
+      if (layout === 'tree') return defaultTreePositions(rows);
+      return defaultMapPositions(rows);
     }
 
     /** Fallback edges when the host does not expose a parent for each dispatch. */
@@ -1029,14 +1164,14 @@ window.__ModuleLoader__.load({
 
     /**
      * Lay the team out as a free-position DAG. `positions` are absolute overrides
-     * (from a drag); missing ids fall back to the layered default. Filtering should
-     * pass every row so remaining cards keep their coordinates.
+     * (from a drag); missing ids fall back to the current layout preset. Filtering
+     * should pass every row so remaining cards keep their coordinates.
      * @returns geometry for the Lead, the cards and every agent-to-agent edge.
      */
     function dagLayout(options) {
       const input = options || {};
       const rows = Array.isArray(input.rows) ? input.rows : [];
-      const defaults = defaultDagPositions(rows);
+      const defaults = defaultDagPositions(rows, input.layout);
       const overrides = input.positions && typeof input.positions === 'object' ? input.positions : {};
       const geoOf = (id) => {
         const base = defaults[id] || { x: 0, y: 0 };
@@ -1089,15 +1224,19 @@ window.__ModuleLoader__.load({
           maxY = Math.max(maxY, point[1]);
         }
       }
-      const pad = 24;
+      const pad = LAYOUT_PAD;
+      const originX = minX - pad;
+      const originY = minY - pad;
       return {
         lead,
         nodes,
         links,
         minX,
         minY,
-        width: Math.max(NODE_W + pad * 2, maxX - Math.min(0, minX) + pad),
-        height: Math.max(NODE_H + pad * 2, maxY + pad),
+        originX,
+        originY,
+        width: Math.max(NODE_W + pad * 2, maxX - minX + pad * 2),
+        height: Math.max(NODE_H + pad * 2, maxY - minY + pad * 2),
       };
     }
 
@@ -1575,13 +1714,14 @@ window.__ModuleLoader__.load({
       const suppressRef = useRef(0);
       const dimsRef = useRef({ width: 340, height: 480, contentWidth: 340, contentHeight: 480 });
       const [width, setWidth] = useState(340);
-      const [view, setViewState] = useState({ zoom: 1, x: 0, y: 0 });
+      const [view, setViewState] = useState(() => readPanelCamera(String(props.sessionId || '')));
       const [moving, setMoving] = useState(false);
       const sessionKey = String(props.sessionId || '');
       const [positions, setPositions] = useState(() => readPanelPositions(sessionKey));
       const [graphView, setGraphView] = useState(prefs.view);
       const [hideDone, setHideDone] = useState(prefs.hideDone);
       const [hideIdle, setHideIdle] = useState(prefs.hideIdle);
+      const [layoutMode, setLayoutMode] = useState(() => normalizeLayoutMode(prefs.layout));
       useEffect(() => {
         const host = wrapRef.current;
         if (!host || typeof ResizeObserver === 'undefined') return undefined;
@@ -1596,8 +1736,8 @@ window.__ModuleLoader__.load({
       }, []);
 
       useEffect(() => {
-        writePanelPrefs({ view: graphView, hideDone, hideIdle });
-      }, [graphView, hideDone, hideIdle]);
+        writePanelPrefs({ view: graphView, hideDone, hideIdle, layout: layoutMode });
+      }, [graphView, hideDone, hideIdle, layoutMode]);
 
       const positionSessionRef = useRef(sessionKey);
       useEffect(() => {
@@ -1610,6 +1750,17 @@ window.__ModuleLoader__.load({
         writePanelPositions(sessionKey, positions);
       }, [sessionKey, positions]);
 
+      const cameraSessionRef = useRef(sessionKey);
+      useEffect(() => {
+        if (cameraSessionRef.current === sessionKey) return;
+        cameraSessionRef.current = sessionKey;
+        setViewState(readPanelCamera(sessionKey));
+      }, [sessionKey]);
+
+      useEffect(() => {
+        writePanelCamera(sessionKey, view);
+      }, [sessionKey, view]);
+
       const filterPrefs = { view: graphView, hideDone, hideIdle };
       const totalRows = (props.rows || []).filter(Boolean).length;
       const visibleRows = useMemo(() => filterAgentRows(props.rows, filterPrefs), [props.rows, graphView, hideDone, hideIdle]);
@@ -1617,7 +1768,8 @@ window.__ModuleLoader__.load({
       const layout = useMemo(() => dagLayout({
         rows: props.rows,
         positions,
-      }), [props.rows, positions]);
+        layout: layoutMode,
+      }), [props.rows, positions, layoutMode]);
       const visibleIds = useMemo(() => {
         const ids = new Set(visibleRows.map((row) => row.id));
         if (visibleRows.length > 0) ids.add(LEAD_NODE_ID);
@@ -1694,9 +1846,11 @@ window.__ModuleLoader__.load({
           maxY = Math.max(maxY, node.y + node.h);
         }
         const pad = 40;
+        const originX = Number(layout.originX) || 0;
+        const originY = Number(layout.originY) || 0;
         return {
-          x: minX - pad,
-          y: minY - pad,
+          x: minX - pad - originX,
+          y: minY - pad - originY,
           w: Math.max(1, maxX - minX + pad * 2),
           h: Math.max(1, maxY - minY + pad * 2),
         };
@@ -1720,6 +1874,11 @@ window.__ModuleLoader__.load({
             y: (dims.height - box.h * zoom) / 2 - box.y * zoom,
           });
         });
+      };
+
+      const applyLayout = (mode) => {
+        setLayoutMode(normalizeLayoutMode(mode));
+        setPositions({});
       };
 
       const relayout = () => setPositions({});
@@ -1785,8 +1944,8 @@ window.__ModuleLoader__.load({
         if (!event) return '';
         const host = viewRef.current;
         const rect = host && typeof host.getBoundingClientRect === 'function' ? host.getBoundingClientRect() : { left: 0, top: 0 };
-        const localX = ((Number(event.clientX) || 0) - (Number(rect.left) || 0) - view.x) / view.zoom;
-        const localY = ((Number(event.clientY) || 0) - (Number(rect.top) || 0) - view.y) / view.zoom;
+        const localX = ((Number(event.clientX) || 0) - (Number(rect.left) || 0) - view.x) / view.zoom + (Number(layout.originX) || 0);
+        const localY = ((Number(event.clientY) || 0) - (Number(rect.top) || 0) - view.y) / view.zoom + (Number(layout.originY) || 0);
         for (const node of hitBoxes) {
           if (localX >= node.x && localX <= node.x + node.w && localY >= node.y && localY <= node.y + node.h) return node.id;
         }
@@ -1909,6 +2068,9 @@ window.__ModuleLoader__.load({
       };
 
       const zoomPercent = Math.round(view.zoom * 100) + '%';
+      const originX = Number(layout.originX) || 0;
+      const originY = Number(layout.originY) || 0;
+      const stageGeo = (geo) => (geo ? { ...geo, x: geo.x - originX, y: geo.y - originY } : geo);
       const stageStyle = {
         width: layout.width + 'px',
         height: layout.height + 'px',
@@ -1945,7 +2107,7 @@ window.__ModuleLoader__.load({
               className: 'stwd-graph-links',
               width: layout.width,
               height: layout.height,
-              viewBox: '0 0 ' + layout.width + ' ' + layout.height,
+              viewBox: originX + ' ' + originY + ' ' + layout.width + ' ' + layout.height,
               'aria-hidden': 'true',
               focusable: 'false',
             },
@@ -1959,7 +2121,7 @@ window.__ModuleLoader__.load({
               })),
             ),
             h('div', { className: 'stwd-graph-canvas', style: { height: layout.height + 'px' } },
-              visibleIds.has(LEAD_NODE_ID) ? h(LeadNode, { text, row: props.lead, geo: layout.lead, delay: 0 }) : null,
+              visibleIds.has(LEAD_NODE_ID) ? h(LeadNode, { text, row: props.lead, geo: stageGeo(layout.lead), delay: 0 }) : null,
               placed.map((node, index) => {
                 const row = rowsById.get(node.id);
                 if (row === undefined) return null;
@@ -1967,7 +2129,7 @@ window.__ModuleLoader__.load({
                   key: 'node-' + node.id,
                   text,
                   row,
-                  geo: node,
+                  geo: stageGeo(node),
                   selected: props.selectedId === node.id,
                   delay: ((index + 1) * 0.37) % 2.8,
                   onOpen: props.onOpen,
@@ -2011,6 +2173,15 @@ window.__ModuleLoader__.load({
                 title: text.zoomFit,
                 onClick: fitView,
               }, '⤢'),
+              ...[['map', text.layoutMap], ['fishbone', text.layoutFishbone], ['tree', text.layoutTree]].map(([key, label]) => h('button', {
+                key: 'layout-' + key,
+                type: 'button',
+                className: 'stwd-graph-tool' + (layoutMode === key ? ' stwd-graph-tool-on' : ''),
+                'aria-label': label,
+                title: label,
+                'aria-pressed': layoutMode === key ? 'true' : 'false',
+                onClick: () => applyLayout(key),
+              }, label)),
               h('button', {
                 type: 'button',
                 className: 'stwd-graph-tool',
@@ -2754,6 +2925,7 @@ window.__ModuleLoader__.load({
       '.stwd-graph-tools{display:flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
       '.stwd-graph-tool{min-width:20px;height:20px;padding:0 4px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
       '.stwd-graph-tool:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
+      '.stwd-graph-tool-on{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:500}',
       '.stwd-graph-zoom{min-width:38px;font-variant-numeric:tabular-nums}',
       '.stwd-graph-filters{flex-wrap:wrap;gap:6px}',
       '.stwd-filters{display:inline-flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
