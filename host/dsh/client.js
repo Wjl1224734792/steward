@@ -105,7 +105,12 @@ window.__ModuleLoader__.load({
         filterGroup: '过滤',
         filterAll: '全部',
         filterHideDone: '隐藏已完成',
+        filterHideIdle: '隐藏空闲',
         filterActive: '只看活跃',
+        metricDuration: '时长',
+        metricTokens: '用量',
+        statDuration: '总时长',
+        statTokens: '总用量',
         filterHidden: '已隐藏 {count} 个',
         collapseStage: '折叠 {stage}',
         expandStage: '展开 {stage}',
@@ -239,7 +244,12 @@ window.__ModuleLoader__.load({
         filterGroup: 'Filter',
         filterAll: 'All',
         filterHideDone: 'Hide done',
+        filterHideIdle: 'Hide idle',
         filterActive: 'Active only',
+        metricDuration: 'Time',
+        metricTokens: 'Usage',
+        statDuration: 'Total time',
+        statTokens: 'Total usage',
         filterHidden: '{count} hidden',
         collapseStage: 'Collapse {stage}',
         expandStage: 'Expand {stage}',
@@ -357,13 +367,17 @@ window.__ModuleLoader__.load({
       return seconds + 's';
     }
 
-    /** 850 → `850`, 8420 → `8.4k`, 23400 → `23k`; absent usage is an em dash, never a fake zero. */
+    /** 850 → `850`, 8.4k, 29.4k / 49.5k (one decimal under 100k when not whole), 1.2m; absent usage is an em dash, never a fake zero. */
     function fmtTokens(value) {
       const number = Number(value);
       if (!Number.isFinite(number) || number <= 0) return '—';
+      function compact(unit, scaled) {
+        if (scaled >= 100) return String(Math.round(scaled)) + unit;
+        return String(round1(scaled)).replace(/\.0$/, '') + unit;
+      }
       if (number < 1000) return String(Math.round(number));
-      if (number < 10000) return round1(number / 1000) + 'k';
-      return String(Math.round(number / 1000)) + 'k';
+      if (number < 1000000) return compact('k', number / 1000);
+      return compact('m', number / 1000000);
     }
 
     /** The four disjoint provider buckets a token usage projection reports. */
@@ -631,12 +645,26 @@ window.__ModuleLoader__.load({
     }
 
     // --- team graph layout ----------------------------------------------------------
-    // A tree, not a list and not a page of rows: the Lead is the root on the left, a
-    // vertical trunk chains the stage hubs (spec → architecture → implementation →
-    // quality → acceptance → review), and every hub branches to the right into that
-    // stage's agent cards. One edge per parent-child pair, no crossings.
+    // A free-drag DAG canvas: the Lead and every specialist are cards, edges follow
+    // the delivery flow (and a node may have two parents, as QA does). Stage hubs are
+    // not structural nodes. Positions are absolute; filters hide cards without reflow.
 
-    const ZOOM_MIN = 0.6;
+    const ZOOM_MIN = 0.4;
+    const NODE_W = 252;
+    const NODE_H = 144;
+    const NODE_GAP_X = 28;
+    const NODE_GAP_Y = 72;
+    const LEAD_NODE_ID = '__lead__';
+    const ROLE_COLOR = {
+      lead: '#5B5CFF',
+      pm: '#8B5CF6',
+      architect: '#14C16F',
+      'backend-dev': '#0FBEA6',
+      'frontend-dev': '#2F7BFF',
+      'qa-engineer': '#F97316',
+      'browser-tester': '#F59E0B',
+      reviewer: '#EF4444',
+    };
     const ZOOM_MAX = 1.8;
 
     function clampZoom(value) {
@@ -680,31 +708,44 @@ window.__ModuleLoader__.load({
     }
 
     // --- graph filters --------------------------------------------------------------
-    // Three honest views of the same roster; the choice survives a reload.
+    // A view (all / active) plus independent hide-done and hide-idle toggles in the
+    // all view. The choice survives a reload; older `filter: hide-done` values migrate.
 
     const FILTER_KEY = 'dsh-steward.panel.filters';
-    const PANEL_FILTERS = ['all', 'hide-done', 'active'];
+    const POSITION_KEY = 'dsh-steward.panel.positions';
 
-    function filterAgentRows(rows, filter) {
+    function normalizePanelPrefs(parsed) {
+      const fallback = { view: 'all', hideDone: false, hideIdle: false };
+      if (!parsed || typeof parsed !== 'object') return fallback;
+      if (parsed.filter === 'hide-done') return { view: 'all', hideDone: true, hideIdle: Boolean(parsed.hideIdle) };
+      if (parsed.filter === 'active') return { view: 'active', hideDone: false, hideIdle: false };
+      const view = parsed.view === 'active' ? 'active' : 'all';
+      return {
+        view,
+        hideDone: view === 'all' && Boolean(parsed.hideDone),
+        hideIdle: view === 'all' && Boolean(parsed.hideIdle),
+      };
+    }
+
+    function filterAgentRows(rows, prefs) {
       const list = (rows || []).filter(Boolean);
-      if (filter === 'hide-done') return list.filter((row) => row.state !== 'done');
-      if (filter === 'active') return list.filter((row) => row.state === 'waiting' || row.state === 'running');
-      return list;
+      const next = normalizePanelPrefs(prefs);
+      if (next.view === 'active') return list.filter((row) => row.state === 'waiting' || row.state === 'running');
+      return list.filter((row) => {
+        if (next.hideDone && row.state === 'done') return false;
+        if (next.hideIdle && row.state === 'idle' && !row.lead) return false;
+        return true;
+      });
     }
 
     function readPanelPrefs() {
-      const fallback = { filter: 'all', collapsed: {} };
+      const fallback = { view: 'all', hideDone: false, hideIdle: false };
       try {
         const storage = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
         if (!storage || typeof storage.getItem !== 'function') return fallback;
         const raw = storage.getItem(FILTER_KEY);
         if (typeof raw !== 'string' || raw === '') return fallback;
-        const parsed = JSON.parse(raw);
-        const filter = parsed && PANEL_FILTERS.indexOf(parsed.filter) >= 0 ? parsed.filter : 'all';
-        const collapsed = parsed && parsed.collapsed && typeof parsed.collapsed === 'object' && !Array.isArray(parsed.collapsed)
-          ? parsed.collapsed
-          : {};
-        return { filter, collapsed };
+        return normalizePanelPrefs(JSON.parse(raw));
       } catch {
         return fallback;
       }
@@ -714,120 +755,350 @@ window.__ModuleLoader__.load({
       try {
         const storage = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
         if (!storage || typeof storage.setItem !== 'function') return;
-        storage.setItem(FILTER_KEY, JSON.stringify({ filter: value.filter, collapsed: value.collapsed }));
+        const next = normalizePanelPrefs(value);
+        storage.setItem(FILTER_KEY, JSON.stringify(next));
       } catch {
         // private mode or a hostile storage: the panel keeps working, prefs just stay session-only
       }
     }
 
-    /**
-     * Lay the team out as a left-rooted tree: a trunk of stage hubs, and each hub
-     * branching right into a grid of its cards. Cards wrap into up to three columns so a
-     * wide panel shows a canopy instead of one long column; every card keeps exactly one
-     * parent edge, and the elbows run above the cards or in the column gaps, never
-     * across a card.
-     * @param options - available width, card height, the ordered groups and their collapsed state.
-     * @returns geometry for the Lead, the hubs, the cards and every tree edge.
-     */
-    function treeLayout(options) {
-      const input = options || {};
-      const width = Math.max(300, Math.round(Number(input.width) || 380));
-      const nodeHeight = Number(input.nodeHeight) > 0 ? Number(input.nodeHeight) : 74;
-      const rowGap = 10;
-      const columnGap = 10;
-      const leadWidth = Math.min(232, Math.max(168, Math.round(width * 0.45)));
-      const leadHeight = nodeHeight;
-      const memberX = leadWidth + 40;
-      const memberArea = Math.max(150, width - memberX - 6);
-      const columns = Math.max(1, Math.min(3, Math.floor((memberArea + columnGap) / (150 + columnGap))));
-      const memberWidth = Math.max(150, Math.min(244, Math.floor((memberArea - columnGap * (columns - 1)) / columns)));
-      const trunkX = Math.round(leadWidth / 2);
-      const hubWidth = Math.min(132, Math.max(96, leadWidth - 40));
-      const hubHeight = 40;
-      const hubX = Math.max(0, trunkX - Math.round(hubWidth / 2));
-      const lead = { id: '__lead__', x: 0, y: 0, w: leadWidth, h: leadHeight };
-      const hubs = [];
-      const blocks = [];
-      const nodes = [];
-      const links = [];
-      let y = leadHeight + 30;
-      for (const group of Array.isArray(input.groups) ? input.groups : []) {
-        const rows = group && Array.isArray(group.rows) ? group.rows : [];
-        if (rows.length === 0) continue;
-        const collapsed = Boolean(group.collapsed);
-        const lineCount = collapsed ? 0 : Math.ceil(rows.length / columns);
-        const bodyHeight = collapsed ? 0 : lineCount * nodeHeight + (lineCount - 1) * rowGap;
-        const blockHeight = Math.max(hubHeight, bodyHeight);
-        const blockTop = y;
-        const hub = {
-          key: group.key,
-          label: group.label,
-          count: rows.length,
-          waiting: rows.filter((row) => row.state === 'waiting').length,
-          collapsed,
-          x: hubX,
-          y: blockTop + Math.round((blockHeight - hubHeight) / 2),
-          w: hubWidth,
-          h: hubHeight,
-        };
-        hubs.push(hub);
-        blocks.push({ hub, top: blockTop, bottom: blockTop + blockHeight });
-        if (!collapsed) {
-          rows.forEach((row, index) => {
-            const column = index % columns;
-            const line = Math.floor(index / columns);
-            nodes.push({
-              id: row.id,
-              state: row.state,
-              stage: group.key,
-              column,
-              x: memberX + column * (memberWidth + columnGap),
-              y: blockTop + line * (nodeHeight + rowGap),
-              w: memberWidth,
-              h: nodeHeight,
-            });
-          });
-        }
-        y = blockTop + blockHeight + 30;
+    function storageOf() {
+      return typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
+    }
+
+    function cleanPositions(parsed) {
+      const out = {};
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return out;
+      for (const id of Object.keys(parsed)) {
+        const pos = parsed[id];
+        if (!pos || typeof pos !== 'object') continue;
+        const x = Number(pos.x);
+        const y = Number(pos.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        out[id] = { x, y };
       }
-      const height = Math.max(leadHeight + 40, y - 30 + 4);
-      const edge = (id, kind, d, active) => ({ id, kind, d, active: Boolean(active) });
-      if (hubs.length > 0) {
-        const first = hubs[0];
-        links.push(edge('lead', 'trunk', 'M' + trunkX + ' ' + leadHeight + ' V' + Math.max(leadHeight + 2, first.y - 2), first.waiting > 0));
-        for (let index = 1; index < hubs.length; index += 1) {
-          const from = hubs[index - 1];
-          const to = hubs[index];
-          links.push(edge(from.key + '>' + to.key, 'trunk', 'M' + trunkX + ' ' + (from.y + from.h) + ' V' + Math.max(from.y + from.h + 2, to.y - 2), to.waiting > 0));
+      return out;
+    }
+
+    function positionBag(sessionId) {
+      const key = String(sessionId || '') === '' ? '_' : String(sessionId);
+      try {
+        const storage = storageOf();
+        if (!storage || typeof storage.getItem !== 'function') return { all: {}, key, bag: {} };
+        const raw = storage.getItem(POSITION_KEY);
+        if (typeof raw !== 'string' || raw === '') return { all: {}, key, bag: {} };
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { all: {}, key, bag: {} };
+        // A flat { id: {x,y} } bag from an older write is treated as the default session.
+        const first = Object.keys(parsed)[0];
+        const looksFlat = first !== undefined && parsed[first] && Number.isFinite(Number(parsed[first].x));
+        const all = looksFlat ? { _: cleanPositions(parsed) } : parsed;
+        const bag = cleanPositions(all[key] || {});
+        return { all, key, bag };
+      } catch {
+        return { all: {}, key, bag: {} };
+      }
+    }
+
+    function readPanelPositions(sessionId) {
+      return positionBag(sessionId).bag;
+    }
+
+    function writePanelPositions(sessionId, positions) {
+      try {
+        const storage = storageOf();
+        if (!storage || typeof storage.setItem !== 'function') return;
+        const state = positionBag(sessionId);
+        const next = { ...state.all, [state.key]: cleanPositions(positions) };
+        storage.setItem(POSITION_KEY, JSON.stringify(next));
+      } catch {
+        // same private-mode rule as the filter prefs
+      }
+    }
+
+    function sortAgents(rows) {
+      return (rows || []).filter(Boolean).slice().sort((left, right) => {
+        const rank = AGENT_STATES.indexOf(left.state) - AGENT_STATES.indexOf(right.state);
+        if (rank !== 0) return rank;
+        if (left.createdAt !== right.createdAt) return left.createdAt - right.createdAt;
+        return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+      });
+    }
+
+    function colorOf(row) {
+      if (!row || row.lead) return ROLE_COLOR.lead;
+      return ROLE_COLOR[row.role] || '#64748B';
+    }
+
+    function modelNameOf(row, text) {
+      if (!row || row.model === null) return text.modelPending;
+      return row.model.model;
+    }
+
+    function effortOf(row) {
+      if (!row || row.model === null) return '';
+      return row.model.effort || '';
+    }
+
+    function layerRowsOf(rows) {
+      const list = sortAgents(rows);
+      return STAGES.map((stage, index) => ({
+        key: stage.key,
+        rows: list.filter((row) => stageIndexOf(row.role) === index),
+      })).filter((stage) => stage.rows.length > 0);
+    }
+
+    function placeRow(items, y, columns) {
+      const count = items.length;
+      const cols = Math.max(1, Math.min(columns, count));
+      const width = cols * NODE_W + (cols - 1) * NODE_GAP_X;
+      const positions = {};
+      items.forEach((row, index) => {
+        const column = index % cols;
+        const line = Math.floor(index / cols);
+        positions[row.id] = {
+          x: column * (NODE_W + NODE_GAP_X),
+          y: y + line * (NODE_H + NODE_GAP_X),
+        };
+      });
+      const lines = Math.ceil(count / cols);
+      return { positions, width, height: lines * NODE_H + (lines - 1) * NODE_GAP_X };
+    }
+
+    /**
+     * Default layered DAG positions: Lead on top, then each pipeline stage as a
+     * wrapping row (up to five cards). Same-role siblings sit side by side.
+     */
+    function defaultDagPositions(rows) {
+      const layers = layerRowsOf(rows);
+      const columns = 5;
+      const layerLayouts = [];
+      let y = NODE_H + NODE_GAP_Y;
+      let contentWidth = NODE_W;
+      for (const layer of layers) {
+        const placed = placeRow(layer.rows, y, columns);
+        layerLayouts.push({ key: layer.key, rows: layer.rows, ...placed });
+        contentWidth = Math.max(contentWidth, placed.width);
+        y += placed.height + NODE_GAP_Y;
+      }
+      const leadX = Math.max(0, Math.round((contentWidth - NODE_W) / 2));
+      const pos = { [LEAD_NODE_ID]: { x: leadX, y: 0 } };
+      for (const layer of layerLayouts) {
+        const offset = Math.max(0, Math.round((contentWidth - layer.width) / 2));
+        for (const row of layer.rows) {
+          const local = layer.positions[row.id];
+          pos[row.id] = { x: local.x + offset, y: local.y };
         }
-        for (const block of blocks) {
-          const hub = block.hub;
-          if (hub.collapsed) continue;
-          const hubY = hub.y + Math.round(hub.h / 2);
-          const top = block.top - 10;
-          const hubRight = hub.x + hub.w;
-          for (const member of nodes.filter((node) => node.stage === hub.key)) {
-            const targetY = member.y + Math.round(member.h / 2);
-            const active = member.state === 'waiting';
-            if (member.column === 0) {
-              links.push(edge(hub.key + '>' + member.id, 'branch',
-                'M' + hubRight + ' ' + hubY
-                + ' C' + (hubRight + 25) + ' ' + hubY
-                + ' ' + (member.x - 25) + ' ' + targetY
-                + ' ' + member.x + ' ' + targetY, active));
-            } else {
-              const corridorX = member.x - Math.round(columnGap / 2);
-              links.push(edge(hub.key + '>' + member.id, 'branch',
-                'M' + hubRight + ' ' + hubY
-                + ' V' + top
-                + ' H' + corridorX
-                + ' V' + targetY
-                + ' H' + member.x, active));
-            }
+      }
+      return pos;
+    }
+
+    /** Fallback edges when the host does not expose a parent for each dispatch. */
+    function defaultDagEdges(rows) {
+      // Every specialist is dispatched by the Lead, so every edge starts there.
+      return sortAgents(rows).map((row) => ({ from: LEAD_NODE_ID, to: row.id, route: '' }));
+    }
+
+    function linkKind(state) {
+      if (state === 'waiting') return 'wait';
+      if (state === 'running' || state === 'pending' || state === 'done' || state === 'idle') return state;
+      return 'idle';
+    }
+
+
+    /**
+     * Filters hide cards without moving them; any path that still has visible
+     * ends keeps a line, jumping over the hidden nodes in the middle.
+     */
+    function visibleDagLinks(layout, visibleIds) {
+      const visible = visibleIds instanceof Set ? visibleIds : new Set(visibleIds || []);
+      const geos = new Map();
+      if (layout && layout.lead) geos.set(LEAD_NODE_ID, layout.lead);
+      for (const node of (layout && layout.nodes) || []) geos.set(node.id, node);
+      const outgoing = new Map();
+      for (const link of (layout && layout.links) || []) {
+        if (!outgoing.has(link.from)) outgoing.set(link.from, []);
+        outgoing.get(link.from).push(link);
+      }
+      const found = [];
+      const seen = new Set();
+      const walk = (start, from, hops) => {
+        for (const edge of outgoing.get(from) || []) {
+          if (edge.to === start || hops.has(edge.to)) continue;
+          if (visible.has(edge.to)) {
+            const key = start + '>' + edge.to;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const fromGeo = geos.get(start);
+            const toGeo = geos.get(edge.to);
+            if (!fromGeo || !toGeo) continue;
+            const planned = planEdge(fromGeo, toGeo, obstaclesOf(visible, geos));
+            found.push({
+              id: key,
+              from: start,
+              to: edge.to,
+              kind: edge.kind,
+              route: planned.route,
+              points: planned.points,
+              d: planned.d,
+            });
+          } else {
+            hops.add(edge.to);
+            walk(start, edge.to, hops);
+            hops.delete(edge.to);
           }
         }
+      };
+      for (const id of visible) {
+        if (!geos.has(id)) continue;
+        walk(id, id, new Set());
       }
-      return { width: memberX + columns * memberWidth + (columns - 1) * columnGap + 4, height, lead, hubs, nodes, links, trunkX, memberX, memberWidth };
+      return found;
+    }
+
+    function portOf(geo) {
+      return {
+        x: geo.x + geo.w / 2,
+        top: geo.y + 6,
+        bottom: geo.y + geo.h,
+        left: geo.x,
+        right: geo.x + geo.w,
+      };
+    }
+
+    const EDGE_ALIGN = 16;
+
+    function edgePorts(fromGeo, toGeo) {
+      const a = portOf(fromGeo);
+      const b = portOf(toGeo);
+      const fromCy = fromGeo.y + fromGeo.h / 2;
+      const toCy = toGeo.y + toGeo.h / 2;
+      const dx = b.x - a.x;
+      const dy = toCy - fromCy;
+      if (Math.abs(dy) >= Math.abs(dx) || Math.abs(dx) < fromGeo.w * 0.55) {
+        if (dy >= 0) return { x1: a.x, y1: a.bottom, x2: b.x, y2: b.top };
+        return { x1: a.x, y1: a.top, x2: b.x, y2: b.bottom };
+      }
+      if (dx >= 0) return { x1: a.right, y1: fromCy, x2: b.left, y2: toCy };
+      return { x1: a.left, y1: fromCy, x2: b.right, y2: toCy };
+    }
+
+    function obstaclesOf(visible, geos) {
+      const list = [];
+      for (const [id, geo] of geos) {
+        if (visible.has(id)) list.push(geo);
+      }
+      return list;
+    }
+
+    function mindmapPath(x1, y1, x2, y2) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      if ((Math.abs(dx) <= EDGE_ALIGN && Math.abs(dy) > 8) || (Math.abs(dy) <= EDGE_ALIGN && Math.abs(dx) > 8)) {
+        const points = [[x1, y1], [x2, y2]];
+        return { route: 'straight', points: points, d: 'M' + x1 + ' ' + y1 + ' L' + x2 + ' ' + y2 };
+      }
+      if (Math.abs(dy) >= Math.abs(dx)) {
+        const midY = (y1 + y2) / 2;
+        const points = [[x1, y1], [x1, midY], [x2, midY], [x2, y2]];
+        return {
+          route: 'curve',
+          points: points,
+          d: 'M' + x1 + ' ' + y1 + ' C' + x1 + ' ' + midY + ' ' + x2 + ' ' + midY + ' ' + x2 + ' ' + y2,
+        };
+      }
+      const midX = (x1 + x2) / 2;
+      const points = [[x1, y1], [midX, y1], [midX, y2], [x2, y2]];
+      return {
+        route: 'curve',
+        points: points,
+        d: 'M' + x1 + ' ' + y1 + ' C' + midX + ' ' + y1 + ' ' + midX + ' ' + y2 + ' ' + x2 + ' ' + y2,
+      };
+    }
+
+    /**
+     * Mind-map branches from the Lead to each child. A card sitting directly
+     * under or beside the Lead gets a straight stem; otherwise the line is a
+     * smooth cubic that stays between the two ends, like a mind map.
+     */
+    function planEdge(fromGeo, toGeo) {
+      if (!fromGeo || !toGeo) return { route: '', points: [], d: '' };
+      const ports = edgePorts(fromGeo, toGeo);
+      return mindmapPath(ports.x1, ports.y1, ports.x2, ports.y2);
+    }
+
+    /**
+     * Lay the team out as a free-position DAG. `positions` are absolute overrides
+     * (from a drag); missing ids fall back to the layered default. Filtering should
+     * pass every row so remaining cards keep their coordinates.
+     * @returns geometry for the Lead, the cards and every agent-to-agent edge.
+     */
+    function dagLayout(options) {
+      const input = options || {};
+      const rows = Array.isArray(input.rows) ? input.rows : [];
+      const defaults = defaultDagPositions(rows);
+      const overrides = input.positions && typeof input.positions === 'object' ? input.positions : {};
+      const geoOf = (id) => {
+        const base = defaults[id] || { x: 0, y: 0 };
+        const next = overrides[id];
+        return {
+          id,
+          x: next && Number.isFinite(Number(next.x)) ? Number(next.x) : base.x,
+          y: next && Number.isFinite(Number(next.y)) ? Number(next.y) : base.y,
+          w: NODE_W,
+          h: NODE_H,
+        };
+      };
+      const lead = geoOf(LEAD_NODE_ID);
+      const nodes = rows.map((row) => {
+        const geo = geoOf(row.id);
+        return { ...geo, state: row.state, role: row.role };
+      });
+      const byId = new Map();
+      byId.set(LEAD_NODE_ID, lead);
+      for (const node of nodes) byId.set(node.id, node);
+      const links = [];
+      const obstacles = [lead].concat(nodes);
+      for (const edge of defaultDagEdges(rows)) {
+        const from = byId.get(edge.from);
+        const to = byId.get(edge.to);
+        if (!from || !to) continue;
+        const planned = planEdge(from, to, obstacles);
+        links.push({
+          id: edge.from + '>' + edge.to,
+          from: edge.from,
+          to: edge.to,
+          kind: linkKind(to.state),
+          route: planned.route,
+          points: planned.points,
+          d: planned.d,
+        });
+      }
+      let minX = lead.x, minY = lead.y, maxX = lead.x + lead.w, maxY = lead.y + lead.h;
+      for (const node of nodes) {
+        minX = Math.min(minX, node.x);
+        minY = Math.min(minY, node.y);
+        maxX = Math.max(maxX, node.x + node.w);
+        maxY = Math.max(maxY, node.y + node.h);
+      }
+      for (const link of links) {
+        for (const point of link.points || []) {
+          minX = Math.min(minX, point[0]);
+          maxX = Math.max(maxX, point[0]);
+          minY = Math.min(minY, point[1]);
+          maxY = Math.max(maxY, point[1]);
+        }
+      }
+      const pad = 24;
+      return {
+        lead,
+        nodes,
+        links,
+        minX,
+        minY,
+        width: Math.max(NODE_W + pad * 2, maxX - Math.min(0, minX) + pad),
+        height: Math.max(NODE_H + pad * 2, maxY + pad),
+      };
     }
 
     // --- subagents ------------------------------------------------------------------
@@ -1172,30 +1443,79 @@ window.__ModuleLoader__.load({
 
     // --- team graph -----------------------------------------------------------------
 
-    /** The Session the panel is docked in: it heads the tree. */
-    function LeadNode({ text, row, geo }) {
-      return h('div', {
-        className: 'stwd-leadnode stwd-leadnode-' + row.state,
-        style: { left: geo.x + 'px', top: geo.y + 'px', width: geo.w + 'px', height: geo.h + 'px' },
+    function AgentFace({ color, delay }) {
+      const headDelay = { animationDelay: ((Number(delay) || 0) * 0.85) + 's' };
+      const eyeDelay = { animationDelay: ((Number(delay) || 0) * -0.6) + 's' };
+      return h('svg', {
+        className: 'stwd-face',
+        viewBox: '0 0 64 64',
+        'aria-hidden': 'true',
+        style: headDelay,
       },
-        h('span', { className: 'stwd-leadnode-avatar', 'aria-hidden': 'true' }, row.glyph),
-        h('span', { className: 'stwd-leadnode-body' },
-          h('span', { className: 'stwd-leadnode-row' },
-            h('span', { className: 'stwd-leadnode-title' }, text.lead),
-            h(StatusDot, { tone: stateTone(row.state) }),
-            h('span', { className: 'stwd-leadnode-state' }, stateLabelOf(row.state, text)),
+        h('g', { className: 'stwd-face-head', style: headDelay },
+          h('circle', { cx: 32, cy: 32, r: 30, fill: color }),
+          h('g', { className: 'stwd-face-eyes', style: eyeDelay },
+            h('ellipse', { className: 'stwd-face-eye', cx: 22.5, cy: 26, rx: 6.2, ry: 8.2, fill: '#fff', style: headDelay }),
+            h('ellipse', { className: 'stwd-face-eye', cx: 41.5, cy: 26, rx: 6.2, ry: 8.2, fill: '#fff', style: { animationDelay: ((Number(delay) || 0) + 0.12) + 's' } }),
           ),
-          h('span', { className: 'stwd-leadnode-meta' },
-            h('span', { className: 'stwd-leadnode-model stwd-mono' }, modelLabelOf(row, text)),
-          ),
-          h('span', { className: 'stwd-leadnode-task' }, row.description === '' ? text.leadHere : row.description),
-          h('span', { className: 'stwd-leadnode-metrics' }, fmtTokens(row.tokens === null ? 0 : row.tokens.total) + ' ' + text.tokensShort),
         ),
       );
     }
 
-    /** One dispatched agent: role, model, task, state, and two real buttons. */
-    function AgentNode({ text, row, geo, selected, onOpen, onToggle }) {
+    function metricLine(text, row) {
+      const time = Number(row.elapsedMs) > 0
+        ? h('span', { className: 'stwd-gnode-metric' },
+          h('span', { className: 'stwd-gnode-mlbl' }, text.metricDuration),
+          h('b', null, fmtDuration(row.elapsedMs)),
+        )
+        : null;
+      return h('span', { className: 'stwd-gnode-metrics' },
+        time,
+        h('span', { className: 'stwd-gnode-metric' },
+          h('span', { className: 'stwd-gnode-mlbl' }, text.metricTokens),
+          h('b', null, fmtTokens(row.tokens === null ? 0 : row.tokens.total)),
+        ),
+      );
+    }
+
+    function modelRow(text, row) {
+      const effort = effortOf(row);
+      return h('span', { className: 'stwd-gnode-modelrow' },
+        h('span', { className: 'stwd-gnode-model stwd-mono' + (row.model === null ? ' stwd-gnode-model-pending' : '') }, modelNameOf(row, text)),
+        effort === '' ? null : h('span', { className: 'stwd-effort stwd-effort-' + effort }, effort),
+      );
+    }
+
+    /** The Session the panel is docked in: it heads the DAG. */
+    function LeadNode({ text, row, geo, delay }) {
+      return h('div', {
+        className: 'stwd-leadnode stwd-leadnode-' + row.state + ' stwd-gnode-' + row.state,
+        style: {
+          left: geo.x + 'px',
+          top: geo.y + 'px',
+          width: geo.w + 'px',
+          height: geo.h + 'px',
+          '--stwd-role': colorOf(row),
+        },
+      },
+        h(AgentFace, { color: colorOf(row), delay: delay || 0 }),
+        h('span', { className: 'stwd-leadnode-body stwd-gnode-card' },
+          h('span', { className: 'stwd-gnode-top' },
+            h('span', { className: 'stwd-leadnode-title stwd-gnode-role' }, text.lead),
+            h('span', { className: 'stwd-gnode-state stwd-gnode-state-' + row.state },
+              h(StatusDot, { tone: stateTone(row.state) }),
+              stateLabelOf(row.state, text),
+            ),
+          ),
+          modelRow(text, row),
+          h('span', { className: 'stwd-leadnode-task stwd-gnode-task' }, row.description === '' ? text.leadHere : row.description),
+          metricLine(text, row),
+        ),
+      );
+    }
+
+    /** One dispatched agent: role, model, effort, task, state, and two real buttons. */
+    function AgentNode({ text, row, geo, selected, delay, onOpen, onToggle }) {
       let aria = (row.roleName === '' ? text.subagentRole : row.roleName)
         + (row.role === '' ? '' : ' ' + row.role)
         + ' · ' + stateLabelOf(row.state, text)
@@ -1203,23 +1523,29 @@ window.__ModuleLoader__.load({
       if (row.description !== '') aria += ' · ' + row.description;
       return h('div', {
         className: 'stwd-gnode stwd-gnode-' + row.state + (selected ? ' stwd-gnode-selected' : ''),
-        style: { left: geo.x + 'px', top: geo.y + 'px', width: geo.w + 'px', height: geo.h + 'px' },
+        style: {
+          left: geo.x + 'px',
+          top: geo.y + 'px',
+          width: geo.w + 'px',
+          height: geo.h + 'px',
+          '--stwd-role': colorOf(row),
+        },
       },
+        h(AgentFace, { color: colorOf(row), delay: delay || 0 }),
         h('button', {
           type: 'button',
-          className: 'stwd-gnode-main',
+          className: 'stwd-gnode-main stwd-gnode-card',
           'aria-label': aria,
           title: aria,
           onClick: () => onOpen(row),
         },
           h('span', { className: 'stwd-gnode-top' },
-            h('span', { className: 'stwd-gnode-avatar', 'aria-hidden': 'true' }, row.glyph),
             h('span', { className: 'stwd-gnode-role' }, row.roleName === '' ? text.subagentRole : row.roleName),
-            h('span', { className: 'stwd-gnode-state' }, h(StatusDot, { tone: stateTone(row.state) }), stateLabelOf(row.state, text)),
+            h('span', { className: 'stwd-gnode-state stwd-gnode-state-' + row.state }, h(StatusDot, { tone: stateTone(row.state) }), stateLabelOf(row.state, text)),
           ),
-          h('span', { className: 'stwd-gnode-model stwd-mono' }, modelLabelOf(row, text)),
+          modelRow(text, row),
           h('span', { className: 'stwd-gnode-task' }, row.description === '' ? text.noDescription : row.description),
-          h('span', { className: 'stwd-gnode-metrics' }, fmtDuration(row.elapsedMs) + ' · ' + fmtTokens(row.tokens === null ? 0 : row.tokens.total) + ' ' + text.tokensShort),
+          metricLine(text, row),
         ),
         h('button', {
           type: 'button',
@@ -1232,14 +1558,11 @@ window.__ModuleLoader__.load({
       );
     }
 
-    let ARROW_SEQ = 0;
-
     /**
-     * The team as a tree canvas: the Lead is the root, a trunk chains the stage hubs,
-     * every hub branches into its cards. Cards can be dragged anywhere, the viewport
-     * pans and zooms, and filters / collapsed hubs are remembered across reloads.
-     * A click on a card still opens its child session; a drag moves the card and
-     * swallows that click.
+     * The team as a DAG canvas: the Lead and every specialist are freely
+     * draggable cards, edges follow, and the viewport pans and zooms. Filters
+     * hide cards without moving the ones that remain. A click on a card still
+     * opens its child session; a drag moves the card and swallows that click.
      * @param props - copy, rows, the Lead row, selection and the two node actions.
      * @returns the graph surface.
      */
@@ -1250,19 +1573,15 @@ window.__ModuleLoader__.load({
       const viewRef = useRef(null);
       const dragRef = useRef(null);
       const suppressRef = useRef(0);
-      const markerRef = useRef(null);
       const dimsRef = useRef({ width: 340, height: 480, contentWidth: 340, contentHeight: 480 });
       const [width, setWidth] = useState(340);
       const [view, setViewState] = useState({ zoom: 1, x: 0, y: 0 });
       const [moving, setMoving] = useState(false);
-      const [offsets, setOffsets] = useState({});
-      const [filter, setFilter] = useState(prefs.filter);
-      const [collapsed, setCollapsed] = useState(prefs.collapsed);
-      if (markerRef.current === null) {
-        ARROW_SEQ += 1;
-        markerRef.current = 'stwd-tree-arrow-' + ARROW_SEQ;
-      }
-
+      const sessionKey = String(props.sessionId || '');
+      const [positions, setPositions] = useState(() => readPanelPositions(sessionKey));
+      const [graphView, setGraphView] = useState(prefs.view);
+      const [hideDone, setHideDone] = useState(prefs.hideDone);
+      const [hideIdle, setHideIdle] = useState(prefs.hideIdle);
       useEffect(() => {
         const host = wrapRef.current;
         if (!host || typeof ResizeObserver === 'undefined') return undefined;
@@ -1277,33 +1596,54 @@ window.__ModuleLoader__.load({
       }, []);
 
       useEffect(() => {
-        writePanelPrefs({ filter, collapsed });
-      }, [filter, collapsed]);
+        writePanelPrefs({ view: graphView, hideDone, hideIdle });
+      }, [graphView, hideDone, hideIdle]);
 
+      const positionSessionRef = useRef(sessionKey);
+      useEffect(() => {
+        if (positionSessionRef.current === sessionKey) return;
+        positionSessionRef.current = sessionKey;
+        setPositions(readPanelPositions(sessionKey));
+      }, [sessionKey]);
+
+      useEffect(() => {
+        writePanelPositions(sessionKey, positions);
+      }, [sessionKey, positions]);
+
+      const filterPrefs = { view: graphView, hideDone, hideIdle };
       const totalRows = (props.rows || []).filter(Boolean).length;
-      const visibleRows = useMemo(() => filterAgentRows(props.rows, filter), [props.rows, filter]);
+      const visibleRows = useMemo(() => filterAgentRows(props.rows, filterPrefs), [props.rows, graphView, hideDone, hideIdle]);
       const hiddenCount = totalRows - visibleRows.length;
-      const groups = useMemo(() => agentStages(visibleRows, text).map((group) => ({
-        ...group,
-        collapsed: collapsed[group.key] === true,
-      })), [visibleRows, text, collapsed]);
-      const layout = useMemo(() => treeLayout({
-        width,
-        nodeHeight: 74,
-        groups,
-      }), [groups, width]);
+      const layout = useMemo(() => dagLayout({
+        rows: props.rows,
+        positions,
+      }), [props.rows, positions]);
+      const visibleIds = useMemo(() => {
+        const ids = new Set(visibleRows.map((row) => row.id));
+        if (visibleRows.length > 0) ids.add(LEAD_NODE_ID);
+        return ids;
+      }, [visibleRows]);
+      const placed = useMemo(() => layout.nodes.filter((node) => visibleIds.has(node.id)), [layout.nodes, visibleIds]);
+      const visibleLinks = useMemo(
+        () => visibleDagLinks(layout, visibleIds),
+        [layout, visibleIds],
+      );
       const rowsById = useMemo(() => {
         const map = new Map();
         for (const row of props.rows || []) map.set(row.id, row);
         return map;
       }, [props.rows]);
-      const placed = useMemo(() => layout.nodes.map((node) => {
-        const offset = offsets[node.id];
-        return offset ? { ...node, x: node.x + offset.dx, y: node.y + offset.dy } : node;
-      }), [layout.nodes, offsets]);
 
-      // The canvas is as tall as the tree (the panel scrolls, like any diagram); only a
-      // pathological run is capped, and zooming in brings panning into play.
+      const totals = useMemo(() => {
+        let tokens = 0;
+        let elapsed = props.lead && Number.isFinite(Number(props.lead.elapsedMs)) ? Number(props.lead.elapsedMs) : 0;
+        for (const row of props.rows || []) {
+          elapsed += Number(row.elapsedMs) || 0;
+          if (row.tokens && Number.isFinite(Number(row.tokens.total))) tokens += Number(row.tokens.total);
+        }
+        return { tokens, elapsed };
+      }, [props.rows, props.lead]);
+
       const minimumView = totalRows === 0 ? 110 : 220;
       const viewHeight = Math.min(Math.max(layout.height + 10, minimumView), 2200);
       const viewWidth = Math.max(120, width);
@@ -1314,38 +1654,75 @@ window.__ModuleLoader__.load({
         contentHeight: layout.height,
       };
 
-      /** Keep the content covering the viewport (top-left anchored when it fits). */
+      /** Keep at least a sliver of the graph on screen; allow pan even when it is smaller than the viewport. */
       const clampToDims = (next) => {
         const dims = dimsRef.current;
         const zoom = clampZoom(next.zoom);
         const scaledWidth = dims.contentWidth * zoom;
         const scaledHeight = dims.contentHeight * zoom;
+        const keepX = Math.min(80, Math.max(24, Math.round(scaledWidth * 0.25)));
+        const keepY = Math.min(80, Math.max(24, Math.round(scaledHeight * 0.25)));
+        const minX = keepX - scaledWidth;
+        const maxX = dims.width - keepX;
+        const minY = keepY - scaledHeight;
+        const maxY = dims.height - keepY;
         return {
           zoom,
-          x: Math.round(Math.min(0, Math.max(dims.width - scaledWidth, Number(next.x) || 0))),
-          y: Math.round(Math.min(0, Math.max(dims.height - scaledHeight, Number(next.y) || 0))),
+          x: Math.round(Math.min(maxX, Math.max(minX, Number(next.x) || 0))),
+          y: Math.round(Math.min(maxY, Math.max(minY, Number(next.y) || 0))),
         };
       };
 
-      // A filter or a collapsed hub changes the content size: snap the view back in.
       useEffect(() => {
         setViewState((current) => clampToDims(current));
       }, [layout.width, layout.height]);
 
       const resetView = () => setViewState(clampToDims({ zoom: 1, x: 0, y: 0 }));
 
+      const boxOfNodes = (nodes) => {
+        if (!nodes.length) {
+          return { x: 0, y: 0, w: Math.max(1, layout.width), h: Math.max(1, layout.height) };
+        }
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        for (const node of nodes) {
+          minX = Math.min(minX, node.x);
+          minY = Math.min(minY, node.y);
+          maxX = Math.max(maxX, node.x + node.w);
+          maxY = Math.max(maxY, node.y + node.h);
+        }
+        const pad = 40;
+        return {
+          x: minX - pad,
+          y: minY - pad,
+          w: Math.max(1, maxX - minX + pad * 2),
+          h: Math.max(1, maxY - minY + pad * 2),
+        };
+      };
+
       const fitView = () => {
         setViewState(() => {
           const dims = dimsRef.current;
+          const nodes = [];
+          if (visibleIds.has(LEAD_NODE_ID) && layout.lead) nodes.push(layout.lead);
+          for (const node of placed) nodes.push(node);
+          const box = boxOfNodes(nodes);
           const zoom = clampZoom(Math.min(
-            dims.width / Math.max(1, dims.contentWidth),
-            dims.height / Math.max(1, dims.contentHeight),
+            dims.width / box.w,
+            dims.height / box.h,
+            1.25,
           ));
-          return clampToDims({ zoom, x: 0, y: 0 });
+          return clampToDims({
+            zoom,
+            x: (dims.width - box.w * zoom) / 2 - box.x * zoom,
+            y: (dims.height - box.h * zoom) / 2 - box.y * zoom,
+          });
         });
       };
 
-      const relayout = () => setOffsets({});
+      const relayout = () => setPositions({});
 
       const zoomAt = (factor, originX, originY) => {
         setViewState((current) => {
@@ -1360,7 +1737,6 @@ window.__ModuleLoader__.load({
         });
       };
 
-      // Wheel zoom needs a non-passive listener; a plain wheel keeps scrolling the panel.
       useEffect(() => {
         const host = viewRef.current;
         if (!host || typeof host.addEventListener !== 'function') return undefined;
@@ -1398,6 +1774,12 @@ window.__ModuleLoader__.load({
         }
       };
 
+      const hitBoxes = useMemo(() => {
+        const boxes = placed.slice();
+        if (visibleIds.has(LEAD_NODE_ID)) boxes.push({ ...layout.lead, id: LEAD_NODE_ID });
+        return boxes;
+      }, [placed, layout.lead, visibleIds]);
+
       /** Which card (if any) is under this pointer, in layout units. */
       const nodeAt = (event) => {
         if (!event) return '';
@@ -1405,27 +1787,28 @@ window.__ModuleLoader__.load({
         const rect = host && typeof host.getBoundingClientRect === 'function' ? host.getBoundingClientRect() : { left: 0, top: 0 };
         const localX = ((Number(event.clientX) || 0) - (Number(rect.left) || 0) - view.x) / view.zoom;
         const localY = ((Number(event.clientY) || 0) - (Number(rect.top) || 0) - view.y) / view.zoom;
-        for (const node of placed) {
+        for (const node of hitBoxes) {
           if (localX >= node.x && localX <= node.x + node.w && localY >= node.y && localY <= node.y + node.h) return node.id;
         }
         return '';
       };
 
       const interactiveTarget = (target) => Boolean(target && typeof target.closest === 'function'
-        && target.closest('.stwd-gnode, .stwd-leadnode, .stwd-hub-head, .stwd-graph-tools, .stwd-graph-filters'));
+        && target.closest('.stwd-gnode, .stwd-leadnode, .stwd-graph-tools, .stwd-graph-filters'));
 
       const onPointerDown = (event) => {
         if (!event || (event.button !== undefined && event.button !== 0)) return;
         const target = event.target;
         if (target && typeof target.closest === 'function'
-          && target.closest('.stwd-graph-tools, .stwd-graph-filters, .stwd-hub-head')) return;
+          && target.closest('.stwd-graph-tools, .stwd-graph-filters')) return;
         const nodeId = nodeAt(event);
+        const origin = nodeId === '' ? null : (positions[nodeId] || (nodeId === LEAD_NODE_ID ? layout.lead : placed.find((node) => node.id === nodeId)) || { x: 0, y: 0 });
         dragRef.current = {
           x: Number(event.clientX) || 0,
           y: Number(event.clientY) || 0,
           view,
           nodeId,
-          startOffset: nodeId === '' ? null : { ...(offsets[nodeId] || { dx: 0, dy: 0 }) },
+          startPos: origin ? { x: origin.x, y: origin.y } : null,
           moved: false,
         };
         if (nodeId === '') {
@@ -1448,9 +1831,9 @@ window.__ModuleLoader__.load({
         }
         if (start.nodeId !== '') {
           const zoom = Math.max(0.1, Number(start.view.zoom) || 1);
-          const base = start.startOffset || { dx: 0, dy: 0 };
-          const next = { dx: base.dx + dx / zoom, dy: base.dy + dy / zoom };
-          setOffsets((current) => ({ ...current, [start.nodeId]: next }));
+          const base = start.startPos || { x: 0, y: 0 };
+          const next = { x: base.x + dx / zoom, y: base.y + dy / zoom };
+          setPositions((current) => ({ ...current, [start.nodeId]: next }));
           return;
         }
         setViewState(() => clampToDims({ zoom: start.view.zoom, x: start.view.x + dx, y: start.view.y + dy }));
@@ -1511,12 +1894,19 @@ window.__ModuleLoader__.load({
         setViewState((current) => clampToDims({ zoom: current.zoom, x: current.x + dx, y: current.y + dy }));
       };
 
-      const toggleStage = (key) => setCollapsed((current) => {
-        const next = { ...current };
-        if (next[key] === true) delete next[key];
-        else next[key] = true;
-        return next;
-      });
+      const setViewMode = (next) => {
+        setGraphView(next);
+        if (next === 'active') {
+          setHideDone(false);
+          setHideIdle(false);
+        }
+      };
+
+      const resetFilters = () => {
+        setGraphView('all');
+        setHideDone(false);
+        setHideIdle(false);
+      };
 
       const zoomPercent = Math.round(view.zoom * 100) + '%';
       const stageStyle = {
@@ -1524,11 +1914,6 @@ window.__ModuleLoader__.load({
         height: layout.height + 'px',
         transform: 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.zoom + ')',
       };
-      const filterButtons = [
-        { key: 'all', label: text.filterAll },
-        { key: 'hide-done', label: text.filterHideDone },
-        { key: 'active', label: text.filterActive },
-      ];
 
       const canvas = totalRows > 0 && visibleRows.length === 0
         ? h('div', { className: 'stwd-graph-empty' },
@@ -1537,7 +1922,7 @@ window.__ModuleLoader__.load({
           h('button', {
             type: 'button',
             className: 'stwd-graph-reset',
-            onClick: () => setFilter('all'),
+            onClick: resetFilters,
           }, text.filterAll),
         )
         : h('div', {
@@ -1564,45 +1949,18 @@ window.__ModuleLoader__.load({
               'aria-hidden': 'true',
               focusable: 'false',
             },
-              h('defs', null,
-                h('marker', {
-                  id: markerRef.current,
-                  viewBox: '0 0 8 8',
-                  refX: 6,
-                  refY: 4,
-                  markerWidth: 7,
-                  markerHeight: 7,
-                  orient: 'auto',
-                }, h('path', { className: 'stwd-link-head', d: 'M0 0 L8 4 L0 8 Z' })),
-              ),
-              layout.links.map((link) => h('path', {
+              visibleLinks.map((link) => h('path', {
                 key: 'link-' + link.id,
-                className: 'stwd-link stwd-link-' + link.kind + (link.active ? ' stwd-link-active' : ''),
+                className: 'stwd-link stwd-link-' + link.kind,
                 d: link.d,
-                'marker-end': 'url(#' + markerRef.current + ')',
+                'data-from': link.from,
+                'data-to': link.to,
+                'data-route': link.route || '',
               })),
             ),
             h('div', { className: 'stwd-graph-canvas', style: { height: layout.height + 'px' } },
-              h(LeadNode, { text, row: props.lead, geo: layout.lead }),
-              layout.hubs.map((hub) => h('div', {
-                key: 'hub-' + hub.key,
-                className: 'stwd-hub' + (hub.collapsed ? ' stwd-hub-collapsed' : '') + (hub.waiting > 0 ? ' stwd-hub-waiting' : ''),
-                style: { left: hub.x + 'px', top: hub.y + 'px', width: hub.w + 'px', height: hub.h + 'px' },
-              },
-                h('button', {
-                  type: 'button',
-                  className: 'stwd-hub-head',
-                  'aria-expanded': hub.collapsed ? 'false' : 'true',
-                  'aria-label': fmt(hub.collapsed ? text.expandStage : text.collapseStage, { stage: hub.label }),
-                  onClick: () => toggleStage(hub.key),
-                },
-                  h('span', { className: 'stwd-hub-title' }, hub.label),
-                  h('span', { className: 'stwd-hub-count' }, String(hub.count)),
-                  hub.waiting > 0 ? h('span', { className: 'stwd-hub-waiting-dot', title: text.stateWaiting }) : null,
-                  h('span', { className: 'stwd-hub-caret' }, hub.collapsed ? '▸' : '▾'),
-                ),
-              )),
-              placed.map((node) => {
+              visibleIds.has(LEAD_NODE_ID) ? h(LeadNode, { text, row: props.lead, geo: layout.lead, delay: 0 }) : null,
+              placed.map((node, index) => {
                 const row = rowsById.get(node.id);
                 if (row === undefined) return null;
                 return h(AgentNode, {
@@ -1611,6 +1969,7 @@ window.__ModuleLoader__.load({
                   row,
                   geo: node,
                   selected: props.selectedId === node.id,
+                  delay: ((index + 1) * 0.37) % 2.8,
                   onOpen: props.onOpen,
                   onToggle: props.onToggle,
                 });
@@ -1662,14 +2021,34 @@ window.__ModuleLoader__.load({
             ),
           ),
           h('div', { className: 'stwd-graph-bar-row stwd-graph-filters' },
-            h('div', { className: 'stwd-filters', role: 'group', 'aria-label': text.filterGroup },
-              filterButtons.map((item) => h('button', {
-                key: 'filter-' + item.key,
+            h('div', { className: 'stwd-filters', role: 'group', 'aria-label': text.viewGroup },
+              [['all', text.filterAll], ['active', text.filterActive]].map(([key, label]) => h('button', {
+                key: 'view-' + key,
                 type: 'button',
-                className: 'stwd-filter' + (filter === item.key ? ' stwd-filter-on' : ''),
-                'aria-pressed': filter === item.key ? 'true' : 'false',
-                onClick: () => setFilter(item.key),
-              }, item.label)),
+                className: 'stwd-filter' + (graphView === key ? ' stwd-filter-on' : ''),
+                'aria-pressed': graphView === key ? 'true' : 'false',
+                onClick: () => setViewMode(key),
+              }, label)),
+            ),
+            h('div', { className: 'stwd-filters', role: 'group', 'aria-label': text.filterGroup },
+              h('button', {
+                type: 'button',
+                className: 'stwd-filter' + (hideDone && graphView === 'all' ? ' stwd-filter-on' : ''),
+                'aria-pressed': hideDone && graphView === 'all' ? 'true' : 'false',
+                disabled: graphView !== 'all',
+                onClick: () => { if (graphView === 'all') setHideDone((current) => !current); },
+              }, text.filterHideDone),
+              h('button', {
+                type: 'button',
+                className: 'stwd-filter' + (hideIdle && graphView === 'all' ? ' stwd-filter-on' : ''),
+                'aria-pressed': hideIdle && graphView === 'all' ? 'true' : 'false',
+                disabled: graphView !== 'all',
+                onClick: () => { if (graphView === 'all') setHideIdle((current) => !current); },
+              }, text.filterHideIdle),
+            ),
+            h('div', { className: 'stwd-graph-stats' },
+              h('span', { className: 'stwd-graph-stat' }, h('span', null, text.statDuration), fmtDuration(totals.elapsed)),
+              h('span', { className: 'stwd-graph-stat' }, h('span', null, text.statTokens), fmtTokens(totals.tokens)),
             ),
             hiddenCount > 0 ? h('span', { className: 'stwd-graph-hidden' }, fmt(text.filterHidden, { count: hiddenCount })) : null,
           ),
@@ -1833,7 +2212,6 @@ window.__ModuleLoader__.load({
       const [facts, setFacts] = useState({ status: 'loading', dir: '', artifacts: [] });
       const [reload, setReload] = useState(0);
       const [tick, setTick] = useState(0);
-      const [view, setView] = useState('graph');
       const [selectedId, setSelectedId] = useState(null);
       const [artifactsOpen, setArtifactsOpen] = useState(false);
       const refreshed = useRef({});
@@ -1937,46 +2315,26 @@ window.__ModuleLoader__.load({
         }
       };
 
-      const viewTabs = h('div', { className: 'stwd-viewtabs', role: 'group', 'aria-label': text.viewGroup },
-        [['graph', text.viewGraph], ['list', text.viewList]].map(([key, label]) => h('button', {
-          key,
-          type: 'button',
-          className: 'stwd-viewtab' + (view === key ? ' stwd-viewtab-active' : ''),
-          'aria-pressed': view === key ? 'true' : 'false',
-          onClick: () => setView(key),
-        }, label)),
-      );
-
       const rosterActions = h('span', { className: 'stwd-roster-meta' },
         fleet.counts.running > 0 ? h(StatusPill, { tone: 'progress' }, text.laneRunning + ' ' + fleet.counts.running) : null,
         fleet.counts.waiting > 0 ? h(StatusPill, { tone: 'warn' }, text.laneWaiting + ' ' + fleet.counts.waiting) : null,
         fleet.counts.done > 0 ? h(StatusPill, { tone: 'done' }, text.laneDone + ' ' + fleet.counts.done) : null,
       );
 
-      const rosterBody = view === 'list'
-        ? (children.length === 0
+      const rosterBody = h('div', { className: 'stwd-roster' },
+        h(TeamGraph, {
+          text,
+          lead,
+          rows,
+          selectedId,
+          sessionId,
+          onOpen: openAgent,
+          onToggle: toggleAgent,
+        }),
+        children.length === 0
           ? h(EmptyState, { title: text.emptyTitle, note: text.emptyBody, steps: text.emptySteps })
-          : h('div', { className: 'stwd-rows' }, rows.map((row) => h(AgentRow, {
-            key: row.id,
-            text,
-            row,
-            selected: selectedId === row.id,
-            onOpen: openAgent,
-            onToggle: toggleAgent,
-          }))))
-        : h('div', { className: 'stwd-roster' },
-          h(TeamGraph, {
-            text,
-            lead,
-            rows,
-            selectedId,
-            onOpen: openAgent,
-            onToggle: toggleAgent,
-          }),
-          children.length === 0
-            ? h(EmptyState, { title: text.emptyTitle, note: text.emptyBody, steps: text.emptySteps })
-            : null,
-        );
+          : null,
+      );
 
       return h('div', { className: 'stwd-root stwd-panel' },
         styles(),
@@ -1995,7 +2353,6 @@ window.__ModuleLoader__.load({
           ),
           h('div', { className: 'stwd-panel-subrow' },
             h('p', { className: 'stwd-panel-sub' }, text.subtitle),
-            viewTabs,
           ),
         ),
         h(ErrorBoundary, { fallbackTitle: text.sectionFailed }, h(TaskProgress, { text, progress })),
@@ -2385,14 +2742,14 @@ window.__ModuleLoader__.load({
       '.stwd-dot-idle{background:var(--dsw-alias-state-idle-primary,var(--stwd-muted))}',
       '/* --- team graph --------------------------------------------------------- */',
       '.stwd-graph{position:relative;min-width:0;width:100%}',
-      '.stwd-graph-view{position:relative;overflow:hidden;border-radius:10px;border:.5px solid var(--stwd-border-soft);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 55%,transparent);touch-action:none;cursor:grab;min-width:0}',
+      '.stwd-graph-view{position:relative;overflow:hidden;border-radius:10px;border:.5px solid var(--stwd-border-soft);background:radial-gradient(circle at 1px 1px,color-mix(in srgb,var(--stwd-border-strong) 70%,transparent) 1px,transparent 0) 0 0 / 22px 22px,color-mix(in srgb,var(--dsw-alias-bg-layer-2) 70%,transparent);touch-action:none;cursor:grab;min-width:0}',
       '.stwd-graph-view-moving{cursor:grabbing}',
       '.stwd-graph-view:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}',
       '.stwd-graph-stage{position:relative;transform-origin:0 0;will-change:transform}',
       '.stwd-graph-edges{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}',
       '.stwd-graph-canvas{position:relative;width:100%;min-width:0}',
-      '.stwd-graph-bar{display:flex;flex-direction:column;gap:4px;min-width:0;margin-bottom:4px}',
-      '.stwd-graph-bar-row{display:flex;align-items:center;gap:8px;min-height:22px;min-width:0}',
+      '.stwd-graph-bar{display:flex;flex-direction:column;gap:6px;min-width:0;margin-bottom:8px}',
+      '.stwd-graph-bar-row{display:flex;align-items:center;gap:8px;min-height:24px;min-width:0}',
       '.stwd-graph-hint{flex:1;margin:0;font-size:10.5px;line-height:15px;color:var(--stwd-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.stwd-graph-tools{display:flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
       '.stwd-graph-tool{min-width:20px;height:20px;padding:0 4px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
@@ -2402,54 +2759,67 @@ window.__ModuleLoader__.load({
       '.stwd-filters{display:inline-flex;align-items:center;gap:2px;flex:none;padding:2px;border-radius:7px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
       '.stwd-filter{height:20px;padding:0 8px;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:1;cursor:pointer;white-space:nowrap}',
       '.stwd-filter:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
+      '.stwd-filter:disabled{opacity:.4;cursor:default}',
       '.stwd-filter-on{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:500}',
       '.stwd-graph-hidden{font-size:10px;line-height:14px;color:var(--stwd-muted);white-space:nowrap}',
+      '.stwd-graph-stats{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}',
+      '.stwd-graph-stat{display:inline-flex;align-items:baseline;gap:5px;padding:1px 8px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);font-size:11px;line-height:18px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-primary)}',
+      '.stwd-graph-stat>span{color:var(--stwd-muted);font-weight:500;font-size:10px}',
       '.stwd-graph-links{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}',
-      '.stwd-link{fill:none;stroke:color-mix(in srgb,var(--stwd-muted) 75%,var(--stwd-border-strong));stroke-width:1.3;stroke-linejoin:round}',
-      '.stwd-link-trunk{stroke:color-mix(in srgb,var(--dsw-alias-brand-primary) 40%,var(--stwd-border-strong))}',
-      '.stwd-link-branch{stroke:var(--stwd-border-strong)}',
-      '.stwd-link-active{stroke:var(--dsw-alias-state-warn-primary);stroke-dasharray:4 3}',
-      '.stwd-link-head{fill:var(--stwd-border-strong);stroke:none}',
-      '.stwd-hub{position:absolute;border-radius:9px;border:.5px solid var(--stwd-border-soft);background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 60%,transparent)}',
-      '.stwd-hub:hover{border-color:var(--stwd-border-strong)}',
-      '.stwd-hub-waiting{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 50%,transparent)}',
-      '.stwd-hub-collapsed{background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 82%,transparent)}',
-      '.stwd-hub-head{display:flex;align-items:center;gap:5px;width:100%;height:100%;margin:0;padding:0 8px;border:0;border-radius:9px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:1;text-align:left;cursor:pointer;white-space:nowrap}',
-      '.stwd-hub-head:hover{color:var(--dsw-alias-label-primary)}',
-      '.stwd-hub-title{letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis}',
-      '.stwd-hub-count{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);flex:none}',
-      '.stwd-hub-waiting-dot{width:5px;height:5px;border-radius:50%;background:var(--dsw-alias-state-warn-primary);flex:none}',
-      '.stwd-hub-caret{margin-left:auto;font-size:10px;line-height:1;flex:none}',
+      '.stwd-link{fill:none;stroke:color-mix(in srgb,var(--stwd-muted) 55%,var(--stwd-border-strong));stroke-width:2;stroke-linecap:round;stroke-linejoin:round}',
+      '.stwd-link-running{stroke:color-mix(in srgb,var(--stwd-live) 70%,var(--stwd-border-strong));stroke-width:2.2}',
+      '.stwd-link-wait{stroke:var(--dsw-alias-state-warn-primary);stroke-width:2;stroke-dasharray:7 5}',
+      '.stwd-link-pending{stroke:color-mix(in srgb,var(--stwd-muted) 75%,var(--dsw-alias-state-warn-primary));stroke-width:1.8;stroke-dasharray:2 5}',
+      '.stwd-link-done{stroke:color-mix(in srgb,var(--stwd-muted) 55%,var(--stwd-border-strong));stroke-width:1.65}',
+      '.stwd-link-idle,.stwd-link-edge{stroke:color-mix(in srgb,var(--stwd-muted) 42%,var(--stwd-border-soft));stroke-width:1.5;stroke-dasharray:3 7}',
       '.stwd-graph-empty{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:18px 14px;border-radius:10px;border:.5px dashed var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1)}',
       '.stwd-graph-empty-title{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary)}',
       '.stwd-graph-empty-hint{margin:0;font-size:11px;line-height:16px;color:var(--stwd-muted)}',
       '.stwd-graph-reset{margin-top:4px;height:24px;padding:0 10px;border:.5px solid var(--stwd-border-strong);border-radius:6px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;cursor:pointer}',
-      '.stwd-leadnode{position:absolute;display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:10px;border:.5px solid color-mix(in srgb,var(--dsw-alias-brand-primary) 45%,transparent);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 6%,var(--dsw-alias-bg-layer-1));overflow:hidden}',
-      '.stwd-leadnode-avatar{margin-top:1px;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex:none;border-radius:50%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-brand-primary);font-size:10px;font-weight:500}',
-      '.stwd-leadnode-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}',
-      '.stwd-leadnode-row{display:flex;align-items:center;gap:5px;min-width:0}',
-      '.stwd-leadnode-title{font-size:11.5px;line-height:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-leadnode-state{margin-left:auto;font-size:9.5px;line-height:13px;color:var(--stwd-muted);white-space:nowrap;flex:none}',
-      '.stwd-leadnode-meta{display:flex;align-items:baseline;gap:6px;min-width:0;font-size:9.5px;line-height:13px;color:var(--dsw-alias-label-secondary)}',
-      '.stwd-leadnode-model{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
-      '.stwd-leadnode-metrics{margin-top:auto;font-size:9px;line-height:12px;color:var(--stwd-muted);white-space:nowrap;font-variant-numeric:tabular-nums}',
-      '.stwd-leadnode-task{font-size:10.5px;line-height:14px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-gnode{position:absolute;display:flex;flex-direction:column;border-radius:10px;border:.5px solid var(--stwd-border-soft);background:var(--dsw-alias-bg-layer-1);min-width:0}',
-      '.stwd-gnode-running{box-shadow:inset 2px 0 0 var(--stwd-live);border-color:color-mix(in srgb,var(--stwd-live) 40%,var(--stwd-border-soft))}',
-      '.stwd-gnode-waiting{box-shadow:inset 2px 0 0 var(--dsw-alias-state-warn-primary);border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 55%,transparent)}',
-      '.stwd-gnode-done{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 35%,transparent)}',
-      '.stwd-gnode-pending{border-style:dashed}',
-      '.stwd-gnode-selected{box-shadow:inset 0 0 0 1.5px var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary))}',
-      '.stwd-gnode-main{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;padding:5px 8px 6px;border:0;border-radius:9px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;overflow:hidden}',
-      '.stwd-gnode-main:hover{background:var(--stwd-hover)}',
+      '.stwd-face{position:absolute;left:14px;top:-2px;width:44px;height:44px;z-index:2;pointer-events:none;filter:drop-shadow(0 3px 4px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent))}',
+      '.stwd-face-head{transform-origin:50% 70%}',
+      '.stwd-face-eyes{transform-origin:32px 26px}',
+      '.stwd-face-eye{transform-box:fill-box;transform-origin:50% 50%;animation:stwd-blink 8s ease-in-out infinite}',
+      '.stwd-gnode-idle .stwd-face-head,.stwd-leadnode-idle .stwd-face-head,.stwd-gnode-done .stwd-face-head,.stwd-leadnode-done .stwd-face-head{animation:stwd-idle-head 12s ease-in-out infinite}',
+      '.stwd-gnode-idle .stwd-face-eyes,.stwd-leadnode-idle .stwd-face-eyes,.stwd-gnode-done .stwd-face-eyes,.stwd-leadnode-done .stwd-face-eyes{animation:stwd-idle-eyes 12s ease-in-out infinite}',
+      '.stwd-gnode-done .stwd-face-eye,.stwd-leadnode-done .stwd-face-eye{animation:stwd-blink 10s ease-in-out infinite}',
+      '.stwd-gnode-running .stwd-face-head,.stwd-leadnode-running .stwd-face-head{animation:stwd-work-head 10s ease-in-out infinite}',
+      '.stwd-gnode-running .stwd-face-eyes,.stwd-leadnode-running .stwd-face-eyes{animation:stwd-work-eyes 10s ease-in-out infinite}',
+      '.stwd-gnode-running .stwd-face-eye,.stwd-leadnode-running .stwd-face-eye{animation:stwd-blink 7s ease-in-out infinite}',
+      '.stwd-gnode-waiting .stwd-face-head,.stwd-leadnode-waiting .stwd-face-head{animation:stwd-wait-head 11s ease-in-out infinite}',
+      '.stwd-gnode-waiting .stwd-face-eyes,.stwd-leadnode-waiting .stwd-face-eyes{animation:stwd-wait-eyes 9s ease-in-out infinite}',
+      '.stwd-gnode-waiting .stwd-face-eye,.stwd-leadnode-waiting .stwd-face-eye{animation:stwd-blink 8s ease-in-out infinite}',
+      '.stwd-gnode-pending .stwd-face-head,.stwd-leadnode-pending .stwd-face-head{animation:stwd-sleepy 12s ease-in-out infinite}',
+      '.stwd-gnode-pending .stwd-face-eye,.stwd-leadnode-pending .stwd-face-eye{transform:scaleY(.35);animation:none}',
+      '.stwd-leadnode,.stwd-gnode{position:absolute;display:block;min-width:0;background:transparent;border:0;box-shadow:none}',
+      '.stwd-gnode-card,.stwd-leadnode-body{box-sizing:border-box;display:flex;flex-direction:column;gap:4px;width:100%;margin-top:22px;padding:26px 12px 10px 14px;min-width:0;min-height:122px;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--stwd-border-soft);border-radius:16px;box-shadow:inset 3px 0 0 color-mix(in srgb,var(--stwd-role,var(--stwd-border-strong)) 80%,transparent),0 1px 2px color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent),0 8px 18px color-mix(in srgb,var(--dsw-alias-label-primary) 4%,transparent);color:inherit;font:inherit;text-align:left;overflow:hidden}',
+      '.stwd-gnode-running .stwd-gnode-card,.stwd-leadnode-running .stwd-leadnode-body{border-color:color-mix(in srgb,var(--stwd-live) 45%,var(--stwd-border-soft));background:linear-gradient(180deg,color-mix(in srgb,var(--stwd-live) 7%,var(--dsw-alias-bg-layer-1)) 0%,var(--dsw-alias-bg-layer-1) 70%)}',
+      '.stwd-gnode-waiting .stwd-gnode-card,.stwd-leadnode-waiting .stwd-leadnode-body{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 55%,transparent);background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 6%,var(--dsw-alias-bg-layer-1))}',
+      '.stwd-gnode-done .stwd-gnode-card,.stwd-leadnode-done .stwd-leadnode-body{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 35%,transparent)}',
+      '.stwd-gnode-pending .stwd-gnode-card,.stwd-leadnode-pending .stwd-leadnode-body{border-style:dashed}',
+      '.stwd-gnode-idle .stwd-gnode-card,.stwd-leadnode-idle .stwd-leadnode-body{background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 35%,var(--dsw-alias-bg-layer-1))}',
+      '.stwd-gnode-selected .stwd-gnode-card{box-shadow:0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary)),0 8px 18px color-mix(in srgb,var(--dsw-alias-label-primary) 8%,transparent)}',
+      '.stwd-gnode-main{width:100%;cursor:pointer}',
+      '.stwd-gnode-main:hover{filter:brightness(1.02)}',
       '.stwd-gnode-top{display:flex;align-items:center;gap:5px;min-width:0}',
-      '.stwd-gnode-avatar{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:none;border-radius:50%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:9.5px;line-height:1;font-weight:500}',
-      '.stwd-gnode-role{font-size:11.5px;line-height:16px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-gnode-state{margin-left:auto;display:inline-flex;align-items:center;gap:4px;flex:none;font-size:9.5px;line-height:14px;color:var(--stwd-muted);white-space:nowrap}',
-      '.stwd-gnode-model{font-size:9.5px;line-height:14px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
-      '.stwd-gnode-metrics{margin-top:auto;padding-right:20px;font-size:9px;line-height:13px;color:var(--stwd-muted);white-space:nowrap;font-variant-numeric:tabular-nums}',
-      '.stwd-gnode-task{font-size:10.5px;line-height:15px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.stwd-gnode-more{position:absolute;right:2px;bottom:2px;width:20px;height:18px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--stwd-muted);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
+      '.stwd-gnode-role,.stwd-leadnode-title{font-size:12px;line-height:16px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-gnode-state{margin-left:auto;display:inline-flex;align-items:center;gap:4px;flex:none;font-size:10.5px;line-height:14px;color:var(--stwd-muted);white-space:nowrap;font-weight:650}',
+      '.stwd-gnode-state-done{color:var(--dsw-alias-state-success-primary)}',
+      '.stwd-gnode-state-running{color:var(--stwd-live)}',
+      '.stwd-gnode-state-waiting{color:var(--dsw-alias-state-warn-primary)}',
+      '.stwd-gnode-modelrow{display:flex;align-items:center;flex-wrap:nowrap;gap:6px;min-width:0;width:100%;margin-top:1px}',
+      '.stwd-gnode-model{flex:1 1 auto;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
+      '.stwd-gnode-model-pending{color:var(--stwd-muted)}',
+      '.stwd-effort{flex:none;height:16px;padding:0 6px;display:inline-flex;align-items:center;border-radius:999px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:9.5px;line-height:1;font-weight:700;letter-spacing:.02em}',
+      '.stwd-effort-max{background:color-mix(in srgb,#8B5CF6 16%,var(--dsw-alias-bg-layer-1));color:#5b45c8}',
+      '.stwd-effort-high{background:color-mix(in srgb,var(--stwd-live) 14%,var(--dsw-alias-bg-layer-1));color:var(--stwd-live)}',
+      '.stwd-effort-medium{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}',
+      '.stwd-gnode-metrics{margin-top:auto;display:flex;align-items:center;flex-wrap:nowrap;gap:6px;padding-right:22px;min-width:0}',
+      '.stwd-gnode-metric{display:inline-flex;align-items:baseline;gap:4px;padding:2px 7px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);font-size:10.5px;line-height:14px;color:var(--dsw-alias-label-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}',
+      '.stwd-gnode-mlbl{color:var(--stwd-muted);font-weight:550}',
+      '.stwd-gnode-metric b{font-weight:650;color:var(--dsw-alias-label-primary)}',
+      '.stwd-gnode-task,.stwd-leadnode-task{margin-top:2px;font-size:12.5px;line-height:18px;font-weight:620;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.stwd-gnode-more{position:absolute;right:4px;bottom:6px;width:20px;height:18px;z-index:3;padding:0;border:0;border-radius:5px;background:transparent;color:var(--stwd-muted);font:inherit;font-size:11px;line-height:1;cursor:pointer}',
       '.stwd-gnode-more:hover{background:var(--stwd-hover);color:var(--dsw-alias-label-primary)}',
       '/* --- agent rows --------------------------------------------------------- */',
       '.stwd-rows{display:flex;flex-direction:column;gap:2px;min-width:0}',
@@ -2542,7 +2912,14 @@ window.__ModuleLoader__.load({
       '.stwd-tabtitle-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '/* --- motion + responsive ------------------------------------------------ */',
       '@keyframes stwd-breathe{0%,100%{opacity:.5}50%{opacity:1}}',
-      '@keyframes stwd-flow{to{stroke-dashoffset:-14}}',
+      '@keyframes stwd-blink{0%,78%,84%,100%{transform:scaleY(1)}81%{transform:scaleY(.08)}}',
+      '@keyframes stwd-work-head{0%,16%{transform:rotate(0deg) translateY(0)}22%,36%{transform:rotate(-16deg) translateY(1px)}42%,52%{transform:rotate(0deg) translateY(0)}58%,72%{transform:rotate(14deg) translateY(1px)}78%,84%{transform:rotate(0deg) translateY(0)}88%,92%{transform:rotate(3deg) translateY(3px)}96%,100%{transform:rotate(0deg) translateY(0)}}',
+      '@keyframes stwd-work-eyes{0%,16%{transform:translate(0,0)}22%,36%{transform:translate(-3.2px,0.4px)}42%,52%{transform:translate(0,0)}58%,72%{transform:translate(3.2px,0.4px)}78%,84%{transform:translate(0,0)}88%,92%{transform:translate(0,1.6px)}96%,100%{transform:translate(0,0)}}',
+      '@keyframes stwd-wait-head{0%,18%{transform:rotate(-2deg)}26%,44%{transform:rotate(12deg)}52%,70%{transform:rotate(-11deg)}80%,100%{transform:rotate(0deg)}}',
+      '@keyframes stwd-wait-eyes{0%,16%{transform:translateX(0)}24%,42%{transform:translateX(3.2px)}52%,70%{transform:translateX(-3.4px)}80%,100%{transform:translateX(0)}}',
+      '@keyframes stwd-idle-head{0%,68%,100%{transform:rotate(0deg) translateY(0)}76%,88%{transform:rotate(-7deg) translateY(1px)}}',
+      '@keyframes stwd-idle-eyes{0%,68%,100%{transform:translateX(0)}76%,88%{transform:translateX(-2.6px)}}',
+      '@keyframes stwd-sleepy{0%,70%,100%{transform:rotate(-2deg) translateY(1px)}85%{transform:rotate(3deg) translateY(2px)}}',
       '@media (max-width:420px){',
       '.stwd-arow-roleid{display:none}',
       '.stwd-gnode-model{font-size:9.5px}',

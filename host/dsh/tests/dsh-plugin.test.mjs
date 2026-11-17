@@ -1147,7 +1147,7 @@ test('the panel also opens when a run directory exists but the dispatch label ca
  * The graph is the point of the panel: one node per dispatched agent, connected to
  * the Lead, grouped into status lanes, and clickable into the child session.
  */
-test('the panel draws one agent card per dispatch inside stage bands', async () => {
+test('the panel draws one agent card per dispatch on a DAG canvas', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
@@ -1237,19 +1237,42 @@ test('the panel draws one agent card per dispatch inside stage bands', async () 
   };
   const render = panelRender(registered, 'session-graph', props);
 
-  // 1) The workflow tree is the default view: Lead root, stage hubs, one card per agent.
+  // 1) The DAG canvas is the default view: Lead plus one card per agent, no stage hubs.
   let host = await harness.settle(render);
   assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 4, 'one node per dispatched agent');
-  assert.equal(harness.collect(host, harness.byClass('stwd-leadnode')).length, 1, 'the Lead roots the tree');
-  const bandTitles = harness.collect(host, harness.byClass('stwd-hub-title')).map(harness.textOf);
-  assert.deepEqual(bandTitles, ['实施', '质量', '评审'], `the stage hubs are drawn (${bandTitles.join(' | ')})`);
-  const bandCounts = harness.collect(host, harness.byClass('stwd-hub-count')).map(harness.textOf);
-  assert.deepEqual(bandCounts, ['2', '1', '1'], 'every hub counts its own cards');
-  assert.equal(harness.collect(host, harness.byClass('stwd-link-trunk')).length, 3, 'the trunk chains the Lead and the hubs');
-  assert.equal(harness.collect(host, harness.byClass('stwd-link-branch')).length, 4, 'one branch per agent card');
-  assert.equal(harness.collect(host, harness.byClass('stwd-graph-edges')).length, 0, 'no pairwise spaghetti edges');
+  assert.equal(harness.collect(host, harness.byClass('stwd-leadnode')).length, 1, 'the Lead sits on the same canvas');
+  assert.equal(harness.collect(host, harness.byClass('stwd-hub')).length, 0, 'stage hubs are not structural nodes');
+  const links = harness.collect(host, harness.byClass('stwd-link'));
+  assert.equal(links.length, 4, 'one line from the Lead to each dispatched agent');
+  assert.ok(links.every((node) => node.props['data-from'] === '__lead__'), 'every line starts at the Lead');
+  assert.ok(links.every((node) => node.props['marker-end'] == null), 'lines have no arrows');
+  assert.equal(harness.collect(host, (node) => node.type === 'marker').length, 0, 'the canvas has no arrow markers');
+  assert.equal(links.filter((node) => String(node.props.className).indexOf('stwd-link-wait') >= 0).length, 1, 'the waiting QA has one incoming line from the Lead');
+  assert.ok(links.some((node) => String(node.props.className).indexOf('stwd-link-running') >= 0), 'running agents get a solid live line');
+  assert.ok(links.some((node) => String(node.props.className).indexOf('stwd-link-done') >= 0), 'done agents get a settled line');
+  const qaLink = links.find((node) => node.props['data-to'] === 'child-wait');
+  const reviewLink = links.find((node) => node.props['data-to'] === 'child-done');
+  const runLink = links.find((node) => node.props['data-to'] === 'child-run');
+  const isStraight = (node) => node && /\sL/.test(String(node.props.d)) && !/\sC/.test(String(node.props.d));
+  const isCurve = (node) => node && node.props['data-route'] === 'curve' && /\sC/.test(String(node.props.d)) && !/\sQ/.test(String(node.props.d));
+  const staysBetweenEnds = (node) => {
+    const nums = String(node.props.d).match(/-?\d+(?:\.\d+)?/g).map(Number);
+    const xs = nums.filter((_, i) => i % 2 === 0);
+    const ys = nums.filter((_, i) => i % 2 === 1);
+    const x0 = xs[0], x1 = xs[xs.length - 1], y0 = ys[0], y1 = ys[ys.length - 1];
+    const xLo = Math.min(x0, x1) - 1, xHi = Math.max(x0, x1) + 1;
+    const yLo = Math.min(y0, y1) - 1, yHi = Math.max(y0, y1) + 1;
+    return xs.every((x) => x >= xLo && x <= xHi) && ys.every((y) => y >= yLo && y <= yHi);
+  };
+  assert.ok(isStraight(qaLink), 'a card sitting under the Lead gets a straight mind-map stem');
+  assert.ok(isStraight(reviewLink), 'a deeper aligned card also gets a straight stem');
+  assert.ok(isCurve(runLink), 'an offset card gets a smooth mind-map curve');
+  assert.ok(staysBetweenEnds(runLink), 'the curve stays between the Lead and the card, not looping around the board');
+  assert.equal(harness.collect(host, harness.byClass('stwd-face')).length, 5, 'Lead and every specialist have a face');
   const panelText = host.map((node) => harness.textOf(node)).join('\n');
   assert.ok(panelText.indexOf('给导出模块补接口与测试') >= 0, 'the Lead shows its own task title');
+  assert.match(panelText, /总时长/, 'the toolbar shows the duration total');
+  assert.match(panelText, /总用量/, 'the toolbar shows the usage total');
 
   // 2) A node names the role, the actual model, the task and the live numbers.
   const mains = harness.collect(host, harness.byClass('stwd-gnode-main'));
@@ -1265,14 +1288,15 @@ test('the panel draws one agent card per dispatch inside stage bands', async () 
   const waitMain = mains.find((node) => String(node.props['aria-label']).indexOf('qa-engineer') >= 0);
   assert.match(String(waitMain.props['aria-label']), /等待输入/);
 
-  // Cards of one stage stack on its branch; stages flow down the trunk.
+  // Same-role siblings sit on one row; later stages sit further down the DAG.
   const boxOf = (needle) => harness.collect(host, harness.byClass('stwd-gnode'))
     .find((node) => harness.textOf(node).indexOf(needle) >= 0);
   const topOf = (node) => Number(String(node.props.style.top).replace('px', ''));
   const leftOfNode = (node) => Number(String(node.props.style.left).replace('px', ''));
-  assert.equal(leftOfNode(boxOf('T1 导出接口')), leftOfNode(boxOf('T2 导出按钮')), 'siblings share one branch column');
-  assert.equal(topOf(boxOf('T2 导出按钮')) - topOf(boxOf('T1 导出接口')), 84, 'siblings stack by one row pitch');
-  assert.ok(topOf(boxOf('T4 复跑门禁')) > topOf(boxOf('T2 导出按钮')), 'the next stage sits further down the trunk');
+  assert.equal(topOf(boxOf('T1 导出接口')), topOf(boxOf('T2 导出按钮')), 'sibling cards share a row');
+  assert.ok(leftOfNode(boxOf('T1 导出接口')) !== leftOfNode(boxOf('T2 导出按钮')), 'sibling cards sit side by side');
+  assert.ok(topOf(boxOf('T4 复跑门禁')) > topOf(boxOf('T2 导出按钮')), 'QA sits below the implementation row');
+  assert.ok(topOf(boxOf('T5 终审')) > topOf(boxOf('T4 复跑门禁')), 'review sits below QA');
 
   // 3) The native task list becomes one bar — counts only, never the tasks.
   assert.match(panelText, /2\/4/, 'the bar counts the native tasks');
@@ -1319,17 +1343,26 @@ test('the panel draws one agent card per dispatch inside stage bands', async () 
   host = await harness.settle(render);
   assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 4, 'the full roster comes back');
 
-  // 6) A hub collapses into its header and keeps its count.
-  const bandHeadOf = (needle) => harness.collect(host, harness.byClass('stwd-hub-head'))
-    .find((node) => harness.textOf(node).indexOf(needle) >= 0);
-  bandHeadOf('实施').props.onClick();
+  // 6) Hide-idle leaves this roster alone; hide-done does not reflow the rest.
+  const t1 = boxOf('T1 导出接口');
+  const keptLeft = leftOfNode(t1);
+  const keptTop = topOf(t1);
+  filterOf('隐藏空闲').props.onClick();
   host = await harness.settle(render);
-  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 2, 'the collapsed hub hides its cards');
-  assert.equal(harness.textOf(harness.collect(host, harness.byClass('stwd-hub-count'))[0]), '2', 'the hub still counts them');
-  assert.equal(bandHeadOf('实施').props['aria-expanded'], 'false', 'the hub header reports the collapsed state');
-  bandHeadOf('实施').props.onClick();
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 4, 'hide-idle does not hide running, waiting or done cards');
+  filterOf('隐藏空闲').props.onClick();
+  filterOf('隐藏已完成').props.onClick();
   host = await harness.settle(render);
-  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 4, 'expanding brings the cards back');
+  const still = harness.collect(host, harness.byClass('stwd-gnode'))
+    .find((node) => harness.textOf(node).indexOf('T1 导出接口') >= 0);
+  assert.equal(leftOfNode(still), keptLeft, 'hiding a card does not move the ones that remain');
+  assert.equal(topOf(still), keptTop);
+  const keptLinks = harness.collect(host, harness.byClass('stwd-link'));
+  assert.equal(keptLinks.length, 3, 'hiding a node keeps a line from the Lead to each remaining agent');
+  assert.ok(keptLinks.every((node) => node.props['data-from'] === '__lead__'), 'remaining lines still start at the Lead');
+  filterOf('隐藏已完成').props.onClick();
+  host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 4, 'turning the toggles off restores the roster');
 
   // 7) Dragging a card moves it (and swallows the click); the relayout tool snaps back.
   const view = harness.collect(host, harness.byClass('stwd-graph-view'))[0];
@@ -1366,6 +1399,89 @@ test('the panel draws one agent card per dispatch inside stage bands', async () 
     .find((node) => harness.textOf(node).indexOf('T1 导出接口') >= 0);
   assert.equal(leftOf(snapped), startLeft, 're-layout restores the computed position');
   assert.equal(topOfCard(snapped), startTop);
+});
+
+test('offset cards get a smooth mind-map curve that stays between the two ends', async () => {
+  const { factory } = await loadClientFactory();
+  const harness = createRenderHarness();
+  const instance = factory((name) => (name === 'react' ? harness.stub : {}));
+  const { ctx, registered } = createClientContext();
+  instance.apply(ctx);
+
+  const store = new Map();
+  const storage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(key, String(value)); },
+    removeItem: (key) => { store.delete(key); },
+  };
+  const previousWindow = globalThis.window;
+  globalThis.window = { localStorage: storage };
+  try {
+  const NOW = 1700000000000;
+  const props = {
+    now: () => NOW,
+    loadRun: async () => ({ status: 'empty', dir: '', artifacts: [] }),
+    useProjection: (key) => (key === 'subagentCatalog' ? [
+      { id: 'child-run', mode: 'one-shot', label: 'backend-dev · 导出接口', createdAt: 1 },
+      { id: 'child-wait', mode: 'continuable', label: 'frontend-dev · 导出按钮', createdAt: 2 },
+    ] : key === 'agentTeam' ? { enabled: false, tasks: [] }
+      : key === 'modelSelection' ? { lastUsed: { provider: 'deepseek', model: 'deepseek-chat' }, next: null }
+        : key === 'tokenUsage' ? { uncachedInputTokens: 10, outputTokens: 4 }
+          : key === 'sessionStats' ? { turns: 1, steps: 2 }
+            : undefined),
+    useSessions: (selector) => selector({
+      byId: {
+        'session-aisle': { displayTitle: '主代理任务' },
+        'child-run': {
+          title: '导出接口',
+          projectionValues: {
+            subagentTiming: { settledMs: 20000, lastTurnCompleted: true },
+            tokenUsage: { uncachedInputTokens: 100, outputTokens: 20 },
+            modelSelection: { lastUsed: { provider: 'deepseek', model: 'deepseek-chat' }, next: null },
+          },
+        },
+        'child-wait': {
+          title: '导出按钮',
+          projectionValues: {
+            subagentTiming: { settledMs: 10000 },
+            tokenUsage: { uncachedInputTokens: 80, outputTokens: 10 },
+            modelSelection: { lastUsed: { provider: 'deepseek', model: 'deepseek-chat' }, next: null },
+          },
+        },
+      },
+      projectionsBySession: {},
+    }),
+    useSessionStatus: (selector) => selector(new Map([
+      ['child-run', { running: true }],
+      ['child-wait', { running: true, pendingInteraction: { kind: 'question' } }],
+    ])),
+    openSession: () => {},
+    openFile: () => {},
+  };
+  const render = panelRender(registered, 'session-aisle', props);
+  let host = await harness.settle(render);
+  const links = harness.collect(host, harness.byClass('stwd-link'));
+  assert.equal(links.length, 2, 'one mind-map branch to each child');
+  assert.ok(links.every((node) => node.props['data-from'] === '__lead__'), 'every line starts at the Lead');
+  assert.ok(links.every((node) => node.props['data-route'] === 'curve'), 'siblings beside the Lead get smooth curves');
+  assert.ok(links.every((node) => /\sC/.test(String(node.props.d)) && !/\sQ/.test(String(node.props.d))), 'the branches are cubics, not elbows');
+  assert.ok(links.every((node) => node.props['marker-end'] == null), 'the lines have no arrows');
+  const wait = links.find((node) => node.props['data-to'] === 'child-wait');
+  assert.ok(String(wait.props.className).indexOf('stwd-link-wait') >= 0, 'the waiting line uses the wait style');
+  for (const node of links) {
+    const nums = String(node.props.d).match(/-?\d+(?:\.\d+)?/g).map(Number);
+    const xs = nums.filter((_, i) => i % 2 === 0);
+    const ys = nums.filter((_, i) => i % 2 === 1);
+    const xLo = Math.min(xs[0], xs[xs.length - 1]) - 1;
+    const xHi = Math.max(xs[0], xs[xs.length - 1]) + 1;
+    const yLo = Math.min(ys[0], ys[ys.length - 1]) - 1;
+    const yHi = Math.max(ys[0], ys[ys.length - 1]) + 1;
+    assert.ok(xs.every((x) => x >= xLo && x <= xHi) && ys.every((y) => y >= yLo && y <= yHi), 'a mind-map curve stays between its two ends');
+  }
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
 });
 
 /**
@@ -1412,20 +1528,43 @@ test('the graph remembers its filter across mounts', async () => {
     hide.props.onClick();
     host = await harness.settle(panelRender(registered, 'session-prefs', props));
     const stored = JSON.parse(store.get('dsh-steward.panel.filters'));
-    assert.equal(stored.filter, 'hide-done', 'the choice is persisted');
-    assert.equal(harness.collect(host, harness.byClass('stwd-filter-on')).map(harness.textOf)[0], '隐藏已完成', 'the active filter is marked');
+    assert.equal(stored.view, 'all', 'the all view is persisted');
+    assert.equal(stored.hideDone, true, 'the hide-done toggle is persisted');
+    assert.ok(harness.collect(host, harness.byClass('stwd-filter-on')).map(harness.textOf).includes('隐藏已完成'), 'the active toggle is marked');
 
     // A fresh mount starts from the stored choice without any click.
     harness.reset();
     host = await harness.settle(panelRender(registered, 'session-prefs', props));
     assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 1, 'the stored filter applies on mount');
+
+    // Dragging a card is remembered for this Session after a remount.
+    const view = harness.collect(host, harness.byClass('stwd-graph-view'))[0];
+    const card = harness.collect(host, harness.byClass('stwd-gnode'))[0];
+    const leftOf = (node) => Number(String(node.props.style.left).replace('px', ''));
+    const topOf = (node) => Number(String(node.props.style.top).replace('px', ''));
+    const startLeft = leftOf(card);
+    const startTop = topOf(card);
+    const startX = startLeft + Number(String(card.props.style.width).replace('px', '')) / 2;
+    const startY = startTop + Number(String(card.props.style.height).replace('px', '')) / 2;
+    view.props.onPointerDown({ button: 0, clientX: startX, clientY: startY, pointerId: 2, target: null });
+    view.props.onPointerMove({ clientX: startX + 48, clientY: startY + 32, pointerId: 2, target: null });
+    view.props.onPointerUp({ pointerId: 2, target: null });
+    host = await harness.settle(panelRender(registered, 'session-prefs', props));
+    const moved = harness.collect(host, harness.byClass('stwd-gnode'))[0];
+    assert.equal(leftOf(moved), startLeft + 48, 'the dragged x is kept before remount');
+    assert.equal(topOf(moved), startTop + 32, 'the dragged y is kept before remount');
+    harness.reset();
+    host = await harness.settle(panelRender(registered, 'session-prefs', props));
+    const restored = harness.collect(host, harness.byClass('stwd-gnode'))[0];
+    assert.equal(leftOf(restored), startLeft + 48, 'the dragged x survives a remount');
+    assert.equal(topOf(restored), startTop + 32, 'the dragged y survives a remount');
   } finally {
     globalThis.window = previousWindow;
   }
 });
 
 /**
- * The tree is a canvas: it zooms from the toolbar or the keyboard, pans on a drag,
+ * The graph is a canvas: it zooms from the toolbar or the keyboard, pans on a drag,
  * and resets on a double click — all without changing which node opens a session.
  */
 test('the agent graph is a canvas that zooms, pans and resets', async () => {
@@ -1539,10 +1678,10 @@ test('the panel counts the native task list without ever listing its tasks', asy
 });
 
 /**
- * The list view is the dense alternative to the graph: the same agents, no tree,
- * still clickable into the child session.
+ * The board is graph-only: there is no list mode, the native task progress bar
+ * stays, and agents are opened from their cards.
  */
-test('the list view lists agents only and the graph stays the default', async () => {
+test('the panel keeps the task bar and has no list mode', async () => {
   const { factory } = await loadClientFactory();
   const harness = createRenderHarness();
   const instance = factory((name) => (name === 'react' ? harness.stub : {}));
@@ -1564,27 +1703,16 @@ test('the list view lists agents only and the graph stays the default', async ()
   };
   const render = panelRender(registered, 'session-list', props);
 
-  let host = await harness.settle(render);
-  const tabs = harness.collect(host, harness.byClass('stwd-viewtab'));
-  assert.deepEqual(tabs.map(harness.textOf), ['图', '列表']);
-  assert.equal(tabs[0].props['aria-pressed'], 'true', 'the graph is the default view');
-  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 2);
-  assert.equal(harness.collect(host, harness.byClass('stwd-arow')).length, 0);
-
-  tabs[1].props.onClick();
-  host = await harness.settle(render);
-  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 0, 'the graph gives way to the list');
-  const rows = harness.collect(host, harness.byClass('stwd-arow'));
-  assert.equal(rows.length, 2, 'one row per agent');
-  const main = harness.collect(rows, harness.byClass('stwd-arow-main'))[0];
-  main.props.onClick();
-  assert.deepEqual(opened[0], ['child-a', 'one-shot']);
+  const host = await harness.settle(render);
+  assert.equal(harness.collect(host, harness.byClass('stwd-viewtab')).length, 0, 'the list/graph switch is gone');
+  assert.equal(harness.collect(host, harness.byClass('stwd-arow')).length, 0, 'the list roster is gone');
+  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 2, 'the graph is the only roster');
+  assert.ok(harness.collect(host, harness.byClass('stwd-tasks')).length >= 1, 'the native task progress bar stays');
+  const mains = harness.collect(host, harness.byClass('stwd-gnode-main'));
+  mains[0].props.onClick();
+  assert.equal(opened.length, 1, 'a card still opens the child session');
   const panelText = host.map((node) => harness.textOf(node)).join('\n');
   assert.equal(panelText.indexOf('任务列表') >= 0, true, 'the native list is pointed at, not copied');
-
-  harness.collect(host, harness.byClass('stwd-viewtab'))[0].props.onClick();
-  host = await harness.settle(render);
-  assert.equal(harness.collect(host, harness.byClass('stwd-gnode')).length, 2, 'the graph comes back');
 });
 
 /**
@@ -1878,7 +2006,20 @@ test('the panel stylesheet stays scoped and uses only host theme tokens', async 
   }
 
   const literals = [...source.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((match) => match[0].toLowerCase());
-  const colors = literals.filter((value) => value !== '#fff');
+  const artwork = new Set([
+    '#fff',
+    '#5b5cff',
+    '#8b5cf6',
+    '#14c16f',
+    '#0fbea6',
+    '#2f7bff',
+    '#f97316',
+    '#f59e0b',
+    '#ef4444',
+    '#64748b',
+    '#5b45c8',
+  ]);
+  const colors = literals.filter((value) => !artwork.has(value));
   assert.deepEqual(colors, [], `literal colors are artwork-only, found: ${colors.join(', ')}`);
 
   // Render the panel and read the stylesheet it ships: scoped, balanced, host scale.
